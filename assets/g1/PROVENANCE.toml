@@ -1,0 +1,9 @@
+[source]
+repository = "https://github.com/unitreerobotics/unitree_ros"
+commit = "5994d4faef0a9cadd3287f8de0199a67eeb2a259"
+path = "robots/g1_description/g1_29dof_mode_15_with_dex1_1.urdf"
+license = "BSD-3-Clause"
+
+[retrieval]
+date = "2026-10-19"
+method = "git clone --filter=blob:none --sparse + sparse-checkout set robots/g1_description; files copied verbatim (URDF, referenced meshes at unchanged relative layout, upstream LICENSE, g1_description README.md as UPSTREAM_README.md)"
