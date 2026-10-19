@@ -42,6 +42,7 @@ DENIED_IMPORTS: tuple[str, ...] = (
     "aisle.nodes.dora_genesis",
     "aisle.nodes.budget_guard",
     "aisle.nodes.so101_driver",
+    "aisle.nodes.g1_driver",
     "aisle.nodes.turn_barrier",
     "aisle.monolith.confinement",
     "aisle.monolith.launcher",

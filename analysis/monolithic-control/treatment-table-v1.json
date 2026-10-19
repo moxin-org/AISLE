@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:3e23d000fa6f041dcbbec4c9849d72c0f0f74caf6ed60fba7095c8ff5b256690",
+  "immutable_id": "sha256:6c3f4f6712d89bcb22808a8327b7911e4cf4c40dca1274377eb3a99ecc3fd400",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -123,7 +123,7 @@
       "classification": "intentionally-different",
       "id": "mon1-14",
       "justification": "the module runs in the broker's process, so an in-process denial layer is needed in addition to #353",
-      "monolithic": "src/aisle/monolith/confinement.py#sha256:cede488ddcbb5fabc59de80f17f486afe57da27b462fd5f03d60c6649c11b688",
+      "monolithic": "src/aisle/monolith/confinement.py#sha256:2cbf156330623150faf7ce10d6cb03dba928c579bafc72b12abcc78cc88e0330",
       "surface": "confinement",
       "typed": "specs/460-actuation-threat-model.md#sha256:3127ee11b74545a2fb4fbef11c3966527ce87fdbab18140975d41d9f40819ec0"
     }

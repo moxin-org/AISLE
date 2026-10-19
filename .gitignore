@@ -25,3 +25,5 @@ out/
 
 # ADR-67/ADR-68: pinned engine checkouts fetched by tools/engine_sources.py
 .engine-sources/
+# ADR-g1-driver: receipt of the out-of-lock Unitree SDK2 install (tools/g1_runtime.py)
+.g1-runtime-receipt.json

@@ -56,6 +56,7 @@ FROZEN_ASSETS = (
     "src/aisle/nodes/budget_guard.py",
     "src/aisle/nodes/dora_genesis.py",
     "src/aisle/nodes/so101_driver.py",
+    "src/aisle/nodes/g1_driver.py",
     "src/aisle/nodes/turn_barrier.py",
     "src/aisle/verifier",
     "src/aisle/reset",
