@@ -311,9 +311,14 @@ held_home_qpos = [
   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
   0.0, 0.0,
 ]
-# Wire home: mildly bent ready pose (shoulder pitched forward, elbow
-# flexed), fingers at the open stop. 待 G1-F 调.
-home_qpos = [-0.35, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0245, 0.0245]
+# Wire home (G1-H-r1): hand OFF the shelf, above box tops — arm up with
+# wrist pitched to near-palm-down (shoulder -1.2, wrist pitch 1.5). TCP
+# [0.4356, -0.0892, 1.0128]; wrist+finger AABB z >= 0.973, 3.3 cm above
+# the tallest box top (0.94); the home->rise reorientation interpolates
+# to a measured z peak of 1.2534 (workspace z_max 1.30 covers it). The
+# a7dd234 ready-pose home deterministically overlapped near-column boxes
+# at t~0.06 s (M0-6 gate evidence). 待 G1-F 调.
+home_qpos = [-1.2, -0.1, 0.0, 0.3, 0.0, 1.5, 0.0, 0.0245, 0.0245]
 # Dex1-1 derivation (URDF): finger_joint_1 axis (0,-1,0), finger_joint_2
 # axis (0,1,0) => +q separates the fingers (outward ±y), -q closes them;
 # limits [-0.02, 0.0245]. So open_qpos = +0.0245 (max gap), close = -0.02
@@ -370,20 +375,21 @@ placement_radius_m = 0.45
 shelf_pos = [0.30, 0.0, 0.76]
 shelf_level_heights = [0.06, 0.34]
 shelf_level_depths = [0.24, 0.01]
-shelf_level_size = [0.24, 0.44]
+# y width 0.56 (outer-loop #6 ruling): the same-side replacement slot
+# [0.28, -0.24] needs the wider board (y in [-0.28, 0.28] with margins).
+shelf_level_size = [0.24, 0.56]
 shelf_hand_clearance_m = 0.05
 shelf_edge_margin_m = 0.015
 min_separation = 0.02
-# Measured collision-free slot lattice: two columns biased to the robot's
-# right. Cross-column y stagger 0.08 exceeds the worst medicine half-width
-# pair + min_separation (amoxicillin+metformin 0.0625); same-column gaps
-# 0.16. Far column kept at |target-shoulder| <= 0.372 against the
-# vertical-forearm chain budget 0.394 (the x=0.36 column sat at 0.397 and
-# the IK failed). 待 G1-F 调.
+# Measured collision-free slot lattice (G1-H-r1): cross-body column
+# [0.24, +0.16] REMOVED per outer-loop ruling (F2 transfer limitation);
+# replaced by the same-side [0.28, -0.24]. Cross-column y stagger 0.08+
+# still exceeds the worst half-width pair + min_separation (0.0625);
+# board widened to y 0.56 for the new slot's margins. 待 G1-F 调.
 placement_slots_xy = [
   [0.24, -0.16],
   [0.24, 0.00],
-  [0.24, 0.16],
+  [0.28, -0.24],
   [0.28, -0.08],
   [0.28, 0.08],
 ]

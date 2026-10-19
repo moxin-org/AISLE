@@ -164,3 +164,8 @@ run. The one-time cost is paid deliberately instead:
 - No relock of the budget, no silent retry-inside-rollout: a cold build
   inside rollout still fails loudly, which is the correct signal that
   warmup was skipped.
+- G1-H-r1: the FIRST camera render pays a one-time shader/kernel compile
+  too (measured 10.6 s/frame — the wall_clamp root cause of the first
+  M0-6 gate run). sim_warmup therefore renders one frame per camera on
+  the channels the bridge publishes (overhead rgb+depth+seg, wrist rgb);
+  scene-build warmth alone does not cover render compilation.

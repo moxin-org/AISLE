@@ -52,6 +52,21 @@ def _stage_times(embodiment: str, seed: int, headless: bool) -> dict:
     )
     stages["scene_build_s"] = round(time.perf_counter() - t0, 2)
     stages["n_dofs"] = int(handle.robot.n_dofs)
+
+    # G1-H-r1: the FIRST render also pays a one-time shader/kernel compile
+    # (measured 10.6 s/frame on the lane machine — the wall_clamp root
+    # cause of the first M0-6 gate run). Warm every camera on the
+    # channels the bridge actually publishes: overhead rgb+depth+seg,
+    # wrist rgb (mirror of dora_genesis.render_frames).
+    stages["render_s"] = {}
+    t0 = time.perf_counter()
+    out = handle.cams["overhead"].render(rgb=True, depth=True, segmentation=True)
+    assert out[0] is not None and out[0].size > 0
+    stages["render_s"]["overhead"] = round(time.perf_counter() - t0, 2)
+    t0 = time.perf_counter()
+    out = handle.cams["wrist"].render()
+    assert out[0] is not None and out[0].size > 0
+    stages["render_s"]["wrist"] = round(time.perf_counter() - t0, 2)
     return stages
 
 

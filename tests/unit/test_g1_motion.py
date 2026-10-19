@@ -50,8 +50,9 @@ G1_UPPER = (
 #: URDF-declared motor velocities — the raw actuator envelope, NOT what the
 #: guard enforces (see the conservative qdot note below).
 G1_URDF_QDOT = (37.0, 37.0, 37.0, 37.0, 37.0, 27.0, 27.0, 0.2, 0.2)
-#: a7dd234 scene home (wire order), reused as the guard fallback.
-G1_HOME = (-0.35, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0245, 0.0245)
+#: G1-H-r1 scene home (wire order), reused as the guard fallback: hand
+#: off the shelf, above box tops (outer-loop #6 ruling).
+G1_HOME = (-1.2, -0.1, 0.0, 0.3, 0.0, 1.5, 0.0, 0.0245, 0.0245)
 
 
 def test_g1_chain_and_guard_limits_come_from_official_urdf():
@@ -100,7 +101,7 @@ def test_g1_fk_and_guard_are_deterministic_and_contained():
     pos_b, rot_b = fk_ee_pose(home[:7], embodiment="g1_right")
     assert np.array_equal(pos_a, pos_b)
     assert np.array_equal(rot_a, rot_b)
-    assert pos_a == pytest.approx(np.array([0.4079, -0.1128, 0.9107]), abs=5e-4), pos_a
+    assert pos_a == pytest.approx(np.array([0.43559, -0.08916, 1.01284]), abs=5e-4), pos_a
     assert all(limits.workspace_min[i] <= pos_a[i] <= limits.workspace_max[i] for i in range(3))
     cmd = home.copy()
     cmd[0] += 0.01
@@ -131,7 +132,7 @@ def test_g1_workspace_covers_scene_targets_and_clears_torso_and_floor():
         (0.07, -0.43, 0.98),  # tray near-top corner (0.95 + 0.03)
         (0.19, -0.27, 0.98),  # tray far-top corner
         (0.30, -0.15, 1.00),  # staging / transfer z band
-        (0.4079, -0.1128, 0.9107),  # home TCP
+        (0.43559, -0.08916, 1.01284),  # home TCP (G1-H-r1 off-shelf)
     ]
     for point in covered:
         assert np.all(lo <= point) and np.all(point <= hi), point
