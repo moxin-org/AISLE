@@ -42,7 +42,12 @@ GUARD_TICK_MAX_MS = 5000
 # MOB-4: each embodiment profile resolves to an ARM kind. `mobile` is the
 # franka arm on a differential-drive base, so franka-arm capabilities work
 # unchanged under `mobile`; only base-requiring nodes distinguish them.
-EMBODIMENT_ARM = {"franka": "franka", "so101": "so101", "mobile": "franka"}
+EMBODIMENT_ARM = {
+    "franka": "franka",
+    "so101": "so101",
+    "mobile": "franka",
+    "g1_right": "g1_right",  # G1-E: harness accepts; G1-F owns kinematics/limits
+}
 
 
 def _entry(code: str, where: dict, detail: str, hint: str) -> dict:

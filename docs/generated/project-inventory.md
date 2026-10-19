@@ -132,7 +132,7 @@ stayed outside it).
 | [registry/manifests/monolith-broker.yaml](../../registry/manifests/monolith-broker.yaml) | monolithic_control | franka, so101 | motion | agent-authored | `src/aisle/nodes/monolith_broker.py` |
 | [registry/manifests/nav-action.yaml](../../registry/manifests/nav-action.yaml) | navigation | franka | motion | hub | `src/aisle/nodes/nav_action.py` |
 | [registry/manifests/ocr-label.yaml](../../registry/manifests/ocr-label.yaml) | label_text | franka | perception | hub | `src/aisle/nodes/label_reader.py` |
-| [registry/manifests/oracle-pose.yaml](../../registry/manifests/oracle-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/oracle_pose.py` |
+| [registry/manifests/oracle-pose.yaml](../../registry/manifests/oracle-pose.yaml) | object_pose | franka, so101, g1_right | perception | hub | `src/aisle/nodes/oracle_pose.py` |
 | [registry/manifests/order-reader.yaml](../../registry/manifests/order-reader.yaml) | order_reading | franka, so101 | perception | hub | `src/aisle/nodes/order_reader.py` |
 | [registry/manifests/patrol-planner.yaml](../../registry/manifests/patrol-planner.yaml) | patrol_planning | franka | decision | hub | `src/aisle/nodes/patrol_planner.py` |
 | [registry/manifests/pilot-policy-surface.yaml](../../registry/manifests/pilot-policy-surface.yaml) | pilot_public_observations | franka | decision | agent-authored | `src/aisle/harness/pilot_policy_surface.py` |
@@ -140,7 +140,7 @@ stayed outside it).
 | [registry/manifests/pose-estimator.yaml](../../registry/manifests/pose-estimator.yaml) | object_pose | franka, so101 | perception | hub | `pip:dora-pose` |
 | [registry/manifests/reset.yaml](../../registry/manifests/reset.yaml) | episode_reset | franka, so101 | decision | hub | `src/aisle/reset/service.py` |
 | [registry/manifests/return-planner.yaml](../../registry/manifests/return-planner.yaml) | return_item | franka, so101 | decision | hub | `src/aisle/nodes/return_planner.py` |
-| [registry/manifests/rollout-client.yaml](../../registry/manifests/rollout-client.yaml) | episode_driving | franka, so101 | decision | hub | `src/aisle/harness/rollout_client.py` |
+| [registry/manifests/rollout-client.yaml](../../registry/manifests/rollout-client.yaml) | episode_driving | franka, so101, g1_right | decision | hub | `src/aisle/harness/rollout_client.py` |
 | [registry/manifests/s1-driver-v2.yaml](../../registry/manifests/s1-driver-v2.yaml) | s1_expert_driving | franka | motion | agent-authored | `skills/s1-driver-v2/s1_driver_v2.py` |
 | [registry/manifests/s1-expert.yaml](../../registry/manifests/s1-expert.yaml) | s1_expert_driving | franka | motion | hub | `src/aisle/nodes/s1_expert.py` |
 | [registry/manifests/s3-driver-v1.yaml](../../registry/manifests/s3-driver-v1.yaml) | s3_reshelving_driving_both_l1 | franka | motion | agent-authored | `skills/s3-driver-v1/s3_driver_v1.py` |
@@ -152,7 +152,7 @@ stayed outside it).
 | [registry/manifests/t2-scan-tsm.yaml](../../registry/manifests/t2-scan-tsm.yaml) | task_sequencing | franka | decision | agent-authored | `skills/t2-scan-tsm/t2_scan_tsm.py` |
 | [registry/manifests/task-planner.yaml](../../registry/manifests/task-planner.yaml) | task_planning | franka | decision | hub | `src/aisle/nodes/task_planner.py` |
 | [registry/manifests/task-state-machine.yaml](../../registry/manifests/task-state-machine.yaml) | task_sequencing | franka, so101 | decision | hub | `src/aisle/nodes/task_state_machine.py` |
-| [registry/manifests/turn-barrier.yaml](../../registry/manifests/turn-barrier.yaml) | turn_barrier | franka, so101 | decision | hub | `src/aisle/nodes/turn_barrier.py` |
+| [registry/manifests/turn-barrier.yaml](../../registry/manifests/turn-barrier.yaml) | turn_barrier | franka, so101, g1_right | decision | hub | `src/aisle/nodes/turn_barrier.py` |
 | [registry/manifests/verifier-oracle.yaml](../../registry/manifests/verifier-oracle.yaml) | episode_verification | franka, so101 | decision | hub | `src/aisle/verifier/oracle.py` |
 | [registry/manifests/verifier-realistic.yaml](../../registry/manifests/verifier-realistic.yaml) | episode_verification_realistic | franka, so101 | decision | hub | `src/aisle/nodes/verifier_realistic.py` |
 | [registry/manifests/verifier-retail.yaml](../../registry/manifests/verifier-retail.yaml) | retail_verification | franka | decision | hub | `src/aisle/verifier/retail.py` |
@@ -176,8 +176,8 @@ stayed outside it).
 | `harness fleet` | `--graph`, `--agents`, `--episodes`, `--seeds`, `--out`, `--timeout-s`, `--root`, `--sim-engine` |
 | `harness freeze build` | `--declaration`, `--output`, `--timestamp`, `--timestamp-source`, `--root` |
 | `harness freeze check` | `--manifest`, `--root`, `--allow-withheld-seeds` |
-| `harness hardware dry-run` | `--seed`, `--output` |
-| `harness hardware report` | `--station`, `--output` |
+| `harness hardware dry-run` | `--seed`, `--embodiment`, `--output` |
+| `harness hardware report` | `--station`, `--embodiment`, `--output` |
 | `harness monolith check` | `--module`, `--embodiment`, `--worker-config`, `--worker-config-sha256` |
 | `harness monolith describe` | `--embodiment` |
 | `harness monolith interface` | `--root`, `--candidate` |

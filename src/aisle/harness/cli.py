@@ -80,7 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
     roll = subparsers.add_parser("rollout", help="run seeded episodes through a graph (HAR-1)")
     roll.add_argument("--graph", type=Path, required=True)
     roll.add_argument("--tier", default="T0")
-    roll.add_argument("--embodiment", default="franka", choices=["franka", "so101", "mobile"])
+    roll.add_argument(
+        "--embodiment",
+        default="franka",
+        choices=["franka", "so101", "mobile", "g1_right"],
+    )
     roll.add_argument("--episodes", type=int, required=True)
     roll.add_argument("--seeds", required=True, help="a..b or comma list")
     roll.add_argument("--reset", default="teleport", choices=["teleport", "behavioral"])
@@ -275,9 +279,11 @@ def build_parser() -> argparse.ArgumentParser:
     hardware_sub = hardware.add_subparsers(dest="hardware_command", required=True)
     hardware_dry = hardware_sub.add_parser("dry-run", help="HWP-8 scenarios on doubles")
     hardware_dry.add_argument("--seed", type=int, default=0)
+    hardware_dry.add_argument("--embodiment", choices=["so101", "g1_right"], default="so101")
     hardware_dry.add_argument("--output", type=Path, default=None)
     hardware_report = hardware_sub.add_parser("report", help="HWP-18/20 report; hardware_pending")
     hardware_report.add_argument("--station", type=Path, default=None)
+    hardware_report.add_argument("--embodiment", choices=["so101", "g1_right"], default="so101")
     hardware_report.add_argument("--output", type=Path, default=None)
     threat = subparsers.add_parser(
         "threat", help="execute the actuation attack catalog on the fixture (SPEC 460)"
@@ -401,7 +407,7 @@ def main() -> int:
     args = build_parser().parse_args()
 
     if args.command == "hardware":
-        from aisle.hardware.adapters import SCENARIOS, run_scenario
+        from aisle.hardware.adapters import G1_DOF, G1_SCENARIOS, SCENARIOS, run_scenario
         from aisle.harness.hardware_phase import (
             HardwarePhaseError,
             hardware_report,
@@ -410,9 +416,17 @@ def main() -> int:
 
         try:
             if args.hardware_command == "dry-run":
+                # G1-G: g1_right runs the same doubles at dof=9 plus the
+                # G1-only mode_mismatch scenario; so101 output is unchanged.
+                names = tuple(SCENARIOS) + (G1_SCENARIOS if args.embodiment == "g1_right" else ())
+                dof = G1_DOF if args.embodiment == "g1_right" else None
                 scenarios = {}
-                for name in SCENARIOS:
-                    result = run_scenario(name, seed=args.seed)
+                for name in names:
+                    result = (
+                        run_scenario(name, seed=args.seed)
+                        if dof is None
+                        else run_scenario(name, seed=args.seed, dof=dof)
+                    )
                     scenarios[name] = {
                         "observations": result["observations"],
                         "telemetry": validate_telemetry_stream(result["rows"]),
@@ -432,6 +446,7 @@ def main() -> int:
                     workspace_calibration=None,
                     telemetry=None,
                     interventions=None,
+                    embodiment=args.embodiment,
                 )
                 report["ok"] = True
             if args.output is not None:

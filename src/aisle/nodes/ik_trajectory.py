@@ -185,6 +185,18 @@ def _so101_seeds() -> tuple[np.ndarray, ...]:
 _SO101_CANONICAL_SEEDS = _so101_seeds()
 
 
+#: G1-E: the harness accepts g1_right, but this module's kinematics are
+#: Franka-DH and SO-101-URDF only — G1-F owns the G1 chain. An unknown
+#: embodiment MUST raise here instead of silently solving the Franka chain
+#: (HAR-1; the pre-G1-E fall-through was the bug).
+_SUPPORTED_EMBODIMENTS = ("franka", "mobile", "so101")
+
+
+def _require_supported_embodiment(embodiment: str, fn: str) -> None:
+    if embodiment not in _SUPPORTED_EMBODIMENTS:
+        raise ValueError(f"{fn}: unsupported embodiment {embodiment!r}")
+
+
 def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
     limits = load_limits(embodiment)
     return (
@@ -194,6 +206,7 @@ def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 def fk_tcp(q_arm: np.ndarray, embodiment: str = "franka") -> np.ndarray:
+    _require_supported_embodiment(embodiment, "fk_tcp")
     if embodiment == "so101":
         return fk_ee_pose(q_arm, embodiment)[0]
     pos, rotation = fk_flange(q_arm)
@@ -515,6 +528,7 @@ def _rotation_error(current: np.ndarray, target: np.ndarray) -> np.ndarray:
 def _pose_error(
     q: np.ndarray, target_pos: np.ndarray, target_rot: np.ndarray, embodiment: str
 ) -> np.ndarray:
+    _require_supported_embodiment(embodiment, "_pose_error")
     if embodiment == "so101":
         tcp, rotation = fk_ee_pose(q, embodiment)
         # SO-101's base pan couples world yaw to target azimuth. Its five
@@ -582,6 +596,7 @@ def _dls(
 def _ik_once(
     target_pos: np.ndarray, target_rot: np.ndarray, q0: np.ndarray, embodiment: str
 ) -> np.ndarray | None:
+    _require_supported_embodiment(embodiment, "_ik_once")
     q = np.asarray(q0, dtype=np.float64).copy()
     for bootstrap in (False, True):
         if bootstrap:
@@ -648,6 +663,7 @@ def ik_solve(
     iteration budget; a box is symmetric under a 180-degree spin about the
     approach axis, so the flipped grasp is tried in fixed order before
     reporting failure."""
+    _require_supported_embodiment(embodiment, "ik_solve")
     target_pos = np.asarray(target_pos, dtype=np.float64)
     seeds = _SO101_CANONICAL_SEEDS if embodiment == "so101" else _CANONICAL_SEEDS
     for rot in (target_rot, target_rot @ _RZ_PI):

@@ -149,6 +149,12 @@ HWP-15 = "proposed paired trials; parity/block/reporting tests land after human 
 HWP-16 = "proposed physical claim gate; success/uncertainty/evidence-kind tests land after human spec review"
 HWP-17 = "proposed live-fault option; safety/sealing/drop-claim tests land after human spec review"
 HWP-19 = "proposed release evidence; retention/redaction/regeneration tests land after human spec review"
+
+# SPEC 550 (G1 hardware phase, PROPOSED) — G1H-1/3/4/5/7/8 are cited by
+# tests/unit/test_g1_hardware_phase.py; these two await hardware-adjacent
+# artifacts that do not exist yet.
+G1H-2 = "proposed Dex1-1 interface gate; hardware_pending until a pinned official Python interface lands (ADR-g1-driver)"
+G1H-6 = "proposed dual clock-domain time mapping; mapping tests land with the workspace calibration artifact"
 RPR-1 = "proposed raw preservation; complete-session retention tests land after human spec review"
 RPR-2 = "proposed source manifest; closure/role/digest tests land after human spec review"
 RPR-3 = "proposed archive refusal gate; missing/license/path/deviation tests land after human spec review"
