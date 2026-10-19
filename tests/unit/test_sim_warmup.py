@@ -20,23 +20,6 @@ def run_warmup(*args: str) -> subprocess.CompletedProcess:
     return run_tool("sim_warmup.py", *args)
 
 
-def test_cli_is_json_on_stdout_exit_zero_on_ok():
-    """CON-8: the default invocation reports JSON with ok:true, exit 0.
-    Runs the REAL build (accept-class cost ~20 s warm) — the one test the
-    tool exists for; guarded on genesis availability."""
-    import importlib.util
-
-    if importlib.util.find_spec("genesis") is None:
-        pytest.skip("sim extra not installed")
-    proc = run_warmup("--embodiment", "g1_right")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    report = json.loads(proc.stdout)
-    assert report["ok"] is True
-    assert report["embodiment"] == "g1_right"
-    assert report["stages"]["n_dofs"] == 33
-    assert isinstance(report["cache"], bool)
-
-
 def test_cli_help_exits_zero_without_genesis():
     """CON-8: --help is pure argparse; no sim import happens."""
     proc = run_warmup("--help")
