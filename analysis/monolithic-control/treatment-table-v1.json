@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:68405c72c3d795a26f3defd64dc6c1e171432bdc3b92c55ab65b875a7410be6c",
+  "immutable_id": "sha256:b5c65a79e880a11c063afe6ea3bfc5ab21ba2fd0345d58bda573de553f31a380",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -71,7 +71,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "graphs/monolithic_t1.yaml#sha256:eaa2a37d76a1795f23702f87eb51bbb42a0432c2d10150a5e9ba544d6a1a53a7",
       "surface": "guard route and limits",
-      "typed": "src/aisle/nodes/budget_guard.py#sha256:0131a0f321f7e8f60c86b18870eeb2d1267a62508029c3c6c04e99b5c61f8e97"
+      "typed": "src/aisle/nodes/budget_guard.py#sha256:9423e941ad0f31a38d944009f4d1d595926207f55854842d372c0a62ce9b9428"
     },
     {
       "analysis": "held fixed; graphs differ only inside the agent region (tests/graph/test_monolithic_graph.py)",

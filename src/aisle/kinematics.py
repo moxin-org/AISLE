@@ -10,16 +10,29 @@ from __future__ import annotations
 
 import math
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
 import numpy as np
 
-from aisle.embodiment import SO101_ARM_JOINTS
+from aisle.embodiment import G1_RIGHT_ARM_JOINTS, SO101_ARM_JOINTS
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SO101_URDF = _REPO_ROOT / "assets" / "so101" / "so101.urdf"
+_G1_URDF = _REPO_ROOT / "assets" / "g1" / "g1_29dof_mode_15_with_dex1_1.urdf"
+#: G1 fixed-pelvis standing height: FK sole probe on the vendored URDF at
+#: the all-zeros held home puts both soles at z = -0.7872, so pinning the
+#: pelvis here stands the robot on the ground (a7dd234 physics profile).
+_G1_PELVIS_HEIGHT_M = 0.7872
+#: G1 TCP offset in the right_dex1_base_link frame (a7dd234): the grasp
+#: center sits at the finger-AABB mid-x. Derivation: the fixed
+#: right_base_joint translates 0.0415 m from right_wrist_yaw_link to the
+#: dex1 base, and the between-fingers grasp center adds 0.0978 m
+#: (0.0415 + 0.0978 = 0.1393 m along the palm +x); rpy [0, pi/2, 0]
+#: turns palm +x into tool +z for top-down grasps.
+_G1_TCP_XYZ = (0.0978, 0.0, 0.0)
+_G1_TCP_RPY = (0.0, math.pi / 2, 0.0)
 
 
 def _vector(text: str | None, default: tuple[float, float, float]) -> np.ndarray:
@@ -82,9 +95,18 @@ class UrdfJoint:
 
 @dataclass(frozen=True)
 class UrdfChain:
-    """One serial URDF chain from a base link to an end-effector link."""
+    """One serial URDF chain from a base link to an end-effector link.
+
+    G1-F1: an optional fixed ``base_transform`` (world <- base link) and
+    ``tip_transform`` (ee link <- tool frame) compose into ``forward`` so a
+    humanoid arm anchored at a fixed pelvis reports WORLD-frame poses. Both
+    default to identity, so every existing chain (so101) is unchanged
+    bit-for-bit.
+    """
 
     joints: tuple[UrdfJoint, ...]
+    base_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
+    tip_transform: np.ndarray = field(default_factory=lambda: np.eye(4))
 
     @property
     def actuated(self) -> tuple[UrdfJoint, ...]:
@@ -110,13 +132,14 @@ class UrdfChain:
         values = np.asarray(q, dtype=float).reshape(-1)
         if values.shape != (len(self.actuated),):
             raise ValueError(f"expected {len(self.actuated)} joints, got {values.shape}")
-        transform = np.eye(4)
+        transform = self.base_transform.copy()
         value_index = 0
         for joint in self.joints:
             transform = transform @ joint.origin
             if joint.kind != "fixed":
                 transform = transform @ _axis_rotation(joint.axis, float(values[value_index]))
                 value_index += 1
+        transform = transform @ self.tip_transform
         return transform[:3, 3].copy(), transform[:3, :3].copy()
 
 
@@ -176,3 +199,50 @@ def so101_chain() -> UrdfChain:
             f"{SO101_ARM_JOINTS!r}"
         )
     return chain
+
+
+@cache
+def g1_right_chain() -> UrdfChain:
+    """G1 right arm through the Dex1 grasp-center TCP, in WORLD frame.
+
+    Base: ``torso_link`` with the pelvis fixed at the FK standing height
+    (0.7872 m) and the three waist joints at the all-zeros held home — the
+    a7dd234 scene's fixed-pelvis mounting, so guard FK, planner FK, and
+    Genesis all report the same world frame. Tip: the fixed
+    right_base_joint (0.0415 m) plus the 0.0978 m between-fingers grasp
+    center with rpy [0, pi/2, 0] (see _G1_TCP_XYZ above for the full
+    derivation). The seven revolute joints MUST match G1_RIGHT_ARM_JOINTS
+    (TC-5 wire order = URDF document order for the right arm).
+    """
+    root = ET.parse(_G1_URDF).getroot()
+    by_child = {
+        joint.find("child").attrib["link"]: joint
+        for joint in root.findall("joint")
+        if joint.find("child") is not None
+    }
+    base = np.eye(4)
+    base[2, 3] = _G1_PELVIS_HEIGHT_M
+    waist = []
+    link = "torso_link"
+    while link != "pelvis":  # waist at held home (all zeros): origins only
+        if link not in by_child:
+            raise ValueError(f"no URDF chain from pelvis to {link!r}")
+        joint = by_child[link]
+        waist.append(joint)
+        link = joint.find("parent").attrib["link"]
+    for joint in reversed(waist):  # pelvis -> torso_link order
+        base = base @ _origin_transform(joint.find("origin"))
+
+    tip = np.eye(4)
+    tip[:3, 3] = _vector(
+        by_child["right_dex1_base_link"].find("origin").get("xyz"), (0.0, 0.0, 0.0)
+    ) + np.asarray(_G1_TCP_XYZ, dtype=float)
+    tip[:3, :3] = _rpy_rotation(np.asarray(_G1_TCP_RPY, dtype=float))
+
+    chain = load_urdf_chain(_G1_URDF, "torso_link", "right_wrist_yaw_link")
+    if chain.joint_names != G1_RIGHT_ARM_JOINTS:
+        raise ValueError(
+            f"G1 right-arm chain order {chain.joint_names!r} does not match "
+            f"G1_RIGHT_ARM_JOINTS {G1_RIGHT_ARM_JOINTS!r}"
+        )
+    return UrdfChain(chain.joints, base_transform=base, tip_transform=tip)

@@ -116,7 +116,7 @@ stayed outside it).
 |---|---|---|---|---|---|
 | [registry/manifests/arm-driver-sim.yaml](../../registry/manifests/arm-driver-sim.yaml) | arm_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/base-driver-sim.yaml](../../registry/manifests/base-driver-sim.yaml) | base_actuation | franka | motion | hub | `src/aisle/nodes/dora_genesis.py` |
-| [registry/manifests/budget-guard.yaml](../../registry/manifests/budget-guard.yaml) | budget_guard | franka, so101 | motion | hub | `src/aisle/nodes/budget_guard.py` |
+| [registry/manifests/budget-guard.yaml](../../registry/manifests/budget-guard.yaml) | budget_guard | franka, so101, g1_right | motion | hub | `src/aisle/nodes/budget_guard.py` |
 | [registry/manifests/camera-source.yaml](../../registry/manifests/camera-source.yaml) | rgb_stream, depth_stream | franka, so101 | perception | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/detected-pose.yaml](../../registry/manifests/detected-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/l2_pose.py` |
 | [registry/manifests/detector-openvocab.yaml](../../registry/manifests/detector-openvocab.yaml) | object_detection | franka, so101 | perception | hub | `pip:dora-yolo` |
