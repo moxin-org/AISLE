@@ -33,7 +33,7 @@ outputs:
 embodiment:
   # Both fixed-base arms have official limits/FK in env/limits.toml and the
   # guard; mobile resolves to its Franka arm under MOB-4.
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: motion
 eval:

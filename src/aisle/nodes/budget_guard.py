@@ -137,6 +137,12 @@ def fk_ee_pose(q_arm: np.ndarray, embodiment: str = "franka") -> tuple[np.ndarra
         from aisle.kinematics import so101_chain
 
         return so101_chain().forward(q_arm)
+    if embodiment == "g1_right":
+        from aisle.kinematics import g1_right_chain
+
+        # world frame (fixed pelvis + held waist) — same frame as the
+        # workspace AABB in env/limits.toml (G1-F1)
+        return g1_right_chain().forward(q_arm)
     if embodiment in {"franka", "mobile"}:
         return fk_flange(q_arm)
     raise ValueError(f"no forward kinematics for embodiment {embodiment!r}")

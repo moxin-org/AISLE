@@ -54,6 +54,37 @@ gripper_max = 1.0
 gripper_rate_max = 5.208705
 gripper_dt_s = 0.0333
 
+[embodiment.g1_right]
+# G1-F1 (ADR-g1-embodiment scope A): URDF right-arm 7 joints + the two
+# Dex1-1 prismatic fingers in TC-5 wire order; positions from the vendored
+# g1_29dof_mode_15_with_dex1_1.urdf.
+n_arm_dof = 7
+q_min = [-3.0892, -2.2515, -2.618, -1.0472, -1.972222054, -1.614429558, -1.614429558, -0.02, -0.02]
+q_max = [2.6704, 1.5882, 2.618, 2.0944, 1.972222054, 1.614429558, 1.614429558, 0.0245, 0.0245]
+# URDF motor velocities (shoulder/elbow 37, wrist 27 rad/s) are the raw
+# actuator envelope of a 25 Nm-class humanoid arm — far too hot for a
+# table-top retail scene. Conservative guard envelope per
+# ADR-g1-embodiment: arm min(URDF, 2.0) rad/s, fingers at the URDF 0.2 m/s.
+qdot_max = [2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 0.2, 0.2]
+cmd_dt_s = 0.01
+# Workspace AABB (world frame, pelvis at 0.7872, shoulder at ~[0, -0.10,
+# 1.08]): covers the a7dd234 shelf band x 0.21..0.49 / z 0.92..1.02, tray
+# top x 0.07..0.19 / y -0.43..-0.27 / z 0.95..1.01, the 1.00 staging band,
+# and the home TCP [0.408, -0.113, 0.911]; excludes the torso column
+# (x < 0.05), everything below the waist band (z < 0.70: legs, fixture
+# bases, the table), and beyond-reach extents (x > 0.55: the shoulder->TCP
+# chain is 0.42 m from a shoulder at x~0).
+workspace_min = [0.05, -0.55, 0.70]
+workspace_max = [0.55, 0.25, 1.15]
+# a7dd234 wire home: mildly bent ready pose, fingers at the open stop.
+fallback_qpos = [-0.35, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0245, 0.0245]
+gripper_min = 0.0
+gripper_max = 1.0
+# Dex1-1 fingers: 0.2 m/s URDF velocity over the 0.0445 m travel (-0.02..0.0245).
+gripper_rate_max = 4.49438202247191
+gripper_dt_s = 0.0333
+
+
 [episode]
 # wall-clock BACKSTOP per episode against hung/runaway pipelines; on
 # breach the guard holds the robot at the last safe command (clamp, never

@@ -103,3 +103,19 @@ robot name `g1_29dof_mode_15`; fake-DOF-indexer tests for shuffled
 parser order, partition rejection, held-position preservation, wire
 round-trip, legacy non-regression. `tests/unit/test_env_hash.py` gains
 the G1 asset-mutation case (CON-7).
+
+## Guard velocity envelope (G1-F1 addendum)
+
+`env/limits.toml [embodiment.g1_right] qdot_max` does NOT take the URDF's
+declared motor velocities. The URDF rates — 37 rad/s at the shoulder/elbow
+and 27 rad/s at the wrist, effort 25/13.4 Nm — are the raw actuator
+envelope of a 25 Nm-class humanoid arm; a guard that admitted them would
+sanction wrist flicks near 4 m/s at the 0.42 m chain, which no table-top
+retail scene needs and no co-located operator should stand near. The guard
+enforces a conservative envelope instead: arm joints `min(URDF, 2.0)`
+rad/s (≈ 0.84 m/s at full extension), fingers at the URDF's own 0.2 m/s
+(the Dex1-1 is travel-limited and slow by construction). Tightening the
+guard below the actuator envelope is safety margin, never a claim about
+the hardware's capability; if a task ever needs more, the owner amends
+this section with measured justification, not a URDF copy-through. The
+URDF rates stay visible in `chain.qdot_max` for provenance.
