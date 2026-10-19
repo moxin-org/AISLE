@@ -161,6 +161,24 @@ wins. With those, all five slots x five meds plan guard-clean
 (tests/unit/test_g1_scene_plan.py, 0 xfail; far-slot planning cost
 ~5-6 s per med). The cross-body limitation above remains recorded for
 the removed column; no slot in the current lattice is unplannable.
+## G1-H-r2: kinematic carry latch — a sim aid, not real-grasp evidence
+
+The smoke evidence (run 20261019-215328-9e8aeb, seed 1) shows the Dex1-1
+fingers DO close onto the box (normalized grip plateaus at 0.726 against
+the box surface — the physical contact stops them short of the 1.0
+command) and the box lifts ~0.12 m, then slides out of the pinch in
+transit and falls down the slot column. Genesis does not retain the
+Dex1-1 pinch under motion — the exact precedent SO-101 hit (ADR-27 /
+ADR-18 pattern). The decision: enable the bridge's kinematic carry latch
+for g1_right (close 0.65, below the measured on-box plateau; release
+0.20; max distance 0.15 m). The latch captures the nearest in-envelope
+box in the hand frame from grip close and returns it to physics at open
+— no target identity, no contact forces.
+
+**This is a simulation aid only.** It is NOT evidence that the real
+Dex1-1 can retain the box: real retention is a force-controlled pinch
+whose characterization belongs to the hardware phase. Any real-robot
+grasp claim must be re-established with measured finger forces.
 
 ## G1-H: cold-build budget — warmup, not budget inflation
 

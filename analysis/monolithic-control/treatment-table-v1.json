@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:0de56d722440b7730a2253749991c02e8caeeba69c5333a74022ad22339ebbd4",
+  "immutable_id": "sha256:7c8199d9ac056ad9528b6fa8444d5f9fb79509c666f2b9e2f9a0b2604d2877f5",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -80,7 +80,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/nodes/monolith_broker.py#sha256:872741da1be8cfa0c89a4ee77ee4fb8a457f130a48228d39ebb8e09a84ee3d46",
       "surface": "trusted controller (bridge, reset, verifier, rollout client, turn barrier)",
-      "typed": "src/aisle/nodes/dora_genesis.py#sha256:4e973e743684993440837038b274386aedcd079422cfc82646b095d491472e0f"
+      "typed": "src/aisle/nodes/dora_genesis.py#sha256:43fd36c8249e9fe244c3d83a152d7dd4f37c7e90cb1c0a6c43e9e369fd01d5a2"
     },
     {
       "analysis": "excluded from task authority (MON-4); no analysis treatment",

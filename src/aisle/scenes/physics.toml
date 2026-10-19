@@ -335,6 +335,21 @@ gripper_kv = [20.0, 20.0]
 gripper_open_m = 0.06
 gripper_close_m = 0.0
 gripper_finger_clear_m = 0.008
+# G1-H-r2 kinematic carry latch (ADR-27/ADR-18 pattern, so101 parity):
+# the smoke evidence shows the fingers DO close onto the box (normalized
+# grip plateaus at 0.726 against the box surface) and the box lifts
+# ~0.12 m, then slides out of the pinch in transit — Genesis cannot
+# retain the Dex1-1 pinch under motion, exactly the SO-101 precedent.
+# close 0.65 sits below the measured 0.726 on-box plateau; release 0.20
+# matches the planner's pregrasp_cmd=0 (fully open); max_distance 0.15
+# keeps the latch to the pinched box (target center ~0.03 m from the
+# TCP at contact; slot neighbours are >= 0.08 m away, so nearest-wins
+# cannot cross-latch). A sim aid only — NOT evidence of real-robot
+# grasp capability (ADR-g1-embodiment).
+kinematic_carry_latch = true
+carry_latch_close = 0.65
+carry_latch_release = 0.20
+carry_latch_max_distance_m = 0.15
 # G1-F2 close commands (normalized 0=open .. 1=closed over the 0.06 m
 # jaw, gap = 0.06*(1-g)): the narrowest med box axis is 0.030 m
 # (cetirizine), so contact on EVERY med needs g >= 1 - 0.030/0.06 = 0.50;
