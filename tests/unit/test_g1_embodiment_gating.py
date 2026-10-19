@@ -25,7 +25,8 @@ MANIFESTS = REPO_ROOT / "registry" / "manifests"
 #: sources with literally zero embodiment branches (G1-E audit)
 OPEN_NODES = ("oracle-pose", "rollout-client", "turn-barrier")
 #: sources that still branch on franka/so101 or read physics[embodiment]
-STILL_PINNED = ("budget-guard", "ik-trajectory", "grasp-planner-topdown")
+#: (budget-guard left this set when G1-F1 added g1_right limits and FK)
+STILL_PINNED = ("ik-trajectory", "grasp-planner-topdown")
 
 
 def _manifest(node_id: str) -> dict:
@@ -97,8 +98,8 @@ def test_open_nodes_validate_under_g1_right(tmp_path, node_id):
 
 @pytest.mark.parametrize("node_id", STILL_PINNED)
 def test_pinned_nodes_still_refuse_g1_right(tmp_path, node_id):
-    """VAL-2: budget-guard/ik-trajectory/grasp-planner-topdown still have
-    franka/so101-only kinematics/limits — G1-F's scope — so a g1_right graph
+    """VAL-2: ik-trajectory/grasp-planner-topdown still have
+    franka/so101-only kinematics — G1-F's scope — so a g1_right graph
     MUST keep reporting EMBODIMENT_MISMATCH (pinning 'not yet supported')."""
     root = make_registry_root(tmp_path)
     write_manifest(root, _manifest(node_id))
@@ -192,3 +193,40 @@ def test_fixture_mirrors_carry_the_open_arms():
         copy = yaml.safe_load((fixture / "registry" / "manifests" / f"{node_id}.yaml").read_text())
         assert "g1_right" in copy["embodiment"]["arm"], node_id
         assert copy["embodiment"] == real["embodiment"], node_id
+
+
+#: G1-C2: the seven bridge/layout-dependent nodes whose g1_right support
+#: lands with the bridge's wire-9 command path (dora-genesis runs it;
+#: the other six depend on its layout or its topics).
+BRIDGE_DEPENDENT_NODES = (
+    "dora-genesis",
+    "arm-driver-sim",
+    "gripper-driver-sim",
+    "camera-source",
+    "verifier-oracle",
+    "task-state-machine",
+    "reset",
+)
+
+
+@pytest.mark.parametrize("node_id", BRIDGE_DEPENDENT_NODES)
+def test_bridge_dependent_manifests_carry_g1_right(node_id):
+    """TC-5, VAL-2 (G1-C2): the seven bridge-dependent manifests open
+    `g1_right` beside franka/so101, and the reserved_dists mirrors match,
+    so a g1_right graph no longer reports EMBODIMENT_MISMATCH for them."""
+    manifest = _manifest(node_id)
+    assert "g1_right" in manifest["embodiment"]["arm"], node_id
+    fixture = REPO_ROOT / "tests" / "fixtures" / "roots" / "reserved_dists"
+    copy = yaml.safe_load((fixture / "registry" / "manifests" / f"{node_id}.yaml").read_text())
+    assert "g1_right" in copy["embodiment"]["arm"], node_id
+    assert copy["embodiment"] == manifest["embodiment"], node_id
+
+
+def test_expert_t0_g1_right_mismatches_only_the_pinned_three():
+    """TC-5, VAL-2 (G1-C2): with the bridge supporting g1_right, the
+    expert graph under --embodiment g1_right reports EMBODIMENT_MISMATCH
+    for EXACTLY the G1-F-pinned trio — every other node validates."""
+    code, report = run_validate(REPO_ROOT / "graphs" / "expert_t0.yaml", "--embodiment", "g1_right")
+    mismatched = {e["node"] for e in report["errors"] if e["code"] == "EMBODIMENT_MISMATCH"}
+    assert mismatched == set(STILL_PINNED), sorted(mismatched)
+    assert code != 0  # the pinned trio still fails validation, as pinned

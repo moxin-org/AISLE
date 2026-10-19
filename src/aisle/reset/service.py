@@ -16,6 +16,7 @@ boundary consumer needs no discriminator, and cannot forget one.
 
 from __future__ import annotations
 
+import os
 import sys
 
 import numpy as np
@@ -23,6 +24,17 @@ import numpy as np
 from aisle.topics import parse_sim_stamp, stamp
 
 TELEPORT, BEHAVIORAL = 0, 1
+
+#: RST-2 motion chains verified for behavioral reset (G1-C2): reset/motion.py
+#: pins Franka limits and a 7-dof qpos layout. so101/g1_right would be driven
+#: by Franka limits and a wrong-length home — refuse explicitly instead.
+BEHAVIORAL_RESET_EMBODIMENTS = ("franka",)
+
+
+def behavioral_reset_supported(embodiment: str) -> bool:
+    """Pure gate (unit-tested): True iff the RST-2 attempt loop has a
+    verified motion chain for this embodiment."""
+    return embodiment in BEHAVIORAL_RESET_EMBODIMENTS
 
 
 def route_reset(mode: int) -> str:
@@ -114,11 +126,12 @@ def main(clock=None) -> None:
             from aisle.scenes.pharmacy import load_meds, load_physics, resolve_layout
             from aisle.verifier.models import load_pinned
 
+            embodiment = os.environ.get("AISLE_EMBODIMENT", "franka")
             physics = load_physics()
             runtime = BehavioralRuntime(
-                layout=resolve_layout(physics, "franka"),
+                layout=resolve_layout(physics, embodiment),
                 meds=load_meds(),
-                home_q=np.asarray(physics["embodiment"]["franka"]["home_qpos"], dtype=np.float32),
+                home_q=np.asarray(physics["embodiment"][embodiment]["home_qpos"], dtype=np.float32),
                 model_pair=load_pinned("identity"),
             )
         return runtime
@@ -198,6 +211,32 @@ def main(clock=None) -> None:
                 )
                 continue
             if route == "behavioral":
+                embodiment = os.environ.get("AISLE_EMBODIMENT", "franka")
+                if not behavioral_reset_supported(embodiment):
+                    # G1-C2: RST-2's motion chain is Franka-verified (limits,
+                    # 7-dof home). Driving another embodiment with it would
+                    # command wrong limits and a wrong-length home — refuse
+                    # this request loudly; teleport (mode 0) is unaffected.
+                    print(
+                        f"reset refused: behavioral reset not implemented for "
+                        f"{embodiment!r} (RST-2 chain is franka-only, G1-C2)",
+                        file=sys.stderr,
+                    )
+                    seq_refused += 1
+                    node.send_output(
+                        "reset_refused",
+                        pa.array(np.array([0], dtype=np.uint32)),
+                        stamp(
+                            refusal_reply_metadata(
+                                metadata,
+                                payload,
+                                f"behavioral reset not implemented for {embodiment!r}; "
+                                f"use teleport (mode 0)",
+                            ),
+                            seq_refused,
+                        ),
+                    )
+                    continue
                 # RST-2: start the attempt runtime; commands stream on
                 # joint_state events through the guard; the outcome
                 # settles asynchronously (success replies directly,

@@ -114,17 +114,17 @@ stayed outside it).
 
 | Capability | Provides | Arm profile(s) | Safety | Origin | Source |
 |---|---|---|---|---|---|
-| [registry/manifests/arm-driver-sim.yaml](../../registry/manifests/arm-driver-sim.yaml) | arm_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/arm-driver-sim.yaml](../../registry/manifests/arm-driver-sim.yaml) | arm_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/base-driver-sim.yaml](../../registry/manifests/base-driver-sim.yaml) | base_actuation | franka | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/budget-guard.yaml](../../registry/manifests/budget-guard.yaml) | budget_guard | franka, so101, g1_right | motion | hub | `src/aisle/nodes/budget_guard.py` |
-| [registry/manifests/camera-source.yaml](../../registry/manifests/camera-source.yaml) | rgb_stream, depth_stream | franka, so101 | perception | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/camera-source.yaml](../../registry/manifests/camera-source.yaml) | rgb_stream, depth_stream | franka, so101, g1_right | perception | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/detected-pose.yaml](../../registry/manifests/detected-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/l2_pose.py` |
 | [registry/manifests/detector-openvocab.yaml](../../registry/manifests/detector-openvocab.yaml) | object_detection | franka, so101 | perception | hub | `pip:dora-yolo` |
-| [registry/manifests/dora-genesis.yaml](../../registry/manifests/dora-genesis.yaml) | sim_bridge, rgb_stream, depth_stream, arm_actuation, gripper_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/dora-genesis.yaml](../../registry/manifests/dora-genesis.yaml) | sim_bridge, rgb_stream, depth_stream, arm_actuation, gripper_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/g1-driver.yaml](../../registry/manifests/g1-driver.yaml) | hw_bridge | g1_right | motion | hub | `src/aisle/nodes/g1_driver.py` |
 | [registry/manifests/goal-adversary.yaml](../../registry/manifests/goal-adversary.yaml) | goal_adversary | franka, so101 | decision | agent-authored | `src/aisle/nodes/goal_adversary.py` |
 | [registry/manifests/grasp-planner-topdown.yaml](../../registry/manifests/grasp-planner-topdown.yaml) | grasp_planning | franka, so101 | decision | hub | `src/aisle/nodes/grasp_topdown.py` |
-| [registry/manifests/gripper-driver-sim.yaml](../../registry/manifests/gripper-driver-sim.yaml) | gripper_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/gripper-driver-sim.yaml](../../registry/manifests/gripper-driver-sim.yaml) | gripper_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/human-sim.yaml](../../registry/manifests/human-sim.yaml) | dialogue_human | franka, so101 | decision | hub | `src/aisle/nodes/human_sim.py` |
 | [registry/manifests/ik-trajectory.yaml](../../registry/manifests/ik-trajectory.yaml) | trajectory_generation | franka, so101 | motion | hub | `src/aisle/nodes/ik_trajectory.py` |
 | [registry/manifests/ik-transfer-v2.yaml](../../registry/manifests/ik-transfer-v2.yaml) | trajectory_generation | franka, so101 | motion | agent-authored | `skills/ik-transfer-v2/ik_transfer_v2.py` |
@@ -138,7 +138,7 @@ stayed outside it).
 | [registry/manifests/pilot-policy-surface.yaml](../../registry/manifests/pilot-policy-surface.yaml) | pilot_public_observations | franka | decision | agent-authored | `src/aisle/harness/pilot_policy_surface.py` |
 | [registry/manifests/placement-controller.yaml](../../registry/manifests/placement-controller.yaml) | fine_placement | franka | decision | hub | `src/aisle/nodes/placement_controller.py` |
 | [registry/manifests/pose-estimator.yaml](../../registry/manifests/pose-estimator.yaml) | object_pose | franka, so101 | perception | hub | `pip:dora-pose` |
-| [registry/manifests/reset.yaml](../../registry/manifests/reset.yaml) | episode_reset | franka, so101 | decision | hub | `src/aisle/reset/service.py` |
+| [registry/manifests/reset.yaml](../../registry/manifests/reset.yaml) | episode_reset | franka, so101, g1_right | decision | hub | `src/aisle/reset/service.py` |
 | [registry/manifests/return-planner.yaml](../../registry/manifests/return-planner.yaml) | return_item | franka, so101 | decision | hub | `src/aisle/nodes/return_planner.py` |
 | [registry/manifests/rollout-client.yaml](../../registry/manifests/rollout-client.yaml) | episode_driving | franka, so101, g1_right | decision | hub | `src/aisle/harness/rollout_client.py` |
 | [registry/manifests/s1-driver-v2.yaml](../../registry/manifests/s1-driver-v2.yaml) | s1_expert_driving | franka | motion | agent-authored | `skills/s1-driver-v2/s1_driver_v2.py` |
@@ -151,9 +151,9 @@ stayed outside it).
 | [registry/manifests/t2-scan-pose.yaml](../../registry/manifests/t2-scan-pose.yaml) | object_pose, scan_candidates | franka, so101 | perception | agent-authored | `skills/t2-scan-pose/t2_scan_pose.py` |
 | [registry/manifests/t2-scan-tsm.yaml](../../registry/manifests/t2-scan-tsm.yaml) | task_sequencing | franka | decision | agent-authored | `skills/t2-scan-tsm/t2_scan_tsm.py` |
 | [registry/manifests/task-planner.yaml](../../registry/manifests/task-planner.yaml) | task_planning | franka | decision | hub | `src/aisle/nodes/task_planner.py` |
-| [registry/manifests/task-state-machine.yaml](../../registry/manifests/task-state-machine.yaml) | task_sequencing | franka, so101 | decision | hub | `src/aisle/nodes/task_state_machine.py` |
+| [registry/manifests/task-state-machine.yaml](../../registry/manifests/task-state-machine.yaml) | task_sequencing | franka, so101, g1_right | decision | hub | `src/aisle/nodes/task_state_machine.py` |
 | [registry/manifests/turn-barrier.yaml](../../registry/manifests/turn-barrier.yaml) | turn_barrier | franka, so101, g1_right | decision | hub | `src/aisle/nodes/turn_barrier.py` |
-| [registry/manifests/verifier-oracle.yaml](../../registry/manifests/verifier-oracle.yaml) | episode_verification | franka, so101 | decision | hub | `src/aisle/verifier/oracle.py` |
+| [registry/manifests/verifier-oracle.yaml](../../registry/manifests/verifier-oracle.yaml) | episode_verification | franka, so101, g1_right | decision | hub | `src/aisle/verifier/oracle.py` |
 | [registry/manifests/verifier-realistic.yaml](../../registry/manifests/verifier-realistic.yaml) | episode_verification_realistic | franka, so101 | decision | hub | `src/aisle/nodes/verifier_realistic.py` |
 | [registry/manifests/verifier-retail.yaml](../../registry/manifests/verifier-retail.yaml) | retail_verification | franka | decision | hub | `src/aisle/verifier/retail.py` |
 | [registry/manifests/vla-policy-smolvla.yaml](../../registry/manifests/vla-policy-smolvla.yaml) | manipulation_policy | franka, so101 | motion | hub | `src/aisle/nodes/vla_smolvla.py` |

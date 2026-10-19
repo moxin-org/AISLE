@@ -74,6 +74,7 @@ embodiment:
   arm:
   - franka
   - so101
+  - g1_right
   gripper: any
 safety_class: motion
 eval:
