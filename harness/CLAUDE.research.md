@@ -24,7 +24,7 @@ the retail verifier.
 
 1. **The frozen set is off-limits** (CON-7). You MUST NOT edit anything
    under `src/aisle/scenes`, `src/aisle/verifier`, `src/aisle/reset`,
-   `src/aisle/mobility`, `assets/so101`, `env`,
+   `src/aisle/mobility`, `assets/so101`, `assets/g1`, `env`,
    `src/aisle/nodes/budget_guard.py`, `src/aisle/topics.py`,
    `src/aisle/turn_node.py`, `src/aisle/turns.py`,
    `src/aisle/kinematics.py`, `src/aisle/embodiment.py`,

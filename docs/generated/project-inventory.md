@@ -23,7 +23,7 @@ stayed outside it).
 | Directory | Role | Frozen paths it holds (CON-7) |
 |---|---|---|
 | `analysis/` | committed experiment findings and reports | — |
-| `assets/` | robot/scene assets (so101 URDF) | `assets/so101` |
+| `assets/` | robot/scene assets (so101 URDF) | `assets/g1`, `assets/so101` |
 | `docs/` | guides, design doc, ADRs, this generated appendix | — |
 | `env/` | topic CONTRACT.md and guard limits (config, not code) | `env` |
 | `experts/` |  | — |
@@ -46,7 +46,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 88 |
+| ADR files | 89 |
 
 ## Graphs
 
@@ -286,6 +286,7 @@ inference.
 | [docs/decisions/ADR-contract-acceptance-window.md](../decisions/ADR-contract-acceptance-window.md) | ADR-contract-acceptance-window — Nominal-load contract capture | Accepted (issue #497). |
 | [docs/decisions/ADR-declared-session-edits.md](../decisions/ADR-declared-session-edits.md) | ADR-declared-session-edits — Declared edits preserve treatment identity | PROPOSED — engineering interpretation; no protocol or collection approval. |
 | [docs/decisions/ADR-dora-source-pin.md](../decisions/ADR-dora-source-pin.md) | ADR-dora-source-pin — Support a source-pinned Dora CLI | ACCEPTED — maintainer-authorized source installation; candidate adoption remains gated. |
+| [docs/decisions/ADR-g1-embodiment.md](../decisions/ADR-g1-embodiment.md) | ADR-g1-embodiment — Unitree G1 support, scope A: `g1_right` wire, mode-15 machine, held-DOF mechanism | PROPOSED — draft for owner review under CON-14/CON-7. This work |
 | [docs/decisions/ADR-h1-protocol.md](../decisions/ADR-h1-protocol.md) | ADR-h1-protocol — H1 composition-experiment protocol (design doc §8.2.4) | accepted (CON-15: §8.2.4 defines what to record but not the |
 | [docs/decisions/ADR-h2-campaign-protocol.md](../decisions/ADR-h2-campaign-protocol.md) | ADR-h2-campaign-protocol — single-scenario research campaign runner (design doc §8.3 item 6) | accepted (CON-15: §8.3 names the campaign but not the mechanics; |
 | [docs/decisions/ADR-h3-campaign-protocol.md](../decisions/ADR-h3-campaign-protocol.md) | ADR-h3-campaign-protocol — H3 accumulation campaign, S1→S2→S3 (design doc §11.5, §8.4) | accepted 2026-07-27 (decisions D1–D6 resolved by human; D1 |
