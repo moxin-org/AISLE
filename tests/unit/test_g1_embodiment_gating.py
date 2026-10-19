@@ -25,8 +25,9 @@ MANIFESTS = REPO_ROOT / "registry" / "manifests"
 #: sources with literally zero embodiment branches (G1-E audit)
 OPEN_NODES = ("oracle-pose", "rollout-client", "turn-barrier")
 #: sources that still branch on franka/so101 or read physics[embodiment]
-#: (budget-guard left this set when G1-F1 added g1_right limits and FK)
-STILL_PINNED = ("ik-trajectory", "grasp-planner-topdown")
+#: G1-F2 opened these to g1_right (kinematics/limits landed in F1/F2);
+#: budget-guard left the pinned set back in G1-F1 — now empty.
+G1_F2_OPENED = ("ik-trajectory", "grasp-planner-topdown")
 
 
 def _manifest(node_id: str) -> dict:
@@ -96,18 +97,19 @@ def test_open_nodes_validate_under_g1_right(tmp_path, node_id):
     assert "EMBODIMENT_MISMATCH" not in {e["code"] for e in report["errors"]}
 
 
-@pytest.mark.parametrize("node_id", STILL_PINNED)
-def test_pinned_nodes_still_refuse_g1_right(tmp_path, node_id):
-    """VAL-2: ik-trajectory/grasp-planner-topdown still have
-    franka/so101-only kinematics — G1-F's scope — so a g1_right graph
-    MUST keep reporting EMBODIMENT_MISMATCH (pinning 'not yet supported')."""
+@pytest.mark.parametrize("node_id", G1_F2_OPENED)
+def test_g1_f2_nodes_now_validate_under_g1_right(tmp_path, node_id):
+    """VAL-2 (G1-F2 flip): ik-trajectory/grasp-planner-topdown solve on
+    the G1-F1 chain/limits now, so their manifests carry g1_right and a
+    g1_right graph validates with NO EMBODIMENT_MISMATCH."""
     root = make_registry_root(tmp_path)
     write_manifest(root, _manifest(node_id))
     code, report = run_validate(
         _single_node_graph(root, node_id), "--root", str(root), "--embodiment", "g1_right"
     )
-    assert code != 0, report
-    assert "EMBODIMENT_MISMATCH" in {e["code"] for e in report["errors"]}
+    assert code == 0, report
+    assert "g1_right" in _manifest(node_id)["embodiment"]["arm"], node_id
+    assert "EMBODIMENT_MISMATCH" not in {e["code"] for e in report["errors"]}
 
 
 def test_open_nodes_still_validate_under_so101(tmp_path):
@@ -142,12 +144,13 @@ def test_g1_driver_manifest_validates_under_g1_right(tmp_path):
 
 
 def test_ik_refuses_unknown_embodiments_instead_of_franka_fallthrough():
-    """HAR-1/G1-E: fk_tcp/_pose_error/_ik_once/ik_solve raise a named
-    ValueError for g1_right (and any unknown embodiment) instead of
-    silently solving the Franka DH chain — G1 kinematics is G1-F's scope."""
+    """HAR-1 (G1-E, flipped by G1-F2): fk_tcp/_pose_error/_ik_once/ik_solve
+    raise a named ValueError for unknown embodiments instead of silently
+    solving the Franka DH chain; g1_right is SUPPORTED now and runs its own
+    URDF chain (the F1 world-frame FK)."""
     from aisle.nodes.ik_trajectory import _ik_once, _pose_error, fk_tcp, ik_solve
 
-    for bad in ("g1_right", "humanoid"):
+    for bad in ("humanoid",):
         with pytest.raises(ValueError, match=f"unsupported embodiment {bad!r}"):
             fk_tcp(np.zeros(7, dtype=np.float32), bad)
         with pytest.raises(ValueError, match=f"unsupported embodiment {bad!r}"):
@@ -171,16 +174,16 @@ def test_ik_supported_paths_unchanged():
 
 
 def test_grasp_planner_refuses_unknown_embodiment():
-    """HAR-1/G1-E: the grasp planner's embodiment read refuses g1_right and
-    unknown kinds by name before touching layout/FK (it would otherwise
-    KeyError deep in physics profiles or mis-plan against Franka geometry)."""
+    """HAR-1 (G1-E, flipped by G1-F2): the planner's embodiment read still
+    refuses unknown kinds by name before touching layout/FK; g1_right is
+    accepted and plans top-down on its own profile."""
     from aisle.nodes.grasp_topdown import require_supported_embodiment
 
-    for bad in ("g1_right", "humanoid"):
+    for bad in ("humanoid",):
         with pytest.raises(ValueError, match=f"unsupported embodiment {bad!r}"):
             require_supported_embodiment(bad)
-    for good in ("franka", "so101", "mobile"):
-        require_supported_embodiment(good)  # no raise
+    for good in ("franka", "so101", "mobile", "g1_right"):
+        require_supported_embodiment(good)  # no raise (g1_right since G1-F2)
 
 
 def test_fixture_mirrors_carry_the_open_arms():
@@ -222,11 +225,11 @@ def test_bridge_dependent_manifests_carry_g1_right(node_id):
     assert copy["embodiment"] == manifest["embodiment"], node_id
 
 
-def test_expert_t0_g1_right_mismatches_only_the_pinned_three():
-    """TC-5, VAL-2 (G1-C2): with the bridge supporting g1_right, the
-    expert graph under --embodiment g1_right reports EMBODIMENT_MISMATCH
-    for EXACTLY the G1-F-pinned trio — every other node validates."""
+def test_expert_t0_validates_clean_under_g1_right():
+    """TC-5, VAL-2 (G1-C2 bridge + G1-F2 ik/grasp, 01:10 addendum): with
+    every g1_right-capable manifest open, the expert graph validates under
+    --embodiment g1_right with ZERO EMBODIMENT_MISMATCH."""
     code, report = run_validate(REPO_ROOT / "graphs" / "expert_t0.yaml", "--embodiment", "g1_right")
     mismatched = {e["node"] for e in report["errors"] if e["code"] == "EMBODIMENT_MISMATCH"}
-    assert mismatched == set(STILL_PINNED), sorted(mismatched)
-    assert code != 0  # the pinned trio still fails validation, as pinned
+    assert mismatched == set(), sorted(mismatched)
+    assert code == 0, report

@@ -286,12 +286,12 @@ def neighbour_constraints(centres: list, target_med: str, med_names: list, meds:
     ]
 
 
-#: G1-E: the planner's geometry is Franka/SO-101 only (G1-F owns the G1
-#: workspace); an unknown embodiment MUST be refused by name before the
-#: physics profile lookup, which would otherwise KeyError deep inside
-#: resolve_layout or mis-plan against Franka geometry (HAR-1).
+#: G1-E/F2: g1_right plans top-down on its own physics profile (gripper
+#: geometry and pregrasp height from physics.toml, TCP convention per C1);
+#: any other unknown embodiment is still refused by name before the
+#: profile lookup (HAR-1).
 def require_supported_embodiment(embodiment: str) -> None:
-    if embodiment not in ("franka", "mobile", "so101"):
+    if embodiment not in ("franka", "mobile", "so101", "g1_right"):
         raise ValueError(f"require_supported_embodiment: unsupported embodiment {embodiment!r}")
 
 

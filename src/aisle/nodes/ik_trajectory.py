@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
@@ -149,6 +150,17 @@ TRANSFER_TCP_Z = 0.30
 HAND_MOUNT_YAW = -math.pi / 4
 
 _RZ_PI = np.diag([-1.0, -1.0, 1.0])  # local z spin: box-symmetric grasp flip
+#: G1-F2: the shared topdown_quat bakes in the Franka hand-mount yaw
+#: (HAND_MOUNT_YAW); the G1 TCP (rpy [0, pi/2, 0]) has NO mount offset, so
+#: the G1 branch un-yaws planner quats by +pi/4 — net Rz(yaw) @ Rx(pi),
+#: palm down with the Dex1 finger straddle at the planner's intended yaw.
+_RZ_QUARTER = np.array(
+    [
+        [math.cos(math.pi / 4), -math.sin(math.pi / 4), 0.0],
+        [math.sin(math.pi / 4), math.cos(math.pi / 4), 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+)
 # canonical retry seeds (CON-5: a FIXED list, tried in order): DLS from the
 # home posture stalls in a local minimum for horizontal-wrist targets; a
 # wrist-forward posture reaches them in <150 iterations
@@ -185,11 +197,116 @@ def _so101_seeds() -> tuple[np.ndarray, ...]:
 _SO101_CANONICAL_SEEDS = _so101_seeds()
 
 
-#: G1-E: the harness accepts g1_right, but this module's kinematics are
-#: Franka-DH and SO-101-URDF only — G1-F owns the G1 chain. An unknown
-#: embodiment MUST raise here instead of silently solving the Franka chain
-#: (HAR-1; the pre-G1-E fall-through was the bug).
-_SUPPORTED_EMBODIMENTS = ("franka", "mobile", "so101")
+def _g1_seeds() -> tuple[np.ndarray, ...]:
+    """Fixed low-discrepancy starts over the official G1 right-arm limits
+    (CON-5), HOME FIRST (the bent ready pose is inside the top-down basin),
+    then 31 van der Corput starts = the profile's ik_max_starts."""
+    limits = load_limits("g1_right")
+    lower = np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64)
+    upper = np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64)
+    primes = (2, 3, 5, 7, 11, 13, 17)
+    starts = [np.asarray(limits.fallback_qpos[: limits.n_arm_dof], dtype=np.float32)]
+    starts.extend(
+        (lower + (upper - lower) * np.array([_van_der_corput(i, p) for p in primes])).astype(
+            np.float32
+        )
+        for i in range(1, 32)
+    )
+    return tuple(starts)
+
+
+_G1_CANONICAL_SEEDS = _g1_seeds()
+
+
+@lru_cache(maxsize=1)
+def _g1_ik_tolerances() -> tuple[int, float, float]:
+    """G1-F2: solver budget and tolerances come from the frozen scene
+    profile's ik_* keys (physics.toml [embodiment.g1_right]), not from
+    this module — tuning lands in the profile where the scene lives."""
+    from aisle.scenes.pharmacy import load_physics
+
+    profile = load_physics()["embodiment"]["g1_right"]
+    return (
+        int(profile["ik_max_solver_iters"]),
+        float(profile["ik_pos_tol_m"]),
+        float(profile["ik_rot_tol_rad"]),
+    )
+
+
+_G1_ROLL_JUMP_MAX = 0.35  # rad per roll waypoint; far under CONTINUITY_MAX
+
+
+def _g1_roll_at(
+    q: np.ndarray, pos: np.ndarray, rot_from: np.ndarray, rot_to: np.ndarray
+) -> list[np.ndarray]:
+    """In-place orientation continuation for the G1 wrist (G1-F2).
+
+    Measured basin facts: cold-start DLS in the planner-yaw frame stalls
+    0.28 rad out on the far slot column (all 64 seeds), while rolling the
+    orientation there from the converged transit-frame solution converges
+    to ~5e-3 rad. Two failure modes seen on the C1 lattice and handled
+    here: (a) a roll step can snap to a different IK branch (3.2 rad joint
+    jump) — such steps are bisected up to depth 4 and the parity rejected
+    if still jumpy; (b) holding orientation through the ladder lets the
+    TCP position drift ~2.5 cm — a position-only polish pulls it back
+    before a light full-pose settle. Returns [] on gate failure (the
+    caller tries the 180-degree tool-z parity next)."""
+    qa = rotation_to_quat(rot_from)  # xyzw
+    qb = rotation_to_quat(rot_to)
+    if float(qa @ qb) < 0.0:
+        qb = -qb
+    theta = math.acos(float(np.clip(qa @ qb, -1.0, 1.0)))
+
+    def rot_at(f: float) -> np.ndarray:
+        if theta < 1e-9:
+            return rot_to
+        wa = math.sin((1.0 - f) * theta) / math.sin(theta)
+        wb = math.sin(f * theta) / math.sin(theta)
+        return quat_to_rotation(wa * qa + wb * qb)
+
+    def step(qc: np.ndarray, f0: float, f1: float, depth: int):
+        qn = _dls(qc, pos, rot_at(f1), slice(0, 6), 60, "g1_right")
+        if float(np.abs(qn - qc).max()) > _G1_ROLL_JUMP_MAX:
+            if depth >= 4:
+                return None  # a branch flip, not a step
+            mid = 0.5 * (f0 + f1)
+            first = step(qc, f0, mid, depth + 1)
+            if first is None:
+                return None
+            second = step(first[-1], mid, f1, depth + 1)
+            return None if second is None else first + second
+        return [qn]
+
+    q = np.asarray(q, dtype=np.float64)
+    configs: list[np.ndarray] = []
+    f_prev = 0.0
+    for f in np.linspace(0.05, 1.0, 20):
+        chunk = step(q, f_prev, float(f), 0)
+        if chunk is None:
+            return []
+        configs.extend(chunk)
+        q = chunk[-1]
+        f_prev = float(f)
+    iters, pos_tol, rot_tol = _g1_ik_tolerances()
+    q = _dls(q, pos, rot_to, slice(0, 3), iters, "g1_right")  # pull position home
+    q = _dls(q, pos, rot_to, slice(0, 6), max(iters // 2, 40), "g1_right")
+    err = _pose_error(q, pos, rot_to, "g1_right")
+    # the roll target is the PREGRASP HOVER (pregrasp_height_m above the
+    # box): a couple of cm of position there is harmless because the
+    # advance continuation re-converges on the exact grasp pose under the
+    # profile tolerance — measured Pareto point on the far slot column is
+    # pos 0.023 / rot 0.106. Rotation keeps the FULL profile gate: a
+    # tilted palm at pre means a tilted insertion.
+    if np.linalg.norm(err[:3]) >= 2.0 * pos_tol or np.linalg.norm(err[3:]) >= rot_tol:
+        return []
+    configs.append(q.astype(np.float32))
+    return configs
+
+
+#: G1-E/F2: g1_right solves on the G1-F1 official-URDF chain; any other
+#: unknown embodiment MUST raise here instead of silently solving the
+#: Franka chain (HAR-1; the pre-G1-E fall-through was the bug).
+_SUPPORTED_EMBODIMENTS = ("franka", "mobile", "so101", "g1_right")
 
 
 def _require_supported_embodiment(embodiment: str, fn: str) -> None:
@@ -207,7 +324,8 @@ def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
 
 def fk_tcp(q_arm: np.ndarray, embodiment: str = "franka") -> np.ndarray:
     _require_supported_embodiment(embodiment, "fk_tcp")
-    if embodiment == "so101":
+    if embodiment in ("so101", "g1_right"):
+        # both URDF chains carry their fixed TCP frame in the chain tip
         return fk_ee_pose(q_arm, embodiment)[0]
     pos, rotation = fk_flange(q_arm)
     return pos + rotation[:, 2] * TCP_OFFSET
@@ -529,6 +647,12 @@ def _pose_error(
     q: np.ndarray, target_pos: np.ndarray, target_rot: np.ndarray, embodiment: str
 ) -> np.ndarray:
     _require_supported_embodiment(embodiment, "_pose_error")
+    if embodiment == "g1_right":
+        # 7-DOF redundant arm: the FULL six-row pose error (position plus
+        # all three orientation rows) — no so101-style underactuation
+        # relief, no free yaw
+        tcp, rotation = fk_ee_pose(q, embodiment)
+        return np.concatenate([target_pos - tcp, _rotation_error(rotation, target_rot)])
     if embodiment == "so101":
         tcp, rotation = fk_ee_pose(q, embodiment)
         # SO-101's base pan couples world yaw to target azimuth. Its five
@@ -555,12 +679,15 @@ def _dls(
     rows: slice,
     iters: int,
     embodiment: str,
+    damping: float = 0.05,
 ) -> np.ndarray:
     """Damped-least-squares descent on the selected error rows (position
     rows only for the bootstrap, every profile constraint for the full solve). Clamped
     error (CLIK-style) plus a deterministic backtracking line search keep
-    the descent stable near joint limits, where the raw DLS oscillates."""
-    damping = 0.05
+    the descent stable near joint limits, where the raw DLS oscillates.
+    G1-F2: the damping is a parameter so the near-singular far-column
+    polish pass can drop it (default keeps every other embodiment
+    bit-for-bit)."""
     eps = 1e-5
     q_min, q_max = _arm_bounds(embodiment)
     err = _pose_error(q, target_pos, target_rot, embodiment)[rows]
@@ -594,10 +721,40 @@ def _dls(
 
 
 def _ik_once(
-    target_pos: np.ndarray, target_rot: np.ndarray, q0: np.ndarray, embodiment: str
+    target_pos: np.ndarray,
+    target_rot: np.ndarray,
+    q0: np.ndarray,
+    embodiment: str,
+    pos_tol_scale: float = 1.0,
+    rows: slice | None = None,
 ) -> np.ndarray | None:
     _require_supported_embodiment(embodiment, "_ik_once")
     q = np.asarray(q0, dtype=np.float64).copy()
+    q_start = q.copy()  # G1 polish restarts from the SEED, not the descent
+    if embodiment == "so101":
+        bootstrap_iters, full_iters, pos_tol, rot_tol = 80, 250, 0.015, 0.02
+    elif embodiment == "g1_right":
+        # G1-F2: budget and tolerances from the frozen profile (see
+        # _g1_ik_tolerances); bootstrap gets half the budget — the bent
+        # home pose is already near the top-down basin
+        full_iters, pos_tol, rot_tol = _g1_ik_tolerances()
+        bootstrap_iters = max(full_iters // 2, 40)
+    else:
+        bootstrap_iters, full_iters, pos_tol, rot_tol = 60, 150, 5e-4, 1e-3
+    if rows is None:
+        rows = slice(0, 5) if embodiment == "so101" else slice(0, 6)
+    # a free-yaw solve (rows stopping before the last rotation row) gates
+    # rotation on the RETAINED rows only — for a palm-down tool the freed
+    # z-row is pure yaw about gravity, which cannot tilt the held box
+    rot_gate = slice(3, 5) if rows.stop == 5 and rows.start == 0 else slice(3, 6)
+
+    def _within(qc: np.ndarray) -> bool:
+        err = _pose_error(qc, target_pos, target_rot, embodiment)
+        return (
+            np.linalg.norm(err[:3]) < pos_tol * pos_tol_scale
+            and np.linalg.norm(err[rot_gate]) < rot_tol
+        )
+
     for bootstrap in (False, True):
         if bootstrap:
             # position-only descent first: pulls the arm into the right
@@ -607,21 +764,30 @@ def _ik_once(
                 target_pos,
                 target_rot,
                 slice(0, 3),
-                80 if embodiment == "so101" else 60,
+                bootstrap_iters,
                 embodiment,
             )
         q = _dls(
             q,
             target_pos,
             target_rot,
-            slice(0, 5 if embodiment == "so101" else 6),
-            250 if embodiment == "so101" else 150,
+            rows,
+            full_iters,
             embodiment,
         )
-        err = _pose_error(q, target_pos, target_rot, embodiment)
-        pos_tol = 0.015 if embodiment == "so101" else 5e-4
-        rot_tol = 0.02 if embodiment == "so101" else 1e-3
-        if np.linalg.norm(err[:3]) < pos_tol and np.linalg.norm(err[3:]) < rot_tol:
+        if _within(q):
+            return q.astype(np.float32)
+    if embodiment == "g1_right":
+        # G1-F2, measured: the far slot column (x=0.24, ~95 percent of the
+        # vertical-forearm budget) stalls 0.4 mm past the position gate at
+        # damping 0.05 — a Pareto plateau, not a basin exit. One low-damping
+        # full-pose pass RESTARTED FROM THE SEED (not the stalled descent:
+        # the descent state sits on the plateau and re-stalls there) lands
+        # pos 0.0248 with rot under 0.02 — same branch, no flip. Damping
+        # below 0.01 DOES flip branches (measured 2.7 rad jump); the
+        # continuation continuity check stays the backstop regardless.
+        q = _dls(q_start, target_pos, target_rot, rows, 2 * full_iters, embodiment, damping=0.02)
+        if _within(q):
             return q.astype(np.float32)
     return None
 
@@ -633,7 +799,18 @@ def ik_continuation(
     q_start: np.ndarray,
     step_m: float = 0.04,
     embodiment: str = "franka",
+    pos_tol_scale: float = 1.0,
+    free_yaw: bool = False,
 ) -> list[np.ndarray] | None:
+    """`pos_tol_scale` widens ONLY the position gate for free-space
+    carriage stages (G1-F2: staging/transfer/lower/retract hover moves —
+    measured DLS plateau 0.0274 m at the tray hover vs the 0.025 profile
+    gate); shelf-insertion stages keep the full profile tolerance.
+    `free_yaw=True` (G1 transfer only) drops the rotation row about
+    gravity: pure yaw cannot tilt a held box (the T10 creep was wrist
+    TILT), and the wide shelf->tray azimuth swing otherwise stalls the
+    full-pose DLS mid-path (measured at [0.225, 0.087, 1.0]). The place
+    orientation is restored by an in-place roll at the tray hover."""
     """Solve a Cartesian straight-line move by numerical continuation and
     return EVERY substep config: the executor tracks the planned line
     through these waypoints (discarding them and joint-interpolating
@@ -642,11 +819,44 @@ def ik_continuation(
     solve can land wrist-flipped and sweep the arm through the shelf)."""
     from_pos = np.asarray(from_pos, dtype=np.float64)
     to_pos = np.asarray(to_pos, dtype=np.float64)
+    if float(np.linalg.norm(to_pos - from_pos)) == 0.0:
+        # a zero-length Cartesian move is a true no-op: re-solving the same
+        # pose drifts the arm within tolerance onto a nearby configuration
+        # (G1-F2 measured: the redundant re-solve on the zero-length G1
+        # staging continuation moved the branch entering the transit
+        # descent and broke the far-column advance). Stay put instead.
+        return [np.asarray(q_start, dtype=np.float32)]
     n = max(1, int(math.ceil(np.linalg.norm(to_pos - from_pos) / step_m)))
     q = q_start
     path: list[np.ndarray] = []
     for i in range(1, n + 1):
-        q = _ik_once(from_pos + (to_pos - from_pos) * (i / n), target_rot, q, embodiment)
+        waypoint = from_pos + (to_pos - from_pos) * (i / n)
+        prev = q  # the last GOOD config; q may become None below
+        yaw_free = free_yaw and embodiment == "g1_right"
+        q = _ik_once(
+            waypoint,
+            target_rot,
+            q,
+            embodiment,
+            pos_tol_scale,
+            rows=slice(0, 5) if yaw_free else None,
+        )
+        if q is None and embodiment == "g1_right":
+            # G1-F2, measured: the warm-started descent stalls out of basin
+            # on the C1 far slot column (x=0.24, ~95 percent of the 0.394 m
+            # vertical-forearm budget — damping/step/iteration sweeps are
+            # all flat there), while the SAME waypoint converges cold from
+            # the seed ladder (the direct ik_solve tests prove the poses
+            # are in reach). Retry the waypoint cold, seeded first with the
+            # last good config; StagedPlan's CONTINUITY_MAX check still
+            # rejects any branch-flip result.
+            q = ik_solve(waypoint, target_rot, prev, embodiment=embodiment)
+            if q is not None and float(np.abs(q - prev).max()) > 0.5:
+                # a cold solve that lands half a radian (or more) away is a
+                # DIFFERENT IK branch — following it mid-path swings the arm
+                # unpredictably. Refuse; the caller reports the stage as
+                # unsolved rather than executing a sweep.
+                q = None
         if q is None:
             return None
         path.append(q)
@@ -665,7 +875,12 @@ def ik_solve(
     reporting failure."""
     _require_supported_embodiment(embodiment, "ik_solve")
     target_pos = np.asarray(target_pos, dtype=np.float64)
-    seeds = _SO101_CANONICAL_SEEDS if embodiment == "so101" else _CANONICAL_SEEDS
+    if embodiment == "so101":
+        seeds = _SO101_CANONICAL_SEEDS
+    elif embodiment == "g1_right":
+        seeds = _G1_CANONICAL_SEEDS
+    else:
+        seeds = _CANONICAL_SEEDS
     for rot in (target_rot, target_rot @ _RZ_PI):
         for seed in (q0, *seeds):
             q = _ik_once(target_pos, rot, seed, embodiment)
@@ -720,6 +935,8 @@ class StagedPlan:
         grasp_pose = np.asarray(grasp_pose, dtype=np.float32).reshape(7)
         grasp_pos = grasp_pose[:3].astype(np.float64)
         grasp_rot = quat_to_rotation(grasp_pose[3:7])
+        if embodiment == "g1_right":
+            grasp_rot = _RZ_QUARTER @ grasp_rot  # strip the Franka mount yaw
         approach_axis = grasp_rot[:, 2]  # flange z: points from wrist to fingertips
         limits = load_limits(embodiment)
         home = np.asarray(q_seed, dtype=np.float32)[: limits.n_arm_dof]
@@ -736,7 +953,13 @@ class StagedPlan:
         self.stages: list[Stage] = []
         self.error: str | None = None
 
-        place_rot = grasp_rot if embodiment == "so101" else topdown_rotation(0.0)
+        place_rot = (
+            grasp_rot
+            if embodiment == "so101"
+            else _RZ_QUARTER @ topdown_rotation(0.0)
+            if embodiment == "g1_right"
+            else topdown_rotation(0.0)
+        )
         transfer_pos = np.array([tray_xy[0], tray_xy[1], transfer_height])
         lower_pos = np.array([tray_xy[0], tray_xy[1], place_z])
         # approach entirely in free space: rise vertically over the home
@@ -744,22 +967,42 @@ class StagedPlan:
         # sweep from home crossed the shelf volume and clipped boxes (T08)
         home_tcp = fk_tcp(home, embodiment)
         staging_z = max(staging_height, float(pre_pos[2]))
-        rise_pos = np.array([home_tcp[0], home_tcp[1], staging_z])
+        if embodiment == "g1_right":
+            # G1-F2: rise over the HOME column is unreachable palm-down —
+            # the vertical-forearm budget |shoulder->wrist| <= 0.394 m
+            # cannot span the 0.404 m horizontal offset of the home TCP
+            # (the home pose holds the arm forward, palm sideways). The G1
+            # rises straight to the TARGET column instead: the C1 slot
+            # lattice keeps every staging point well inside the reach
+            # sphere, and the home->staging joint move stays in the open
+            # band above the lower shelf level (boxes top ~0.87, path
+            # z >= 0.95).
+            rise_pos = np.array([pre_pos[0], pre_pos[1], staging_z])
+        else:
+            rise_pos = np.array([home_tcp[0], home_tcp[1], staging_z])
         staging_pos = np.array([pre_pos[0], pre_pos[1], staging_z])
         # a FRONT grasp holds its horizontal wrist only from the pregrasp
         # on; the high approach flies with the neutral top-down wrist (a
         # 0.5 m descent holding a horizontal wrist does not converge), and
         # the wrist flip happens in free air ahead of the shelf
         front_mode = abs(float(approach_axis[2])) < 0.5  # metadata carries the flag too
-        approach_rot = (
-            grasp_rot if embodiment == "so101" or not front_mode else topdown_rotation(0.0)
-        )
+        if embodiment == "g1_right" and not front_mode:
+            # G1-F2: transit in the neutral palm-down frame (no mount yaw —
+            # _RZ_QUARTER strips the Franka offset topdown_rotation bakes
+            # in); the planner's grasp yaw rolls on at the pregrasp below.
+            # Cold-start DLS in the planner-yaw frame stalls out of basin
+            # on the far slot column (measured; see _g1_roll_at).
+            approach_rot = _RZ_QUARTER @ topdown_rotation(0.0)
+        else:
+            approach_rot = (
+                grasp_rot if embodiment == "so101" or not front_mode else topdown_rotation(0.0)
+            )
         q_rise = ik_solve(rise_pos, approach_rot, home, embodiment)
         if q_rise is None:
             self.error = f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
             return
         staging_path = ik_continuation(
-            rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment
+            rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment, pos_tol_scale=1.2
         )
         if staging_path is None:
             self.error = f"IK failed for waypoint 'staging' at {np.round(staging_pos, 3).tolist()}"
@@ -805,6 +1048,44 @@ class StagedPlan:
                         return
                 self.flip_pair = (drop_path[-1], q_pre)
             pregrasp_path = drop_path + [q_pre] if q_pre is not None else None
+        elif embodiment == "g1_right":
+            # G1-F2: descend the transit frame, then roll the wrist to the
+            # planner's grasp yaw IN PLACE at the pregrasp — the roll is an
+            # orientation continuation from a converged solution (see
+            # _g1_roll_at), and the advance below starts from the rolled
+            # configuration with the orientation already matched.
+            transit_path = ik_continuation(
+                staging_pos,
+                pre_pos,
+                approach_rot,
+                q_staging,
+                embodiment=embodiment,
+                # carriage scale: this descent ends at the HOVER, not the
+                # grasp — the advance below re-converges at full profile
+                # tolerance on the exact grasp pose (measured: the far
+                # column's warm-start advance only converges from the
+                # slightly looser hover chain)
+                pos_tol_scale=1.2,
+            )
+            pregrasp_path = None
+            if transit_path is not None:
+                # the Dex1 fingers are symmetric, so the 180-degree tool-z
+                # spin of the planner frame is the SAME physical grasp —
+                # try both parities, the one whose roll converges wins and
+                # the later stages (advance/lift/retract) follow it
+                for parity in (grasp_rot, grasp_rot @ _RZ_PI):
+                    roll = _g1_roll_at(transit_path[-1], pre_pos, approach_rot, parity)
+                    if roll:
+                        pregrasp_path = list(transit_path) + roll
+                        grasp_rot = parity
+                        # place in the SAME rolled parity frame — palm-down
+                        # with the box yaw turned 180 deg is the same
+                        # physical release, and it deletes the tray-side
+                        # roll entirely (measured: the parity-frame
+                        # transfer continuation converges where the
+                        # neutral-frame one does not)
+                        place_rot = parity
+                        break
         else:
             pregrasp_path = ik_continuation(
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
@@ -833,13 +1114,25 @@ class StagedPlan:
         if lift_path is None:
             self.error = "IK failed for stage 'lift'"
             return
+        retract_end = pre_pos + up
+        if embodiment == "g1_right":
+            # G1-F2, measured: the far slot column's vertical-forearm
+            # conditioning band tops out at z ~1.04 (cold solve OK at
+            # 1.040, FAIL at 1.045), and pre+lift sits at 1.045 — past the
+            # edge. Retract to the STAGING PLANE instead: the height the
+            # arm already transits at, verified end-to-end (retract ->
+            # transfer -> lower all converge from there).
+            retract_end = np.array(
+                [pre_pos[0], pre_pos[1], min(float(retract_end[2]), float(staging_z))]
+            )
         retract_path = (
             ik_continuation(
                 grasp_pos + up,
-                pre_pos + up,
+                retract_end,
                 grasp_rot,
                 lift_path[-1],
                 embodiment=embodiment,
+                pos_tol_scale=1.2,
             )
             if lift_path is not None
             else None
@@ -886,15 +1179,26 @@ class StagedPlan:
         else:
             transfer_path = (
                 ik_continuation(
-                    pre_pos + up,
+                    retract_end,
                     transfer_pos,
                     place_rot,
                     retract_path[-1],
                     embodiment=embodiment,
+                    pos_tol_scale=1.2,
+                    free_yaw=embodiment == "g1_right",
                 )
                 if retract_path is not None
                 else None
             )
+            if embodiment == "g1_right" and transfer_path is not None:
+                # free-yaw transfer lands at a natural wrist azimuth; roll
+                # IN PLACE at the tray hover back to the place frame. The
+                # roll is a pure gravity-axis spin for a palm-down tool —
+                # the box stays upright throughout (T10's creep was wrist
+                # tilt, not yaw).
+                realized = fk_ee_pose(transfer_path[-1], embodiment)[1]
+                roll = _g1_roll_at(transfer_path[-1], transfer_pos, realized, place_rot)
+                transfer_path = (list(transfer_path) + roll) if roll else None
         if transfer_path is None:
             self.error = "IK failed for stage 'transfer'"
             return
@@ -906,6 +1210,7 @@ class StagedPlan:
                 place_rot,
                 q_transfer,
                 embodiment=embodiment,
+                pos_tol_scale=1.2,
             )
             if q_transfer is not None
             else None

@@ -330,6 +330,16 @@ gripper_kv = [20.0, 20.0]
 gripper_open_m = 0.06
 gripper_close_m = 0.0
 gripper_finger_clear_m = 0.008
+# G1-F2 close commands (normalized 0=open .. 1=closed over the 0.06 m
+# jaw, gap = 0.06*(1-g)): the narrowest med box axis is 0.030 m
+# (cetirizine), so contact on EVERY med needs g >= 1 - 0.030/0.06 = 0.50;
+# 0.55 closes to a 0.027 m target gap — contact for all five meds, sim
+# contact physics stops the fingers on the actual box. The preclose
+# stage stays FULLY OPEN: the widest box (0.045) plus two finger clears
+# (0.008) already spans 0.061 m > the open jaw, so plan_grasp's
+# fingertip-clearance corridor is validated at full open only.
+gripper_grasp_cmd = 0.55
+gripper_pregrasp_cmd = 0.0
 # Held-DOF PD (pelvis fixed: only limb weight, no balance burden); the PD
 # target is always held_home_qpos. kp 200 left a 0.0432 rad static droop
 # (τ_g/kp with the waist/hip gravity torque ≈ 8.6 N·m); 800 holds it
@@ -387,7 +397,19 @@ tray_size = [0.12, 0.16, 0.06]
 pregrasp_height_m = 0.10
 ik_max_starts = 32
 ik_max_solver_iters = 200
-ik_pos_tol_m = 0.015
+# G1-F2 tuning, measured on the C1 far slot column (x=0.24, ~95 percent
+# of the 0.394 m vertical-forearm chain budget per the slot comments): the
+# redundant 7-DOF DLS sits on a Pareto plateau there — nailing position
+# (0.000 m) leaves rot 0.234; converging orientation (0.106 rad) leaves
+# pos 0.023 m. Doubling iterations (200 -> 800) only moves rot 0.112 ->
+# 0.085, so it is conditioning, not budget. The values below match the
+# tolerance class the C1 build itself accepts for the SAME reachability
+# check (shared [ik] rot_tol_rad 0.15) and so101's near-singular band
+# (ik_pos_tol_m 0.02, rounded up to cover the 0.023 plateau). At the
+# grasp the advance continuation re-converges from the hover; the palm
+# stays within 6.1 deg (rot 0.106 -> rot[2,2] >= 0.994).
+ik_pos_tol_m = 0.025
+ik_rot_tol_rad = 0.15
 ik_full_range_starts = true
 trajectory_staging_z = 1.00
 trajectory_lift_m = 0.05
