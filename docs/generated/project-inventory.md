@@ -123,10 +123,10 @@ stayed outside it).
 | [registry/manifests/dora-genesis.yaml](../../registry/manifests/dora-genesis.yaml) | sim_bridge, rgb_stream, depth_stream, arm_actuation, gripper_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/g1-driver.yaml](../../registry/manifests/g1-driver.yaml) | hw_bridge | g1_right | motion | hub | `src/aisle/nodes/g1_driver.py` |
 | [registry/manifests/goal-adversary.yaml](../../registry/manifests/goal-adversary.yaml) | goal_adversary | franka, so101 | decision | agent-authored | `src/aisle/nodes/goal_adversary.py` |
-| [registry/manifests/grasp-planner-topdown.yaml](../../registry/manifests/grasp-planner-topdown.yaml) | grasp_planning | franka, so101 | decision | hub | `src/aisle/nodes/grasp_topdown.py` |
+| [registry/manifests/grasp-planner-topdown.yaml](../../registry/manifests/grasp-planner-topdown.yaml) | grasp_planning | franka, so101, g1_right | decision | hub | `src/aisle/nodes/grasp_topdown.py` |
 | [registry/manifests/gripper-driver-sim.yaml](../../registry/manifests/gripper-driver-sim.yaml) | gripper_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/human-sim.yaml](../../registry/manifests/human-sim.yaml) | dialogue_human | franka, so101 | decision | hub | `src/aisle/nodes/human_sim.py` |
-| [registry/manifests/ik-trajectory.yaml](../../registry/manifests/ik-trajectory.yaml) | trajectory_generation | franka, so101 | motion | hub | `src/aisle/nodes/ik_trajectory.py` |
+| [registry/manifests/ik-trajectory.yaml](../../registry/manifests/ik-trajectory.yaml) | trajectory_generation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/ik_trajectory.py` |
 | [registry/manifests/ik-transfer-v2.yaml](../../registry/manifests/ik-transfer-v2.yaml) | trajectory_generation | franka, so101 | motion | agent-authored | `skills/ik-transfer-v2/ik_transfer_v2.py` |
 | [registry/manifests/misplacement-detector.yaml](../../registry/manifests/misplacement-detector.yaml) | misplacement_detection | franka | perception | hub | `src/aisle/nodes/misplacement_detector.py` |
 | [registry/manifests/monolith-broker.yaml](../../registry/manifests/monolith-broker.yaml) | monolithic_control | franka, so101 | motion | agent-authored | `src/aisle/nodes/monolith_broker.py` |

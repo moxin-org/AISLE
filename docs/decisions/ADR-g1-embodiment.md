@@ -119,3 +119,25 @@ guard below the actuator envelope is safety margin, never a claim about
 the hardware's capability; if a task ever needs more, the owner amends
 this section with measured justification, not a URDF copy-through. The
 URDF rates stay visible in `chain.qdot_max` for provenance.
+
+## G1-F2 known limitation: cross-body far-column transfers
+
+The staged planner solves the full pick/place ladder for the C1 near
+columns (x=0.28 and the right-biased x=0.24 slots), verified end-to-end
+(rise, transit descent, in-place wrist roll, advance, lift, retract,
+free-yaw transfer with tray roll, lower, home). The cross-body far column
+[0.24, +0.16] — the RIGHT arm reaching across the torso — stalls the
+transfer-stage DLS in an elbow-family switch: warm starts plateau ~0.04 m
+out, and the cold solution lands on a different branch (3.5 rad away).
+Every remediation was measured and rejected by a safety gate: five
+Cartesian routes (direct, flipped parity, side-column, near-column hop,
+high arc) with free-yaw all stall; the joint-space sweep between the two
+families clears the shelf footprint (min TCP z 0.999 over boxes topping at
+~0.92) but flips the palm mid-sweep (worst rot[2,2] +0.85 vs the required
+palm-down -0.90). The planner therefore fails LOUD there (plan.error set,
+no waypoints execute) rather than emitting an unverified swing — the same
+discipline the front-flip sweep enforces. Lifting this needs either a
+measured transfer-route profile (like so101's trajectory_transfer_route)
+or a smarter solver; tracked for the follow-up. Grasp-side reachability
+of that column is NOT affected (direct IK solves it; the sim parity test
+uses seed-0 cetirizine at [0.24, -0.16] and passes).

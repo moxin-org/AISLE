@@ -83,14 +83,10 @@ def test_g1_ik_solution_realizes_in_genesis_within_one_cm(seed):
     if not getattr(gs, "_initialized", False):
         gs.init(backend=gs.cpu, logging_level="warning", seed=0)
     scene = gs.Scene()
-    robot = scene.add_entity(
-        gs.morphs.URDF(file=_G1_URDF, fixed=True, pos=(0.0, 0.0, _PELVIS_Z))
-    )
+    robot = scene.add_entity(gs.morphs.URDF(file=_G1_URDF, fixed=True, pos=(0.0, 0.0, _PELVIS_Z)))
     scene.build()
     arm_indices = [robot.get_joint(name).dofs_idx_local[0] for name in G1_RIGHT_ARM_JOINTS]
-    finger_indices = [
-        robot.get_joint(name).dofs_idx_local[0] for name in G1_RIGHT_GRIPPER_JOINTS
-    ]
+    finger_indices = [robot.get_joint(name).dofs_idx_local[0] for name in G1_RIGHT_GRIPPER_JOINTS]
     native = np.zeros(robot.n_dofs, dtype=np.float64)
     native[arm_indices] = q
     native[finger_indices] = 0.0245  # open stop

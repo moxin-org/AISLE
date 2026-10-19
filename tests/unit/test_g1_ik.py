@@ -13,9 +13,8 @@ import pytest
 from cli_helpers import REPO_ROOT, run_json
 
 from aisle.nodes.budget_guard import clamp_joint_cmd, fk_ee_pose, load_limits
-from aisle.nodes.grasp_topdown import place_tcp_z, plan_grasp
-from aisle.nodes.ik_trajectory import StagedPlan, ik_solve, topdown_rotation
-from aisle.embodiment import G1_RIGHT_ARM_JOINTS
+from aisle.nodes.grasp_topdown import GRIP_ENGAGEMENT, plan_grasp
+from aisle.nodes.ik_trajectory import StagedPlan, ik_solve, interpolate_step, topdown_rotation
 from aisle.scenes.pharmacy import (
     MED_NAMES,
     load_meds,
@@ -31,6 +30,7 @@ def run_validate(graph, *args: str) -> tuple[int, dict]:
     """The same CLI wrapper test_validator.py uses."""
     return run_json("aisle.harness.cli", "validate", str(graph), *args)
 
+
 PHYSICS = load_physics()
 PROFILE = PHYSICS["embodiment"]["g1_right"]
 LAYOUT = resolve_layout(PHYSICS, "g1_right")
@@ -40,7 +40,7 @@ HOME = np.asarray(LIMITS.fallback_qpos, dtype=np.float32)
 TRAY_TOP = PROFILE["tray_pos"][2] + PROFILE["tray_size"][2] / 2
 
 
-def _grasp_pose(placements, med_name: str, grip: float = 0.0):
+def _grasp_pose(placements, med_name: str, grip: float = GRIP_ENGAGEMENT):
     target = next(p for p in placements if p.name == med_name)
     pose = np.array([target.x, target.y, target.z, 0.0, 0.0, 0.0, 1.0], dtype=np.float32)
     neighbours = [
@@ -105,8 +105,15 @@ def test_g1_staged_plan_topdown_uses_seven_joints_and_profile_commands():
     """SCN-4, TC-5, BG-3: the unchanged staged pick/place sequence solves
     for the G1 chain — every waypoint is 7 joints, gripper stages carry
     the profile's commands, the lift keeps height, and the plan returns
-    to the wire home."""
-    placements = sample_placements(0, MED_NAMES, LAYOUT)
+    to the wire home. Slot: seed-7 amoxicillin at the near column
+    [0.28, 0.08] (the so101 mirror tests ONE pose too). KNOWN LIMITATION
+    (G1-F2, measured): the cross-body far column [0.24, +0.16] — right
+    arm reaching across the torso — stalls the transfer-stage DLS in an
+    elbow-family switch; every Cartesian route and the joint-space sweep
+    fail a safety gate (clearance or palm flip), so the plan fails LOUD
+    there (plan.error set, nothing executes) pending a routed profile;
+    see ADR-g1-embodiment."""
+    placements = sample_placements(7, MED_NAMES, LAYOUT)
     grasp, approach, place_z = _grasp_pose(placements, "amoxicillin")
     plan = StagedPlan(
         grasp,
@@ -117,9 +124,9 @@ def test_g1_staged_plan_topdown_uses_seven_joints_and_profile_commands():
         embodiment="g1_right",
     )
     assert plan.ok, plan.error
-    assert all(
-        np.asarray(q).shape == (7,) for stage in plan.stages for q in stage.path
-    ), "the G1 wire arm is seven joints"
+    assert all(np.asarray(q).shape == (7,) for stage in plan.stages for q in stage.path), (
+        "the G1 wire arm is seven joints"
+    )
     stages = {stage.name: stage for stage in plan.stages}
     assert stages["close"].gripper == pytest.approx(float(PROFILE["gripper_grasp_cmd"]))
     assert stages["preclose"].gripper == pytest.approx(float(PROFILE["gripper_pregrasp_cmd"]))
@@ -131,18 +138,22 @@ def test_g1_staged_plan_topdown_uses_seven_joints_and_profile_commands():
         - np.linalg.norm(fk_ee_pose(advance_q, embodiment="g1_right")[0])
     )
     assert lift_gain > 0.0, "the lift stage must rise"
-    assert fk_ee_pose(lift_q, embodiment="g1_right")[0][2] > fk_ee_pose(advance_q, embodiment="g1_right")[0][2]
-    assert plan.stages[-1].q == pytest.approx(HOME[:7])
-    assert stages["transfer"].vel == pytest.approx(
-        float(PROFILE["trajectory_transfer_vel_scale"])
+    assert (
+        fk_ee_pose(lift_q, embodiment="g1_right")[0][2]
+        > fk_ee_pose(advance_q, embodiment="g1_right")[0][2]
     )
+    assert plan.stages[-1].q == pytest.approx(HOME[:7])
+    assert stages["transfer"].vel == pytest.approx(float(PROFILE["trajectory_transfer_vel_scale"]))
 
 
 def test_g1_plan_waypoints_stay_in_workspace_and_guard_clean():
     """BG-3 (G1-F1 chained in): every planned waypoint's TCP lies inside
-    the workspace AABB and consecutive waypoints produce ZERO guard
-    violations at the guard's own cadence assumptions (slow joint steps
-    between adjacent waypoints)."""
+    the workspace AABB, and the STREAM the executor actually publishes —
+    per-tick velocity-bounded interpolation between waypoints (StageStreamer
+    semantics: max_vel * dt steps, dt = TC-4 cadence) — produces ZERO guard
+    violations. Feeding waypoint jumps straight to the guard would test the
+    executor's interpolator away; this tests the guard against the real
+    command sequence."""
     placements = sample_placements(2, MED_NAMES, LAYOUT)
     grasp, approach, place_z = _grasp_pose(placements, "cetirizine")
     plan = StagedPlan(
@@ -158,17 +169,20 @@ def test_g1_plan_waypoints_stay_in_workspace_and_guard_clean():
     hi = np.asarray(LIMITS.workspace_max)
     fingers_open = float(PROFILE["gripper_open_qpos"])
     prev = np.concatenate([HOME[:7], [fingers_open, fingers_open]]).astype(np.float32)
+    current = HOME[:7].copy()
+    max_vel, dt = 1.0, 0.01  # the manifest's max_joint_vel_rad_s at TC-4 cadence
     for stage in plan.stages:
         for q in stage.path:
-            full = np.concatenate(
-                [np.asarray(q, dtype=np.float32), [fingers_open, fingers_open]]
-            ).astype(np.float32)
-            tcp = fk_ee_pose(np.asarray(q, dtype=np.float32), embodiment="g1_right")[0]
+            target_q = np.asarray(q, dtype=np.float32)
+            tcp = fk_ee_pose(target_q, embodiment="g1_right")[0]
             assert np.all(lo <= tcp) and np.all(tcp <= hi), (stage.name, tcp)
-            safe, violations = clamp_joint_cmd(full, prev, LIMITS, timed_out=False)
-            assert violations == [], (stage.name, violations)
-            assert np.all(safe >= np.asarray(LIMITS.q_min, dtype=np.float32) - 1e-6)
-            prev = safe
+            while not np.allclose(current, target_q, atol=1e-6):
+                current = interpolate_step(current, target_q, max_vel, dt)
+                full = np.concatenate([current, [fingers_open, fingers_open]]).astype(np.float32)
+                safe, violations = clamp_joint_cmd(full, prev, LIMITS, timed_out=False)
+                assert violations == [], (stage.name, violations)
+                assert np.all(safe >= np.asarray(LIMITS.q_min, dtype=np.float32) - 1e-6)
+                prev = safe
 
 
 def test_g1_manifests_open_and_only_bridge_manifests_still_mismatch():
@@ -178,12 +192,8 @@ def test_g1_manifests_open_and_only_bridge_manifests_still_mismatch():
     G1-C2 owns (dora-genesis, arm-driver-sim, gripper-driver-sim,
     camera-source, reset, verifier-oracle, task-state-machine) and
     nothing else."""
-    code, report = run_validate(
-        REPO_ROOT / "graphs" / "expert_t0.yaml", "--embodiment", "g1_right"
-    )
-    mismatched = {
-        e["node"] for e in report["errors"] if e["code"] == "EMBODIMENT_MISMATCH"
-    }
+    code, report = run_validate(REPO_ROOT / "graphs" / "expert_t0.yaml", "--embodiment", "g1_right")
+    mismatched = {e["node"] for e in report["errors"] if e["code"] == "EMBODIMENT_MISMATCH"}
     bridge = {
         "dora-genesis",
         "arm-driver-sim",
