@@ -247,6 +247,12 @@ def test_m0_6_g1_right_profile_swap_pass1_at_least_80():
             "0..49",
             "--reset",
             "teleport",
+            # g1_right's frozen-set changes (assets/g1, env_hash.py) live on
+            # feat/g1-support, not yet on protected main — the trusted
+            # origin/main baseline refuses the gate tooling itself. local is
+            # the documented dev override (rollout.py, HAR-2).
+            "--env-baseline",
+            "local",
             "--run-id",
             run_id,
             timeout=4 * 3600,
