@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:f04039f9ef846a257c0609e6ddcbb26e2c535629b756b43568d91b80bbbe1aec",
+  "immutable_id": "sha256:68405c72c3d795a26f3defd64dc6c1e171432bdc3b92c55ab65b875a7410be6c",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -8,7 +8,7 @@
       "justification": "this is the treatment: bundled typed-dataflow engineering surface versus one ordinary module",
       "monolithic": "experts/monolithic/expert_t1.py#sha256:e917cc9b8dd1a323d633e5d96a9af5f485dff2b594e5b2c75ebb8c853a81f25e",
       "surface": "agent deliverable",
-      "typed": "graphs/expert_t1.yaml#sha256:1720e793851ff408b8b6d60d5f4723358db395d7c69844b5d9d64501a1dcc2ef"
+      "typed": "graphs/expert_t1.yaml#sha256:8ab72e432d0336c3a83a744da22498e6ffab1908ef303dec0cc36226dad4150a"
     },
     {
       "analysis": "recorded as treatment property; check/run attempt and error events compared descriptively",
@@ -17,7 +17,7 @@
       "justification": "part of the bundled treatment; absence is a declared property, not missing data (MON-12)",
       "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "static validation and diagnostics",
-      "typed": "src/aisle/harness/validate.py#sha256:58e860b6b5cbfe66948cbfddae25c2de46e17001f2fce868689c4829d963a117"
+      "typed": "src/aisle/harness/validate.py#sha256:154cc96b42399752d87acb9a8ea81761b06469e9baac7f42bcc7820072339322"
     },
     {
       "analysis": "treatment property",
@@ -44,7 +44,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/monolith/primitives.py#sha256:b408cf09cb4a2dc76a43bee63f0b61a46e247361cad307ec71f182e3d797a06d",
       "surface": "robot primitives (pose, grasp, trajectory, executor)",
-      "typed": "src/aisle/nodes/segmented_pose.py#sha256:fdaea68f2a5ba45f745e1f5ba185669daa6f874bd19a13d1a6f523e8eab392f4"
+      "typed": "src/aisle/nodes/segmented_pose.py#sha256:d3da78077476bc83f85296af348e47a94987639ca9372f226e7d01460c04db30"
     },
     {
       "analysis": "held fixed; exactness checked by harness monolith interface",
