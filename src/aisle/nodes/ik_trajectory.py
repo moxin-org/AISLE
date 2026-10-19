@@ -1342,6 +1342,22 @@ class StagedPlan:
         return not self.error
 
 
+def plan_done_declared(turn_outputs: str) -> bool:
+    """HAR-3 vs ADR-30: is `plan_done` among the outputs THIS graph
+    declared for the node?
+
+    The declared set is AISLE_TURN_OUTPUTS — the same variable the typed
+    host exports from the graph config in BOTH modes (harness/typed_node_host
+    pins it from config["outputs"]; dora-genesis's bridge already guards
+    against it). Under lockstep aisle.turns rejects any undeclared send
+    with ProtocolError, and expert_t0 (the frozen T0 graph) does NOT
+    declare plan_done — so the retry-arming signal may only go out on
+    graphs that wired it (the 15 eval/shield/expert graphs)."""
+    return "plan_done" in {
+        name.strip() for name in str(turn_outputs or "").split(",") if name.strip()
+    }
+
+
 class StageStreamer:
     """The proven per-joint_state streaming step over a Stage list —
     waypoint marching, gravity-sag integral correction, grip ramp, settle/
@@ -1644,10 +1660,19 @@ def main() -> None:
                 print(line, file=sys.stderr)
             if streamer.done:
                 streamer = None  # finished: idle until the next episode
-                if pending_read is None:
+                if pending_read is None and plan_done_declared(
+                    os.environ.get("AISLE_TURN_OUTPUTS", "")
+                ):
                     # a GRASP plan completed (read parks reply on
                     # move_done): tell the state machine so it can arm
-                    # an in-context retry if no verdict lands (HAR-3)
+                    # an in-context retry if no verdict lands (HAR-3).
+                    # G1-F4 (lane1 smoke 20261019-224058): the send is
+                    # GATED on the graph declaring the output — under
+                    # lockstep aisle.turns raises ProtocolError for any
+                    # undeclared send (expert_t0 does NOT declare it; 15
+                    # eval/shield/expert graphs do and keep the signal).
+                    # Free-run reads the same variable the typed host
+                    # exports from the graph config in both modes.
                     send("plan_done", pa.array([json.dumps({"ok": True})]), metadata)
                 if pending_read is not None:
                     q_read, range_m, pitch, _ = pending_read["attempts"][
