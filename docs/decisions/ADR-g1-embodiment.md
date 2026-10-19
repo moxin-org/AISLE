@@ -142,6 +142,26 @@ or a smarter solver; tracked for the follow-up. Grasp-side reachability
 of that column is NOT affected (direct IK solves it; the sim parity test
 uses seed-0 cetirizine at [0.24, -0.16] and passes).
 
+## G1-F3 resolution: the same-side far slot plans
+
+The cross-body column is gone from the C1 lattice (outer-loop ruling);
+its replacement, the same-side far slot [0.28, -0.24], hit the SAME
+solver family and was lifted with three planner fixes, all measured on
+that slot: (1) the free-yaw transfer lands the wrist ~0.94 rad of yaw
+from the place frame and the direct tray roll misses its basin while the
+180-degree tool-z parity converges — the tray roll now retries both
+parities; (2) the tallest box (cetirizine, place_z 1.075) needs the
+flipped parity for the tray descent too — the lower stage retries both;
+(3) the rise hop from home arcs the executor's interpolation above the
+1.30 m workspace ceiling (measured peak 1.341 from the home-seed
+solution vs 1.144 from a different seed) — the rise waypoint is now
+solved cold over the fixed seed ladder (both parities) and the FIRST
+solution whose interpolated arc keeps the TCP inside the workspace AABB
+wins. With those, all five slots x five meds plan guard-clean
+(tests/unit/test_g1_scene_plan.py, 0 xfail; far-slot planning cost
+~5-6 s per med). The cross-body limitation above remains recorded for
+the removed column; no slot in the current lattice is unplannable.
+
 ## G1-H: cold-build budget — warmup, not budget inflation
 
 Genesis caches CoACD convex decompositions and compiled kernels per

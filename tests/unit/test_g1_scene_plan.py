@@ -144,24 +144,12 @@ def _grasp_for_slot_med(slot_xy: tuple[float, float], med: str):
     )
 
 
-#: G1-H-r1 probe verdict: no same-side slot is plannable without
-#: ik-trajectory code changes — 16 slot candidates (transfer IK fails at
-#: y<=-0.23, pregrasp IK at x>=0.30, pairwise separation seals
-#: -0.22..-0.18) and 23 trajectory/workspace combos all fail. The
-#: transfer-stage DLS stall needs the lane2 solver (measured transfer
-#: route profile or smarter continuation); these cases pin that scope.
-_XFAIL_SLOT = (0.28, -0.24)
-
-
-@pytest.mark.parametrize(
-    "slot_xy",
-    [
-        pytest.param(s, marks=pytest.mark.xfail(reason="lane2 transfer IK (G1-H-r1 probe verdict)"))
-        if s == _XFAIL_SLOT
-        else s
-        for s in (tuple(map(float, x)) for x in PROFILE["placement_slots_xy"])
-    ],
-)
+#: G1-F3 (lane2): the whole lattice plans — the same-side far slot
+#: [0.28, -0.24] needed three planner fixes (tray-roll and lower-stage
+#: tool-z parity retries, and a rise solve chosen from the seed ladder
+#: by executor-arc containment); the xfail markers the G1-H-r1 probe
+#: left here are gone, so any slot regression now fails loud.
+@pytest.mark.parametrize("slot_xy", [tuple(map(float, x)) for x in PROFILE["placement_slots_xy"]])
 @pytest.mark.parametrize("med", MED_NAMES)
 def test_every_slot_med_plans_and_passes_the_guard(slot_xy, med):
     """SCN-4, BG-3: for every slot x every med (25 combinations — the whole

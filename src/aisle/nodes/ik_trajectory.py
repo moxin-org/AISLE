@@ -997,10 +997,53 @@ class StagedPlan:
             approach_rot = (
                 grasp_rot if embodiment == "so101" or not front_mode else topdown_rotation(0.0)
             )
-        q_rise = ik_solve(rise_pos, approach_rot, home, embodiment)
-        if q_rise is None:
+        rise_path: list | None
+        if embodiment == "g1_right":
+            # G1-F3, measured: a single joint-space hop home -> rise can
+            # arc the TCP ABOVE the straight-line height (executor sweep
+            # peaked at z=1.341 against the 1.30 workspace ceiling; guard
+            # clamps it) while the SAME waypoint solved from a different
+            # seed stays flat (z=1.144). And the Cartesian line home-TCP
+            # -> rise stalls full-rows on the far same-side column (substep
+            # 1, home sits 1.98 rad off the neutral frame) though its
+            # free-yaw ladder walks — leaving a roll that misses its basin.
+            # So: solve the waypoint cold over the FIXED seed ladder (both
+            # tool-z parities — the Dex1 fingers are symmetric) and take
+            # the FIRST solution whose executor interpolation arc keeps
+            # the TCP inside the workspace AABB — the same bound the guard
+            # enforces, applied at planning time instead.
+            lo = np.asarray(limits.workspace_min, dtype=np.float64)
+            hi = np.asarray(limits.workspace_max, dtype=np.float64)
+
+            def _arc_stays_inside(q_end: np.ndarray) -> bool:
+                cur = np.asarray(home, dtype=np.float32)
+                target = np.asarray(q_end, dtype=np.float32)
+                while not np.allclose(cur, target, atol=1e-6):
+                    delta = np.clip(target - cur, -0.01, 0.01)
+                    cur = (cur + delta).astype(np.float32)
+                    tcp = fk_ee_pose(cur, embodiment)[0]
+                    if not (np.all(lo <= tcp) and np.all(tcp <= hi)):
+                        return False
+                return True
+
+            rise_path = None
+            for parity in (approach_rot, approach_rot @ _RZ_PI):
+                for seed in (home, *_G1_CANONICAL_SEEDS):
+                    q_cand = _ik_once(
+                        rise_pos, parity, np.asarray(seed, dtype=np.float32), "g1_right"
+                    )
+                    if q_cand is not None and _arc_stays_inside(q_cand):
+                        rise_path = [q_cand]
+                        break
+                if rise_path is not None:
+                    break
+        else:
+            q_rise = ik_solve(rise_pos, approach_rot, home, embodiment)
+            rise_path = [q_rise] if q_rise is not None else None
+        if not rise_path:
             self.error = f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
             return
+        q_rise = rise_path[-1]
         staging_path = ik_continuation(
             rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment, pos_tol_scale=1.2
         )
@@ -1195,26 +1238,49 @@ class StagedPlan:
                 # IN PLACE at the tray hover back to the place frame. The
                 # roll is a pure gravity-axis spin for a palm-down tool —
                 # the box stays upright throughout (T10's creep was wrist
-                # tilt, not yaw).
+                # tilt, not yaw). BOTH tool-z parities are tried (same
+                # pregrasp-roll pattern): the Dex1 fingers are symmetric,
+                # so a 180-degree spin of the place frame is the same
+                # physical release. Measured on the same-side far slot
+                # [0.28, -0.24]: the free-yaw descent lands 0.94 rad of
+                # yaw away, the direct roll misses its basin while the
+                # flipped-parity roll converges AND the lower stage
+                # follows it — without this retry the slot is unplannable.
                 realized = fk_ee_pose(transfer_path[-1], embodiment)[1]
-                roll = _g1_roll_at(transfer_path[-1], transfer_pos, realized, place_rot)
-                transfer_path = (list(transfer_path) + roll) if roll else None
+                tray_roll = None
+                for parity in (place_rot, place_rot @ _RZ_PI):
+                    tray_roll = _g1_roll_at(transfer_path[-1], transfer_pos, realized, parity)
+                    if tray_roll:
+                        place_rot = parity
+                        break
+                transfer_path = (list(transfer_path) + tray_roll) if tray_roll else None
         if transfer_path is None:
             self.error = "IK failed for stage 'transfer'"
             return
         q_transfer = transfer_path[-1] if transfer_path is not None else None
-        lower_path = (
-            ik_continuation(
-                transfer_pos,
-                lower_pos,
-                place_rot,
-                q_transfer,
-                embodiment=embodiment,
-                pos_tol_scale=1.2,
-            )
-            if q_transfer is not None
-            else None
-        )
+        lower_path = None
+        if q_transfer is not None:
+            for parity in (
+                (place_rot,) if embodiment != "g1_right" else (place_rot, place_rot @ _RZ_PI)
+            ):
+                # G1-F3: the descent from the tray hover needs BOTH tool-z
+                # parities tried (same pattern as the tray roll): measured
+                # on the same-side far slot's tallest box — the descent
+                # misses its basin in the rolled parity and converges in
+                # the flipped one, which is the same palm-down release for
+                # the symmetric Dex1 fingers. The cold alternatives sit
+                # 3-4 rad away on other branches (verified unusable).
+                lower_path = ik_continuation(
+                    transfer_pos,
+                    lower_pos,
+                    parity,
+                    q_transfer,
+                    embodiment=embodiment,
+                    pos_tol_scale=1.2,
+                )
+                if lower_path is not None:
+                    place_rot = parity
+                    break
         if lower_path is None:
             self.error = "IK failed for stage 'lower'"
             return
@@ -1226,7 +1292,7 @@ class StagedPlan:
         # hovers PLACE_DROP_GAP above the tray instead)
         release_path = (lower_path[-1],) if lower_path is not None else None
         self.stages = [
-            Stage("rise", (q_rise,), 0.0, 0.1),
+            Stage("rise", tuple(rise_path), 0.0, 0.1),
             Stage("staging", tuple(staging_path), 0.0, 0.1),
             Stage("pregrasp", tuple(pregrasp_path), 0.0, 0.2),
             # Narrow the official 138 mm one-sided jaw in free space before

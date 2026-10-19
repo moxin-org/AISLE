@@ -5,7 +5,7 @@
       "author": "AISLE maintainers (typed graph developed with full repository access; predates SPEC 440)",
       "blind": false,
       "path": "graphs/expert_t1.yaml",
-      "sha256": "2a301fab6337ecf0786888af9a351c885dc63a7cd632cf3f99ed681d7156bcfe"
+      "sha256": "e92ee4d25f8220b6c755a1a04a0ded83942e79487cd0c14e3170c2310ae2e529"
     },
     {
       "arm": "monolithic",
