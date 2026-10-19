@@ -84,6 +84,23 @@ def test_so101_asset_change_changes_hash(tmp_path):
     assert get_hash(root) != before
 
 
+def test_g1_asset_change_changes_hash(tmp_path):
+    """CON-5, CON-7, SCN-4: the pinned G1 mode-15/dex1-1 URDF and its mesh
+    closure are frozen inputs; changing an asset invalidates the hash."""
+    g1 = tmp_path / "assets" / "g1"
+    g1.mkdir(parents=True)
+    (g1 / "g1_29dof_mode_15_with_dex1_1.urdf").write_text("<robot name='g1'/>\n")
+    (g1 / "meshes").mkdir()
+    (g1 / "meshes" / "pelvis.STL").write_bytes(b"mesh")
+    root = make_root(tmp_path)
+    before = get_hash(root)
+    (g1 / "g1_29dof_mode_15_with_dex1_1.urdf").write_text("<robot name='changed'/>\n")
+    assert get_hash(root) != before
+    (g1 / "meshes" / "pelvis.STL").write_bytes(b"tampered")
+    (g1 / "g1_29dof_mode_15_with_dex1_1.urdf").write_text("<robot name='g1'/>\n")
+    assert get_hash(root) != before
+
+
 def test_rename_changes_hash(tmp_path):
     """CON-7: file paths are part of the fingerprint, not just contents."""
     root = make_root(tmp_path)
