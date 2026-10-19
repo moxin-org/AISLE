@@ -31,6 +31,7 @@ import numpy as np
 
 from aisle.embodiment import (
     from_wire_joint_order,
+    held_dof_indices,
     profile_dof_indices,
     profile_joint_names,
     to_wire_joint_order,
@@ -342,6 +343,16 @@ def parse_bridge_config(env: dict) -> BridgeConfig:
         occlusion=occlusion_raw in ("1", "true", "yes"),
         lockstep=str(env.get("AISLE_LOCKSTEP", "0")).strip().lower() in ("1", "true", "yes"),
     )
+
+
+def require_wire_joint_cmd(payload: np.ndarray, n_dof: int) -> None:
+    """TC-5 input gate: joint_cmd is Float32[n_dof] — the WIRE length
+    (9 for g1_right, never robot.n_dofs). Module-level so the contract
+    is unit-testable without a dataflow."""
+    if payload.shape[0] != n_dof:
+        raise ValueError(
+            f"joint_cmd must be Float32[{n_dof}], got length {payload.shape[0]} (TC-5)"
+        )
 
 
 def require_single_env_for_mobile(embodiment: str, n_envs: int) -> None:
@@ -997,6 +1008,12 @@ def main(
             )
         robot = handle.robot
         n_dof = robot.n_dofs
+        # TC-5 (G1-C2): a profile with held joints carries a PARTIAL wire —
+        # the bridge's n_dof (bridge_info, joint_state, joint_cmd length
+        # checks) is the wire length, never robot.n_dofs. Legacy
+        # full-coverage profiles keep n_dof == robot.n_dofs bit-for-bit.
+        if profile.get("held_joint_names"):
+            n_dof = len(profile_joint_names(profile))
         # carry coupling needs the hand's world position (T15, ADR-18)
         hand_link = robot.get_link("hand") if is_store else None
         held_item: str | None = None  # carry latch (T15, ADR-18)
@@ -1147,6 +1164,11 @@ def main(
         quarantine = ResetQuarantine(RESET_SETTLE_TICKS)  # holds arm at home post-reset
         wire_dof_indices = profile_dof_indices(robot, profile)
         configured_names = profile_joint_names(profile)
+        has_held = bool(profile.get("held_joint_names"))
+        if has_held and "home_qpos" not in profile:
+            raise ValueError(
+                "held_joint_names profiles require home_qpos (held home is the PD target)"
+            )
         if configured_names is None:
             # one name per DOF in native payload order: multi-dof joints repeat,
             # zero-dof (fixed) joints vanish
@@ -1158,13 +1180,25 @@ def main(
             joint_names = list(configured_names)
         assert len(joint_names) == n_dof, (len(joint_names), n_dof)
 
-        home_hold = (
-            from_wire_joint_order(
+        if "home_qpos" not in profile:
+            home_hold = None
+        elif has_held:
+            # G1-C2 (TC-5): full-length home — held DOFs take held_home_qpos
+            # and stay the PD target forever; only wire positions are ever
+            # commanded. Legacy profiles keep the exact old vector.
+            held_base = np.zeros(robot.n_dofs, dtype=np.float32)
+            held_base[list(held_dof_indices(robot, profile))] = np.asarray(
+                profile["held_home_qpos"], dtype=np.float32
+            )
+            home_hold = from_wire_joint_order(
+                np.asarray(profile["home_qpos"], dtype=np.float32),
+                wire_dof_indices,
+                base=held_base,
+            )
+        else:
+            home_hold = from_wire_joint_order(
                 np.asarray(profile["home_qpos"], dtype=np.float32), wire_dof_indices
             )
-            if "home_qpos" in profile
-            else None
-        )
         gripper_open = profile.get("gripper_open_qpos", profile.get("gripper_open_m", 0.04))
         gripper_close = profile.get("gripper_close_qpos", profile.get("gripper_close_m", 0.0))
         gripper_dofs = int(profile.get("gripper_dofs", 2))
@@ -1288,9 +1322,16 @@ def main(
             # command owns any overlapping dofs
             for kind, env_id, payload, dropped in commands.drain():
                 if kind == "joint":
-                    target = from_wire_joint_order(
-                        np.asarray(payload, dtype=np.float32), wire_dof_indices
-                    )
+                    wire_values = np.asarray(payload, dtype=np.float32)
+                    if has_held:
+                        # G1-C2 (TC-5): only the wire DOFs follow joint_cmd —
+                        # the base keeps held joints at their held home, which
+                        # no command may ever overwrite.
+                        target = from_wire_joint_order(
+                            wire_values, wire_dof_indices, base=home_hold
+                        )
+                    else:
+                        target = from_wire_joint_order(wire_values, wire_dof_indices)
                     if cfg.n_envs > 1:
                         robot.control_dofs_position(target[None, :], envs_idx=[env_id])
                     else:
@@ -1354,9 +1395,15 @@ def main(
                         envs_idx=[env_id] if cfg.n_envs > 1 and env_id is not None else None
                     )
             if "home_qpos" in profile:
-                home = from_wire_joint_order(
-                    np.asarray(profile["home_qpos"], dtype=np.float32), wire_dof_indices
-                )
+                if has_held:
+                    # G1-C2 (TC-5): reset re-homes BOTH partitions — wire to
+                    # home_qpos, held DOFs back to held_home_qpos. home_hold
+                    # is already exactly that full-length vector.
+                    home = home_hold
+                else:
+                    home = from_wire_joint_order(
+                        np.asarray(profile["home_qpos"], dtype=np.float32), wire_dof_indices
+                    )
                 if cfg.n_envs > 1 and env_id is not None:
                     robot.set_qpos(home[None, :], envs_idx=[env_id])
                     robot.control_dofs_position(home[None, :], envs_idx=[env_id])
@@ -1643,11 +1690,7 @@ def main(
                     payload = np.asarray(
                         event["value"].to_numpy(zero_copy_only=False), dtype=np.float32
                     ).reshape(-1)
-                    if payload.shape[0] != n_dof:
-                        raise ValueError(
-                            f"joint_cmd must be Float32[{n_dof}], "
-                            f"got length {payload.shape[0]} (TC-5)"
-                        )
+                    require_wire_joint_cmd(payload, n_dof)
                     commands.push("joint", metadata.get("env_id"), payload)
                     env_id = int(metadata.get("env_id", 0))
                     dropped_counts["joint"][env_id] = dropped_counts["joint"].get(env_id, 0) + int(
