@@ -1,0 +1,30 @@
+# G1-D (ADR-g1-driver): the Unitree G1 hardware bridge behind the same
+# topic surface as the sim bridge — SPEC 010's sim->real node-swap claim,
+# right-arm edition. Free-run by design (ADR-30 lockstep is a sim
+# instrument); reset REFUSES (hardware has no teleport, TC-6/ADR-34) and
+# doubles as the explicit lease re-arm. Lease watchdog + gradual arm_sdk
+# weight takeover/release + mode_machine 15 gate live in the node.
+id: g1-driver
+kind: node
+provides: [hw_bridge]
+requires: []
+inputs:
+  tick: {schema: timer_tick, rate_hz: 100}
+  joint_cmd: {schema: jointvec_f32, rate_hz: 100}
+  gripper_cmd: {schema: scalar_f32, rate_hz: 30}
+  reset: {schema: reset_request_u32, rate_hz: 1}
+outputs:
+  joint_state: {schema: jointvec_f32, latency_class: hard_rt}
+  gripper_state: {schema: scalar_f32, latency_class: hard_rt}
+  bridge_info: {schema: json_utf8, latency_class: best_effort}
+  reset_refused: {schema: reset_refused_u32, latency_class: best_effort}
+embodiment:
+  arm: [g1_right]
+  gripper: parallel
+safety_class: motion
+eval:
+  suite: tests/unit/test_g1_driver.py (loopback contract; ADR-g1-driver)
+  pass_rate: 1.0
+  last_run: '2026-10-19'
+origin: hub
+source: src/aisle/nodes/g1_driver.py

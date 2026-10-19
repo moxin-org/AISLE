@@ -136,6 +136,7 @@
           "items": {
             "enum": [
               "franka",
+              "g1_right",
               "so101"
             ]
           },

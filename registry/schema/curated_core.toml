@@ -11,6 +11,7 @@ core = [
   "detected-pose",
   "detector-openvocab",
   "dora-genesis",
+  "g1-driver",
   "so101-driver",
   "grasp-planner-topdown",
   "gripper-driver-sim",
