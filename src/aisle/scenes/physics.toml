@@ -388,6 +388,14 @@ pregrasp_height_m = 0.10
 ik_max_starts = 32
 ik_max_solver_iters = 200
 ik_pos_tol_m = 0.015
+# G1-F2 tuning, measured: after the position-only bootstrap the arm sits
+# 1.93 rad off the palm-down orientation, and the full-pose descent
+# converges to 0.112 rad in 200 iterations and 0.085 in 800 — a residual
+# plateau of the redundant 7-DOF DLS, not a budget shortfall (pos stays
+# 0.013 < ik_pos_tol_m throughout). 0.12 admits that plateau while
+# remaining palm-down for the grasp: rot[2,2] >= 0.993, worst tilt ~6.8
+# deg. The build-time pre-filter stays at the shared [ik] rot_tol_rad 0.15.
+ik_rot_tol_rad = 0.12
 ik_full_range_starts = true
 trajectory_staging_z = 1.00
 trajectory_lift_m = 0.05

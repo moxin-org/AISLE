@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
@@ -149,6 +150,17 @@ TRANSFER_TCP_Z = 0.30
 HAND_MOUNT_YAW = -math.pi / 4
 
 _RZ_PI = np.diag([-1.0, -1.0, 1.0])  # local z spin: box-symmetric grasp flip
+#: G1-F2: the shared topdown_quat bakes in the Franka hand-mount yaw
+#: (HAND_MOUNT_YAW); the G1 TCP (rpy [0, pi/2, 0]) has NO mount offset, so
+#: the G1 branch un-yaws planner quats by +pi/4 — net Rz(yaw) @ Rx(pi),
+#: palm down with the Dex1 finger straddle at the planner's intended yaw.
+_RZ_QUARTER = np.array(
+    [
+        [math.cos(math.pi / 4), -math.sin(math.pi / 4), 0.0],
+        [math.sin(math.pi / 4), math.cos(math.pi / 4), 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+)
 # canonical retry seeds (CON-5: a FIXED list, tried in order): DLS from the
 # home posture stalls in a local minimum for horizontal-wrist targets; a
 # wrist-forward posture reaches them in <150 iterations
@@ -185,11 +197,46 @@ def _so101_seeds() -> tuple[np.ndarray, ...]:
 _SO101_CANONICAL_SEEDS = _so101_seeds()
 
 
-#: G1-E: the harness accepts g1_right, but this module's kinematics are
-#: Franka-DH and SO-101-URDF only — G1-F owns the G1 chain. An unknown
-#: embodiment MUST raise here instead of silently solving the Franka chain
-#: (HAR-1; the pre-G1-E fall-through was the bug).
-_SUPPORTED_EMBODIMENTS = ("franka", "mobile", "so101")
+def _g1_seeds() -> tuple[np.ndarray, ...]:
+    """Fixed low-discrepancy starts over the official G1 right-arm limits
+    (CON-5), HOME FIRST (the bent ready pose is inside the top-down basin),
+    then 31 van der Corput starts = the profile's ik_max_starts."""
+    limits = load_limits("g1_right")
+    lower = np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64)
+    upper = np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64)
+    primes = (2, 3, 5, 7, 11, 13, 17)
+    starts = [np.asarray(limits.fallback_qpos[: limits.n_arm_dof], dtype=np.float32)]
+    starts.extend(
+        (lower + (upper - lower) * np.array([_van_der_corput(i, p) for p in primes])).astype(
+            np.float32
+        )
+        for i in range(1, 32)
+    )
+    return tuple(starts)
+
+
+_G1_CANONICAL_SEEDS = _g1_seeds()
+
+
+@lru_cache(maxsize=1)
+def _g1_ik_tolerances() -> tuple[int, float, float]:
+    """G1-F2: solver budget and tolerances come from the frozen scene
+    profile's ik_* keys (physics.toml [embodiment.g1_right]), not from
+    this module — tuning lands in the profile where the scene lives."""
+    from aisle.scenes.pharmacy import load_physics
+
+    profile = load_physics()["embodiment"]["g1_right"]
+    return (
+        int(profile["ik_max_solver_iters"]),
+        float(profile["ik_pos_tol_m"]),
+        float(profile["ik_rot_tol_rad"]),
+    )
+
+
+#: G1-E/F2: g1_right solves on the G1-F1 official-URDF chain; any other
+#: unknown embodiment MUST raise here instead of silently solving the
+#: Franka chain (HAR-1; the pre-G1-E fall-through was the bug).
+_SUPPORTED_EMBODIMENTS = ("franka", "mobile", "so101", "g1_right")
 
 
 def _require_supported_embodiment(embodiment: str, fn: str) -> None:
@@ -207,7 +254,8 @@ def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
 
 def fk_tcp(q_arm: np.ndarray, embodiment: str = "franka") -> np.ndarray:
     _require_supported_embodiment(embodiment, "fk_tcp")
-    if embodiment == "so101":
+    if embodiment in ("so101", "g1_right"):
+        # both URDF chains carry their fixed TCP frame in the chain tip
         return fk_ee_pose(q_arm, embodiment)[0]
     pos, rotation = fk_flange(q_arm)
     return pos + rotation[:, 2] * TCP_OFFSET
@@ -529,6 +577,12 @@ def _pose_error(
     q: np.ndarray, target_pos: np.ndarray, target_rot: np.ndarray, embodiment: str
 ) -> np.ndarray:
     _require_supported_embodiment(embodiment, "_pose_error")
+    if embodiment == "g1_right":
+        # 7-DOF redundant arm: the FULL six-row pose error (position plus
+        # all three orientation rows) — no so101-style underactuation
+        # relief, no free yaw
+        tcp, rotation = fk_ee_pose(q, embodiment)
+        return np.concatenate([target_pos - tcp, _rotation_error(rotation, target_rot)])
     if embodiment == "so101":
         tcp, rotation = fk_ee_pose(q, embodiment)
         # SO-101's base pan couples world yaw to target azimuth. Its five
@@ -598,6 +652,16 @@ def _ik_once(
 ) -> np.ndarray | None:
     _require_supported_embodiment(embodiment, "_ik_once")
     q = np.asarray(q0, dtype=np.float64).copy()
+    if embodiment == "so101":
+        bootstrap_iters, full_iters, rows, pos_tol, rot_tol = 80, 250, slice(0, 5), 0.015, 0.02
+    elif embodiment == "g1_right":
+        # G1-F2: budget and tolerances from the frozen profile (see
+        # _g1_ik_tolerances); bootstrap gets half the budget — the bent
+        # home pose is already near the top-down basin
+        full_iters, pos_tol, rot_tol = _g1_ik_tolerances()
+        bootstrap_iters, rows = max(full_iters // 2, 40), slice(0, 6)
+    else:
+        bootstrap_iters, full_iters, rows, pos_tol, rot_tol = 60, 150, slice(0, 6), 5e-4, 1e-3
     for bootstrap in (False, True):
         if bootstrap:
             # position-only descent first: pulls the arm into the right
@@ -607,20 +671,18 @@ def _ik_once(
                 target_pos,
                 target_rot,
                 slice(0, 3),
-                80 if embodiment == "so101" else 60,
+                bootstrap_iters,
                 embodiment,
             )
         q = _dls(
             q,
             target_pos,
             target_rot,
-            slice(0, 5 if embodiment == "so101" else 6),
-            250 if embodiment == "so101" else 150,
+            rows,
+            full_iters,
             embodiment,
         )
         err = _pose_error(q, target_pos, target_rot, embodiment)
-        pos_tol = 0.015 if embodiment == "so101" else 5e-4
-        rot_tol = 0.02 if embodiment == "so101" else 1e-3
         if np.linalg.norm(err[:3]) < pos_tol and np.linalg.norm(err[3:]) < rot_tol:
             return q.astype(np.float32)
     return None
@@ -665,7 +727,12 @@ def ik_solve(
     reporting failure."""
     _require_supported_embodiment(embodiment, "ik_solve")
     target_pos = np.asarray(target_pos, dtype=np.float64)
-    seeds = _SO101_CANONICAL_SEEDS if embodiment == "so101" else _CANONICAL_SEEDS
+    if embodiment == "so101":
+        seeds = _SO101_CANONICAL_SEEDS
+    elif embodiment == "g1_right":
+        seeds = _G1_CANONICAL_SEEDS
+    else:
+        seeds = _CANONICAL_SEEDS
     for rot in (target_rot, target_rot @ _RZ_PI):
         for seed in (q0, *seeds):
             q = _ik_once(target_pos, rot, seed, embodiment)
@@ -720,6 +787,8 @@ class StagedPlan:
         grasp_pose = np.asarray(grasp_pose, dtype=np.float32).reshape(7)
         grasp_pos = grasp_pose[:3].astype(np.float64)
         grasp_rot = quat_to_rotation(grasp_pose[3:7])
+        if embodiment == "g1_right":
+            grasp_rot = _RZ_QUARTER @ grasp_rot  # strip the Franka mount yaw
         approach_axis = grasp_rot[:, 2]  # flange z: points from wrist to fingertips
         limits = load_limits(embodiment)
         home = np.asarray(q_seed, dtype=np.float32)[: limits.n_arm_dof]
@@ -736,7 +805,13 @@ class StagedPlan:
         self.stages: list[Stage] = []
         self.error: str | None = None
 
-        place_rot = grasp_rot if embodiment == "so101" else topdown_rotation(0.0)
+        place_rot = (
+            grasp_rot
+            if embodiment == "so101"
+            else _RZ_QUARTER @ topdown_rotation(0.0)
+            if embodiment == "g1_right"
+            else topdown_rotation(0.0)
+        )
         transfer_pos = np.array([tray_xy[0], tray_xy[1], transfer_height])
         lower_pos = np.array([tray_xy[0], tray_xy[1], place_z])
         # approach entirely in free space: rise vertically over the home
@@ -744,7 +819,19 @@ class StagedPlan:
         # sweep from home crossed the shelf volume and clipped boxes (T08)
         home_tcp = fk_tcp(home, embodiment)
         staging_z = max(staging_height, float(pre_pos[2]))
-        rise_pos = np.array([home_tcp[0], home_tcp[1], staging_z])
+        if embodiment == "g1_right":
+            # G1-F2: rise over the HOME column is unreachable palm-down —
+            # the vertical-forearm budget |shoulder->wrist| <= 0.394 m
+            # cannot span the 0.404 m horizontal offset of the home TCP
+            # (the home pose holds the arm forward, palm sideways). The G1
+            # rises straight to the TARGET column instead: the C1 slot
+            # lattice keeps every staging point well inside the reach
+            # sphere, and the home->staging joint move stays in the open
+            # band above the lower shelf level (boxes top ~0.87, path
+            # z >= 0.95).
+            rise_pos = np.array([pre_pos[0], pre_pos[1], staging_z])
+        else:
+            rise_pos = np.array([home_tcp[0], home_tcp[1], staging_z])
         staging_pos = np.array([pre_pos[0], pre_pos[1], staging_z])
         # a FRONT grasp holds its horizontal wrist only from the pregrasp
         # on; the high approach flies with the neutral top-down wrist (a

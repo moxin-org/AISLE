@@ -36,6 +36,7 @@ embodiment:
   arm:
   - franka
   - so101
+  - g1_right
   gripper: parallel
 safety_class: decision
 eval: null
