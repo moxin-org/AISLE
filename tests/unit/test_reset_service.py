@@ -127,3 +127,16 @@ def test_reply_metadata_carries_env_id_on_every_route():
     assert "env_id" not in refusal_reply_metadata(
         {"request_id": "r"}, np.array([], np.uint32), "bad"
     )
+
+
+def test_behavioral_gate_is_franka_only():
+    """RST-2, TC-6, G1-C2: the behavioral motion chain is Franka-verified
+    (reset/motion.py pins Franka limits and a 7-dof home). g1_right and
+    so101 must gate CLOSED — driving them with Franka limits would command
+    wrong bounds and a wrong-length home; teleport (mode 0) stays open."""
+    from aisle.reset.service import behavioral_reset_supported
+
+    assert behavioral_reset_supported("franka") is True
+    assert behavioral_reset_supported("so101") is False
+    assert behavioral_reset_supported("g1_right") is False
+    assert behavioral_reset_supported("humanoid") is False

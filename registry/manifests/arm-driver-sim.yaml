@@ -7,7 +7,7 @@ inputs:
 outputs:
   joint_state: {schema: jointvec_f32, latency_class: hard_rt}
 embodiment:
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: motion
 eval:
