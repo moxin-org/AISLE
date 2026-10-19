@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:68405c72c3d795a26f3defd64dc6c1e171432bdc3b92c55ab65b875a7410be6c",
+  "immutable_id": "sha256:deeefe609dddab00bddb3a876e1ce671de957fb09cbfef4c7ad9be2b6816c331",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -8,7 +8,7 @@
       "justification": "this is the treatment: bundled typed-dataflow engineering surface versus one ordinary module",
       "monolithic": "experts/monolithic/expert_t1.py#sha256:e917cc9b8dd1a323d633e5d96a9af5f485dff2b594e5b2c75ebb8c853a81f25e",
       "surface": "agent deliverable",
-      "typed": "graphs/expert_t1.yaml#sha256:8ab72e432d0336c3a83a744da22498e6ffab1908ef303dec0cc36226dad4150a"
+      "typed": "graphs/expert_t1.yaml#sha256:ae0f3c163504c55082e41db6c9c7e501e988ab0efd7d1d4f437996b7e7a52bf8"
     },
     {
       "analysis": "recorded as treatment property; check/run attempt and error events compared descriptively",
@@ -80,7 +80,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/nodes/monolith_broker.py#sha256:872741da1be8cfa0c89a4ee77ee4fb8a457f130a48228d39ebb8e09a84ee3d46",
       "surface": "trusted controller (bridge, reset, verifier, rollout client, turn barrier)",
-      "typed": "src/aisle/nodes/dora_genesis.py#sha256:1d2bfb3aaecf60e664649ed2ee9b09deded448080b7efcdc9b655af4c70fb3aa"
+      "typed": "src/aisle/nodes/dora_genesis.py#sha256:4e973e743684993440837038b274386aedcd079422cfc82646b095d491472e0f"
     },
     {
       "analysis": "excluded from task authority (MON-4); no analysis treatment",
