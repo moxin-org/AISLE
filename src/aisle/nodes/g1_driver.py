@@ -10,7 +10,9 @@ Three SO-101 gaps are closed here by design (outer-loop entry #2):
 - a lease watchdog: no command within AISLE_G1_LEASE_S stops following and
   ramps the arm_sdk weight to 0, and a LATER command never silently
   re-takes the arm — only the reset reply path re-arms explicitly;
-- `gripper_cmd` is normalized 0..1 (closed→open), never radians in a joint
+- `gripper_cmd`/`gripper_state` are normalized 0..1 with the CONTRACT
+  semantics (env/CONTRACT.md:19,41: 0.0 = open … 1.0 = closed), never
+  radians in a joint
   slot, and `gripper_state` reports the SAME normalized scalar back;
 - `mode_machine` must be 15 (asset `g1_29dof_mode_15_with_dex1_1`); any
   other value refuses torque and says why in `bridge_info`/telemetry.
@@ -53,7 +55,15 @@ MODE_MACHINE_REQUIRED = 15  # g1_29dof_mode_15_with_dex1_1
 #: Dex1-1 prismatic finger travel, urdf/dex1_1.urdf:54@ced3216 (-0.02..0.0245 m)
 FINGER_LOWER_M = -0.02
 FINGER_UPPER_M = 0.0245
-#: normalized 0..1 (closed -> open) mapped linearly onto the finger travel
+#: CONTRACT semantics (env/CONTRACT.md:19,41): 0.0 = open … 1.0 = closed.
+#: Geometry derivation — unitree_ros@5994d4f
+#: robots/g1_description/g1_29dof_mode_15_with_dex1_1.urdf:1113-1119:
+#: right_dex1_finger_joint_1 axis (0,-1,0) and :1142-1147 joint_2 axis
+#: (0,1,0) over travel -0.02..0.0245 m: +q moves finger1 -y and finger2
+#: +y — the fingers DIVERGE, so the UPPER limit +0.0245 m is OPEN and the
+#: lower -0.02 m is CLOSED. Same travel in dex1_1_service@ced3216
+#: urdf/dex1_1.urdf:54,139 (no axes there; the unitree_ros URDF is the
+#: geometry authority).
 FINGER_TRAVEL_M = FINGER_UPPER_M - FINGER_LOWER_M
 SDK2_PIN = "814556d15970dd2ecf1c9984e845ca02ab07e206"  # unitree_sdk2_python
 
@@ -64,17 +74,19 @@ class HardwarePending(RuntimeError):
 
 def fingers_from_grip(grip: float) -> np.ndarray:
     """Both Dex1-1 finger positions (meters) for a normalized 0..1 command
-    (closed -> open); symmetric by construction — one DOF, two fingers."""
-    finger = FINGER_LOWER_M + float(np.clip(grip, 0.0, 1.0)) * FINGER_TRAVEL_M
+    (CONTRACT: 0.0 = open … 1.0 = closed); symmetric — one DOF, two fingers.
+    Grip 1.0 (closed) maps to the lower limit, 0.0 (open) to the upper."""
+    finger = FINGER_UPPER_M - float(np.clip(grip, 0.0, 1.0)) * FINGER_TRAVEL_M
     return np.array([finger, finger], dtype=np.float32)
 
 
 def grip_from_fingers(fingers: np.ndarray) -> float:
-    """The normalized 0..1 opening implied by finger positions (meters);
+    """The normalized 0..1 closing (CONTRACT semantics) implied by finger
+    positions (meters);
     the inverse of fingers_from_grip, clamped to the physical travel."""
     fingers = np.asarray(fingers, dtype=np.float32).reshape(-1)
     mean = float(np.clip(fingers, FINGER_LOWER_M, FINGER_UPPER_M).mean())
-    return (mean - FINGER_LOWER_M) / FINGER_TRAVEL_M
+    return (FINGER_UPPER_M - mean) / FINGER_TRAVEL_M
 
 
 class LoopbackArmBus:
@@ -92,6 +104,7 @@ class LoopbackArmBus:
         self.q = np.zeros(N_ARM, dtype=np.float32)
         self.target = self.q.copy()
         self.mode_machine = mode_machine
+        self.weight_log: list[float] = []
         self.last_weight = 0.0
         self.current_a = 0.3
         self.temperature_c = 32.0
@@ -99,6 +112,7 @@ class LoopbackArmBus:
         self._now_ns = now_ns
 
     def write_arm(self, q_cmd: np.ndarray, weight: float) -> None:
+        self.weight_log.append(float(weight))
         self.last_weight = float(weight)
         if weight > 0.0:
             self.target = np.asarray(q_cmd, dtype=np.float32)[:N_ARM].copy()
@@ -325,9 +339,14 @@ class G1Driver:
         self.last_tick_ns = now
         self._tick_count += 1
         state = self.arm.read_state()
-        mode_ok = state["mode_machine"] == MODE_MACHINE_REQUIRED
+        mode = state["mode_machine"]
+        # Startup (G1-D-r1 def. 3): before the first rt/lowstate the SDK2
+        # bus reports mode_machine None — await it WITHOUT latching a
+        # mode_mismatch (that refusal is reserved for an integer that is
+        # present and wrong, and once latched only reset recovers).
+        mode_ok = mode is not None and mode == MODE_MACHINE_REQUIRED
         lease_ok = self.last_cmd_ns is None or (now - self.last_cmd_ns) <= self.lease_ns
-        if not mode_ok:
+        if mode is not None and not mode_ok:
             self.reason = (
                 f"mode_mismatch: mode_machine={state['mode_machine']} "
                 f"but {MODE_MACHINE_REQUIRED} (g1_29dof_mode_15_with_dex1_1) is required; "
@@ -340,6 +359,11 @@ class G1Driver:
                 "(AISLE_G1_LEASE_S); weight ramped to 0, explicit reset required to re-arm"
             )
             self.armed = False
+        elif mode is None:
+            self.reason = "awaiting_state: no rt/lowstate yet; not following, not refused"
+            self.armed = True  # not latched: the first valid state follows
+        elif self.reason and "awaiting_state" in self.reason:
+            self.reason = None  # first real state arrived: clear the startup reason
         following = self.armed and mode_ok and self.target is not None
         step = dt / self.takeover_ns if self.takeover_ns > 0 else 1.0
         self.weight = float(np.clip(self.weight + (step if following else -step), 0.0, 1.0))
@@ -349,7 +373,13 @@ class G1Driver:
             self.arm.write_arm(q_cmd, self.weight)
             self.gripper.write(self.grip_target)
         else:
-            self.arm.write_arm(q7, 0.0)  # hold where we are, hands off
+            # G1-D-r1 def. 1: the release is GRADUAL — write the ramped
+            # weight (not 0) while holding the current pose q7, so the
+            # motion controller resumes torque smoothly; only at weight 0
+            # is the bus fully hands-off.
+            self.arm.write_arm(q7, self.weight)
+            # G1-D-r1 def. 4: frozen, not chasing the stale target.
+            self.gripper.write(self.gripper.read())
         grip_q = self.gripper.read()
         joint_state = np.concatenate([q7, fingers_from_grip(grip_q)])
         self.telemetry.append(

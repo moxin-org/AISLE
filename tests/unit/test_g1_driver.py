@@ -163,6 +163,82 @@ def test_mode_machine_mismatch_refuses_torque():
     assert arm.last_weight == 0.0, "no nonzero arm_sdk weight may reach the bus"
 
 
+def test_release_is_gradual_monotone_after_lease_expiry():
+    """G1-D-r1 def.1/HWP-6: after the lease expires the weight written to
+    the bus ramps DOWN from 1 (holding the current pose) — monotone
+    non-increasing, taking at least ceil(takeover_s/dt) ticks to reach 0;
+    a one-beat 1→0 drop would fling the arm back to the motion controller."""
+    clock = [0]
+    arm, grip = LoopbackArmBus(), LoopbackGripperBus()
+    driver = G1Driver(arm, grip, lease_s=0.2, takeover_s=0.5, now_ns=lambda: clock[0])
+    driver.on_joint_cmd(np.zeros(7, dtype=np.float32))
+    while driver.weight < 1.0:  # refresh the lease every beat while ramping up
+        driver.on_joint_cmd(np.zeros(7, dtype=np.float32))
+        clock[0] += DT_NS
+        driver.tick()
+    # commands STOP but the tick timer keeps firing at DT_NS (free-run):
+    # the lease dies 0.2 s after the LAST command, mid-stream
+    while driver.armed:  # beats until the expiry beat latches lease_expired
+        clock[0] += DT_NS
+        driver.tick()
+    released = []
+    while driver.weight > 0.0:  # the weight WRITTEN to the bus each beat
+        clock[0] += DT_NS
+        driver.tick()
+        released.append(arm.last_weight)
+    assert released[0] < 1.0 and released[-1] == 0.0
+    assert all(w2 <= w1 for w1, w2 in zip(released, released[1:], strict=False))
+    assert len(released) >= 49  # ~ceil(takeover_s/dt) = 50 beats, not one drop
+
+
+def test_startup_without_lowstate_awaits_instead_of_mismatch():
+    """G1-D-r1 def.3/HWP-8: before the first rt/lowstate (mode_machine
+    None) the driver awaits — reason awaiting_state, no following, weight
+    0 — and does NOT latch; the first valid state follows. An integer that
+    is present and wrong stays the latched refusal."""
+    clock = [0]
+    arm, grip = LoopbackArmBus(), LoopbackGripperBus()
+    driver = G1Driver(arm, grip, lease_s=10.0, takeover_s=0.1, now_ns=lambda: clock[0])
+    driver.on_joint_cmd(np.zeros(7, dtype=np.float32))
+    arm.mode_machine = None  # no lowstate yet (Sdk2ArmBus startup shape)
+    for _ in range(5):
+        clock[0] += DT_NS
+        out = driver.tick()
+    assert out["reason"] and "awaiting_state" in out["reason"]
+    assert out["weight"] == 0.0 and driver.armed is True  # awaiting, not latched
+    arm.mode_machine = MODE_MACHINE_REQUIRED  # first lowstate arrives
+    for _ in range(12):
+        clock[0] += DT_NS
+        out = driver.tick()
+    assert out["reason"] is None and out["weight"] > 0.5  # follows without reset
+    arm.mode_machine = 7
+    clock[0] += DT_NS
+    out = driver.tick()
+    assert "mode_mismatch" in out["reason"] and driver.armed is False
+
+
+def test_gripper_freezes_at_current_position_on_lease_expiry():
+    """G1-D-r1 def.4/HWP-6: when the lease expires the gripper stops
+    chasing the stale target and freezes at its current position — no
+    continued travel toward the last command."""
+    clock = [0]
+    arm, grip = LoopbackArmBus(), LoopbackGripperBus()
+    driver = G1Driver(arm, grip, lease_s=0.2, now_ns=lambda: clock[0])
+    driver.on_joint_cmd(np.zeros(7, dtype=np.float32))
+    driver.on_gripper_cmd(1.0)  # CONTRACT: closed
+    for _ in range(3):  # partially converged — mid-travel when the lease dies
+        clock[0] += DT_NS
+        out = driver.tick()
+    frozen_at = out["gripper_state"]
+    assert 0.0 < frozen_at < 0.9
+    clock[0] += int(0.5e9)  # lease expires
+    for _ in range(30):
+        clock[0] += DT_NS
+        out = driver.tick()
+    assert out["gripper_state"] == pytest.approx(frozen_at, abs=0.11)
+    assert grip.target != 1.0, "the stale closed target must not keep pulling"
+
+
 def test_joint_state_is_nine_and_names_match_the_wire():
     """TC-5/HWP-7: joint_state carries wire 7+2 in the frozen g1_right
     order — 7 right-arm radians then the two Dex1-1 finger meters."""
@@ -181,18 +257,22 @@ def test_joint_state_is_nine_and_names_match_the_wire():
     assert np.allclose(q[:7], 0.0, atol=1e-6)  # the arm tracks its commanded zeros
     assert out["gripper_state"] == pytest.approx(1.0, abs=1e-3)
     assert q[7] == pytest.approx(q[8], abs=1e-6)  # symmetric fingers
-    assert q[7] > 0.0  # open end of the URDF travel
+    assert q[7] == pytest.approx(-0.02, abs=1e-4)  # 1.0 = closed = lower limit (G1-D-r1)
 
 
 def test_gripper_normalization_round_trips():
-    """G1-D: gripper_cmd/gripper_state are NORMALIZED 0..1 (closed→open);
-    the finger positions derive from the URDF travel and invert exactly."""
+    """G1-D-r1/HWP-8/TC-5: gripper_cmd/gripper_state are NORMALIZED with the
+    CONTRACT semantics (env/CONTRACT.md:19,41: 0.0 = open … 1.0 = closed).
+    Geometry (unitree_ros@5994d4f g1_29dof_mode_15_with_dex1_1.urdf
+    :1113-1119/:1142-1147): the finger axes (0,-1,0)/(0,1,0) DIVERGE with
+    +q, so the UPPER limit +0.0245 m is open and the lower -0.02 m is
+    closed; the mapping inverts exactly."""
     for norm in (0.0, 0.25, 0.5, 0.9, 1.0):
         fingers = fingers_from_grip(norm)
         assert fingers.shape == (2,)
         assert grip_from_fingers(fingers) == pytest.approx(norm, abs=1e-6)
-    assert fingers_from_grip(0.0)[0] == pytest.approx(-0.02)  # URDF lower limit
-    assert fingers_from_grip(1.0)[0] == pytest.approx(0.0245)  # URDF upper limit
+    assert fingers_from_grip(0.0)[0] == pytest.approx(0.0245)  # 0.0 = OPEN = upper limit
+    assert fingers_from_grip(1.0)[0] == pytest.approx(-0.02)  # 1.0 = CLOSED = lower limit
     assert 0.0 <= grip_from_fingers(np.array([0.5, 0.5])) <= 1.0
 
 

@@ -44,9 +44,9 @@ stayed outside it).
 | Surface | Count |
 |---|---:|
 | Graphs | 27 |
-| Capability manifests | 43 |
+| Capability manifests | 44 |
 | CLI command entries | 39 |
-| ADR files | 88 |
+| ADR files | 89 |
 
 ## Graphs
 
@@ -121,6 +121,7 @@ stayed outside it).
 | [registry/manifests/detected-pose.yaml](../../registry/manifests/detected-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/l2_pose.py` |
 | [registry/manifests/detector-openvocab.yaml](../../registry/manifests/detector-openvocab.yaml) | object_detection | franka, so101 | perception | hub | `pip:dora-yolo` |
 | [registry/manifests/dora-genesis.yaml](../../registry/manifests/dora-genesis.yaml) | sim_bridge, rgb_stream, depth_stream, arm_actuation, gripper_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/g1-driver.yaml](../../registry/manifests/g1-driver.yaml) | hw_bridge | g1_right | motion | hub | `src/aisle/nodes/g1_driver.py` |
 | [registry/manifests/goal-adversary.yaml](../../registry/manifests/goal-adversary.yaml) | goal_adversary | franka, so101 | decision | agent-authored | `src/aisle/nodes/goal_adversary.py` |
 | [registry/manifests/grasp-planner-topdown.yaml](../../registry/manifests/grasp-planner-topdown.yaml) | grasp_planning | franka, so101 | decision | hub | `src/aisle/nodes/grasp_topdown.py` |
 | [registry/manifests/gripper-driver-sim.yaml](../../registry/manifests/gripper-driver-sim.yaml) | gripper_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
@@ -286,6 +287,7 @@ inference.
 | [docs/decisions/ADR-contract-acceptance-window.md](../decisions/ADR-contract-acceptance-window.md) | ADR-contract-acceptance-window — Nominal-load contract capture | Accepted (issue #497). |
 | [docs/decisions/ADR-declared-session-edits.md](../decisions/ADR-declared-session-edits.md) | ADR-declared-session-edits — Declared edits preserve treatment identity | PROPOSED — engineering interpretation; no protocol or collection approval. |
 | [docs/decisions/ADR-dora-source-pin.md](../decisions/ADR-dora-source-pin.md) | ADR-dora-source-pin — Support a source-pinned Dora CLI | ACCEPTED — maintainer-authorized source installation; candidate adoption remains gated. |
+| [docs/decisions/ADR-g1-driver.md](../decisions/ADR-g1-driver.md) | ADR-g1-driver — G1 hardware driver (`g1-driver`) | PROPOSED (G1-D/G1-D-r1, outer-loop entries #2/#3; draft amendment lane, not for main) |
 | [docs/decisions/ADR-h1-protocol.md](../decisions/ADR-h1-protocol.md) | ADR-h1-protocol — H1 composition-experiment protocol (design doc §8.2.4) | accepted (CON-15: §8.2.4 defines what to record but not the |
 | [docs/decisions/ADR-h2-campaign-protocol.md](../decisions/ADR-h2-campaign-protocol.md) | ADR-h2-campaign-protocol — single-scenario research campaign runner (design doc §8.3 item 6) | accepted (CON-15: §8.3 names the campaign but not the mechanics; |
 | [docs/decisions/ADR-h3-campaign-protocol.md](../decisions/ADR-h3-campaign-protocol.md) | ADR-h3-campaign-protocol — H3 accumulation campaign, S1→S2→S3 (design doc §11.5, §8.4) | accepted 2026-07-27 (decisions D1–D6 resolved by human; D1 |

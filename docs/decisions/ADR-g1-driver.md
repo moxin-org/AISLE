@@ -1,6 +1,7 @@
-# ADR: G1 hardware driver (`g1-driver`)
+# ADR-g1-driver — G1 hardware driver (`g1-driver`)
 
-- Status: PROPOSED (G1-D, outer-loop entry #2; draft amendment lane, not for main)
+Status: PROPOSED (G1-D/G1-D-r1, outer-loop entries #2/#3; draft amendment lane, not for main)
+
 - Date: 2026-10-19
 - Deciders: inner loop (octos lane2); outer loop (claude) reviews
 - Requirement IDs: TC-2, TC-5, TC-6, HWP-5, HWP-6, HWP-7, HWP-8 (SPEC 010, SPEC 520)
@@ -49,10 +50,20 @@ Upstream facts (cited as `file:line@commit` in the code):
    TC-6/ADR-34, and re-arms the lease).
 3. **mode_machine gate.** `mode_machine != 15` → zero weight out, torque
    refused, `mode_mismatch` reason in `bridge_info` and telemetry.
-4. **Finger mapping.** `gripper_cmd`/`gripper_state` are normalized 0..1
-   (closed→open). The two Dex1-1 finger positions in `joint_state[7:9]` are
-   meters, symmetric, mapped linearly onto the URDF travel −0.02..0.0245 m:
-   `finger = −0.02 + grip × 0.0445`; `grip = (mean(fingers) + 0.02) / 0.0445`.
+4. **Finger mapping (CONTRACT semantics, G1-D-r1).**
+   `gripper_cmd`/`gripper_state` are normalized with the AISLE CONTRACT
+   semantics (env/CONTRACT.md:19,41; env/limits.toml:24-26):
+   **0.0 = open … 1.0 = closed**. Which finger position is "open" is a
+   geometry fact: unitree_ros@5994d4f
+   `robots/g1_description/g1_29dof_mode_15_with_dex1_1.urdf:1113-1119` gives
+   `right_dex1_finger_joint_1` axis `(0,-1,0)` and `:1142-1147` joint_2 axis
+   `(0,1,0)` over prismatic travel −0.02..0.0245 m — +q moves finger1 −y and
+   finger2 +y, so the fingers DIVERGE: the UPPER limit +0.0245 m is OPEN,
+   the lower −0.02 m is CLOSED (same travel in dex1_1_service@ced3216
+   urdf/dex1_1.urdf:54,139; the unitree_ros URDF is the geometry authority
+   because it carries the axes). The two Dex1-1 finger positions in
+   `joint_state[7:9]` are meters, symmetric:
+   `finger = 0.0245 − grip × 0.0445`; `grip = (0.0245 − mean(fingers)) / 0.0445`.
    Exact inverse by construction; the same rule both directions.
 5. **Dex1-1 real bus = HardwarePending.** `Dex1GripperBus.__init__` raises
    `HardwarePending` naming what is missing (either unitree_sdk2py
