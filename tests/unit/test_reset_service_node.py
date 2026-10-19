@@ -715,3 +715,28 @@ def test_a_failed_prewarm_keeps_the_runtime_it_already_built(monkeypatch):
         f"the pre-warm failure discarded a runtime that had already built ({node.builds} builds) "
         "— calibration is written once and cannot be recovered"
     )
+
+
+def test_behavioral_reset_refused_for_g1_right(monkeypatch):
+    """RST-2, TC-6, ADR-34, G1-C2: with AISLE_EMBODIMENT=g1_right a
+    behavioral request is REFUSED on reset_refused (never reset_done) with
+    a reason that names the embodiment — and the behavioral runtime is
+    never built, so no Franka limits can leak into a G1 graph."""
+    monkeypatch.setenv("AISLE_EMBODIMENT", "g1_right")
+    node = run_service([reset_request(7, BEHAVIORAL)], monkeypatch)
+    assert forwards(node) == []  # nothing reached the bridge
+    assert replies(node) == []  # ADR-34: no boundary was emitted
+    [refusal] = refusals(node)
+    assert "g1_right" in refusal["error"]
+    assert "teleport" in refusal["error"]
+    assert refusal["t_reset_ms"] == 0
+    assert node.builds == 0  # the runtime never started building
+
+
+def test_behavioral_reset_still_runs_for_franka(monkeypatch):
+    """RST-2 regression: the embodiment gate opens exactly for franka —
+    the default environment keeps the behavioral route it always had."""
+    monkeypatch.setenv("AISLE_EMBODIMENT", "franka")
+    node = run_service([reset_request(7, BEHAVIORAL), joint_state(), joint_state()], monkeypatch)
+    assert node.builds == 1
+    assert forwards(node) == []  # still in the attempt loop, no fallback yet
