@@ -80,7 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
     roll = subparsers.add_parser("rollout", help="run seeded episodes through a graph (HAR-1)")
     roll.add_argument("--graph", type=Path, required=True)
     roll.add_argument("--tier", default="T0")
-    roll.add_argument("--embodiment", default="franka", choices=["franka", "so101", "mobile"])
+    roll.add_argument(
+        "--embodiment",
+        default="franka",
+        choices=["franka", "so101", "mobile", "g1_right"],
+    )
     roll.add_argument("--episodes", type=int, required=True)
     roll.add_argument("--seeds", required=True, help="a..b or comma list")
     roll.add_argument("--reset", default="teleport", choices=["teleport", "behavioral"])

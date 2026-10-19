@@ -286,6 +286,15 @@ def neighbour_constraints(centres: list, target_med: str, med_names: list, meds:
     ]
 
 
+#: G1-E: the planner's geometry is Franka/SO-101 only (G1-F owns the G1
+#: workspace); an unknown embodiment MUST be refused by name before the
+#: physics profile lookup, which would otherwise KeyError deep inside
+#: resolve_layout or mis-plan against Franka geometry (HAR-1).
+def require_supported_embodiment(embodiment: str) -> None:
+    if embodiment not in ("franka", "mobile", "so101"):
+        raise ValueError(f"require_supported_embodiment: unsupported embodiment {embodiment!r}")
+
+
 def main() -> None:
     import json
     import os
@@ -300,6 +309,7 @@ def main() -> None:
 
     h6_fault = armed_fault("grasp-planner-topdown")
     embodiment = os.environ.get("AISLE_EMBODIMENT", "franka")
+    require_supported_embodiment(embodiment)
     physics = load_physics()
     layout = resolve_layout(physics, embodiment)
     meds = load_meds()
