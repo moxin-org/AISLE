@@ -12,6 +12,21 @@ SO101_ARM_JOINTS = (
 SO101_GRIPPER_JOINTS = ("gripper",)
 SO101_JOINTS = SO101_ARM_JOINTS + SO101_GRIPPER_JOINTS
 
+# Unitree G1 right-arm profile `g1_right` (ADR-g1-embodiment, PROPOSED): the
+# wire covers the right arm and the two prismatic Dex1-1 fingers in the
+# official g1_29dof_mode_15_with_dex1_1 URDF order; every other G1 DOF is held.
+G1_RIGHT_ARM_JOINTS = (
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint",
+)
+G1_RIGHT_GRIPPER_JOINTS = ("right_dex1_finger_joint_1", "right_dex1_finger_joint_2")
+G1_RIGHT_JOINTS = G1_RIGHT_ARM_JOINTS + G1_RIGHT_GRIPPER_JOINTS
+
 
 def profile_joint_names(profile: dict) -> tuple[str, ...] | None:
     """Configured TC-5 wire order, or None for legacy/native profiles."""
