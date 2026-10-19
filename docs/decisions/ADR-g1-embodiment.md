@@ -119,3 +119,26 @@ guard below the actuator envelope is safety margin, never a claim about
 the hardware's capability; if a task ever needs more, the owner amends
 this section with measured justification, not a URDF copy-through. The
 URDF rates stay visible in `chain.qdot_max` for provenance.
+
+## G1-H: cold-build budget — warmup, not budget inflation
+
+Genesis caches CoACD convex decompositions and compiled kernels per
+machine. Measured (outer-loop probe, lane1, metal backend): the G1's
+FIRST scene build costs ~470 s (import+init ≈20 s, add_entity ≈280 s —
+almost entirely per-link CoACD — scene.build ≈170 s of kernel compile),
+while a warm build costs ~20 s and 100 steps ~3 s.
+
+`rollout.py`'s `GENESIS_BUILD_BUDGET_S = 420` therefore fails a COLD G1
+build (~470 s). The decision: **the budget stays**. The build budget
+protects every embodiment's steady-state expectations; inflating it for
+a one-time per-machine cost would loosen protection for every future
+run. The one-time cost is paid deliberately instead:
+
+- `tools/sim_warmup.py --embodiment g1_right` builds the scene once,
+  reports per-stage wall times, and infers cache warmth (warm if the
+  scene build is < 60 s — between the measured warm ~27 s and cold
+  ~470 s). New machines run warmup before their first rollout; the M0-6
+  gate and rollout docs say so.
+- No relock of the budget, no silent retry-inside-rollout: a cold build
+  inside rollout still fails loudly, which is the correct signal that
+  warmup was skipped.
