@@ -13,7 +13,7 @@ outputs:
   # issue #2 resolution)
   poses: {schema: posearray7d_f32, latency_class: soft_rt}
 embodiment:
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: perception
 eval: null
