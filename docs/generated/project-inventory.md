@@ -176,8 +176,8 @@ stayed outside it).
 | `harness fleet` | `--graph`, `--agents`, `--episodes`, `--seeds`, `--out`, `--timeout-s`, `--root`, `--sim-engine` |
 | `harness freeze build` | `--declaration`, `--output`, `--timestamp`, `--timestamp-source`, `--root` |
 | `harness freeze check` | `--manifest`, `--root`, `--allow-withheld-seeds` |
-| `harness hardware dry-run` | `--seed`, `--output` |
-| `harness hardware report` | `--station`, `--output` |
+| `harness hardware dry-run` | `--seed`, `--embodiment`, `--output` |
+| `harness hardware report` | `--station`, `--embodiment`, `--output` |
 | `harness monolith check` | `--module`, `--embodiment`, `--worker-config`, `--worker-config-sha256` |
 | `harness monolith describe` | `--embodiment` |
 | `harness monolith interface` | `--root`, `--candidate` |

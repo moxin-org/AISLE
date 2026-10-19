@@ -1,0 +1,31 @@
+{
+  "analysis_seed": 550001,
+  "block_order": "hardware_pending",
+  "calibration_hashes": "hardware_pending",
+  "exclusion_rules": "reset-intervention-protocol.json scoring_consequence",
+  "instance_bank": "hardware_pending",
+  "monolithic_artifact_hash": "dependency_pending (#344)",
+  "perception": "non-oracle sensor rung (L2 label reader)",
+  "precision_target": "hardware_pending",
+  "primary_endpoints": [
+    "trial_success"
+  ],
+  "rerun_rule": "new trial id; original retained",
+  "reset_protocol_hash": "hardware_pending",
+  "safety_case_hash": "hardware_pending",
+  "sample_size": "hardware_pending",
+  "schema_version": "aisle.hardware.physical-protocol.v1",
+  "scorer_hash": "hardware_pending",
+  "secondary_endpoints": [
+    "failure_class",
+    "interventions",
+    "safety_exposure",
+    "time_to_success",
+    "sim_to_hardware_delta"
+  ],
+  "station_hash": "hardware_pending",
+  "stopping_rule": "fixed; no optional stopping",
+  "tasks": "hardware_pending",
+  "trial_unit": "trial",
+  "typed_artifact_hash": "hardware_pending"
+}

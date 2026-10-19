@@ -443,9 +443,11 @@ def validate_physical_protocol(protocol: dict) -> dict:
 # ------------------------------------------------------------- HWP-20 / HWP-18
 
 
-def execution_checklist(statuses: dict[int, str] | None = None) -> dict:
+def execution_checklist(statuses: dict[int, str] | None = None, embodiment: str = "so101") -> dict:
     """HWP-20: the fourteen steps, each pending until measured on the pinned
-    station; a later step cannot pass while an earlier one has not."""
+    station; a later step cannot pass while an earlier one has not. G1-G:
+    the blocker names the embodiment's station; the so101 wording is pinned
+    verbatim by test_hardware_phase.py."""
     statuses = statuses or {}
     steps = []
     for index, text in enumerate(CHECKLIST_STEPS, start=1):
@@ -458,8 +460,18 @@ def execution_checklist(statuses: dict[int, str] | None = None) -> dict:
             raise HardwarePhaseError(
                 "a later step cannot pass before every prior step", [str(step["step"])]
             )
+    # G1-G: the blocker names the embodiment's station; the so101 wording
+    # is pinned VERBATIM by tests/unit/test_hardware_phase.py:280 — a dict,
+    # not .upper(), because "so101".upper() is "SO101" without the hyphen.
+    blockers = {
+        "so101": "no SO-101 station is available",
+        "g1_right": "no G1 station is available",
+    }
+    blocker = blockers.get(embodiment) or (
+        f"no station is available for unknown embodiment {embodiment!r}"
+    )
     return {
-        "blocker": "no SO-101 station is available",
+        "blocker": blocker,
         "steps": steps,
         "all_passed": all(s["status"] == "passed" for s in steps),
     }
@@ -473,11 +485,12 @@ def hardware_report(
     telemetry: list[dict] | None,
     interventions: list[dict] | None,
     checklist_statuses: dict[int, str] | None = None,
+    embodiment: str = "so101",
 ) -> dict:
     """HWP-18: regenerate every table; realized-hardware fields stay
     hardware_pending until a calibrated physical instrument produced them;
     simulated and physical rows never merge."""
-    checklist = execution_checklist(checklist_statuses)
+    checklist = execution_checklist(checklist_statuses, embodiment)
     physical_rows = [r for r in (telemetry or []) if r.get("evidence_kind") == "hardware"]
     simulated_rows = [r for r in (telemetry or []) if r.get("evidence_kind") != "hardware"]
     report = {

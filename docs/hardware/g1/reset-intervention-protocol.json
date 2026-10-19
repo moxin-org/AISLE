@@ -1,0 +1,32 @@
+{
+  "allowed_reset_steps": [
+    "release arm_sdk with the weight ramp and let the motion controller damp the arm home",
+    "re-place task objects on the marked fixtures",
+    "clear the tray"
+  ],
+  "max_attempts": 2,
+  "permitted_tools": [
+    "hands",
+    "marked placement jig",
+    "unitree remote controller (damping-mode home move)"
+  ],
+  "record_fields": [
+    "kind",
+    "start_ns",
+    "end_ns",
+    "actor",
+    "reason",
+    "scoring_consequence"
+  ],
+  "roles": [
+    "trial_conductor performs; safety_operator observes"
+  ],
+  "schema_version": "aisle.hardware.reset-protocol.v1",
+  "scoring_consequence": {
+    "estop": "trial excluded; drill record required",
+    "rescue": "trial excluded as infrastructure-invalid; retained",
+    "reset": "trial restarts; counted as an attempt",
+    "touch_during_trial": "trial excluded; retained"
+  },
+  "timeout_s": 120
+}
