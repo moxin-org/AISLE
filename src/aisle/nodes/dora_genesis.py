@@ -1018,15 +1018,15 @@ def main(
         hand_link = robot.get_link("hand") if is_store else None
         held_item: str | None = None  # carry latch (T15, ADR-18)
         held_offset = (0.0, 0.0, 0.0, 0.0)
-        so101_latch = None
-        so101_hand_link = None
-        so101_tcp_offset = None
+        carry_latch_obj = None
+        carry_hand_link = None
+        carry_tcp_offset = None
         if profile.get("kinematic_carry_latch", False):
             if cfg.n_envs != 1 or is_store:
-                raise ValueError("SO-101 carry latch requires single-env pharmacy mode")
-            so101_hand_link = robot.get_link(profile["ee_link"])
-            so101_tcp_offset = np.asarray(profile["ee_frame_offset_xyz"], dtype=np.float64)
-            so101_latch = CarryLatch(
+                raise ValueError(f"{cfg.embodiment} carry latch requires single-env pharmacy mode")
+            carry_hand_link = robot.get_link(profile["ee_link"])
+            carry_tcp_offset = np.asarray(profile["ee_frame_offset_xyz"], dtype=np.float64)
+            carry_latch_obj = CarryLatch(
                 close_threshold=float(profile["carry_latch_close"]),
                 release_threshold=float(profile["carry_latch_release"]),
                 max_distance_m=float(profile["carry_latch_max_distance_m"]),
@@ -1635,16 +1635,16 @@ def main(
                             robot.set_quat(
                                 np.array([np.cos(half), 0.0, 0.0, np.sin(half)], dtype=np.float32)
                             )
-                    if so101_latch is not None:
+                    if carry_latch_obj is not None:
                         finger = float(to_numpy(robot.get_qpos()).reshape(-1)[finger_idx[0]])
                         grip = float(
                             np.clip(
                                 (gripper_open - finger) / (gripper_open - gripper_close), 0.0, 1.0
                             )
                         )
-                        hand_pos = to_numpy(so101_hand_link.get_pos()).reshape(-1)[:3]
-                        hand_quat = to_numpy(so101_hand_link.get_quat()).reshape(-1)[:4]
-                        tcp_pos = frame_point_wxyz(hand_pos, hand_quat, so101_tcp_offset)
+                        hand_pos = to_numpy(carry_hand_link.get_pos()).reshape(-1)[:3]
+                        hand_quat = to_numpy(carry_hand_link.get_quat()).reshape(-1)[:4]
+                        tcp_pos = frame_point_wxyz(hand_pos, hand_quat, carry_tcp_offset)
                         candidates = {
                             name: (
                                 to_numpy(entity.get_pos()).reshape(-1)[:3],
@@ -1652,12 +1652,13 @@ def main(
                             )
                             for name, entity in handle.boxes.items()
                         }
-                        before = so101_latch.held_name
-                        attached = so101_latch.update(grip, tcp_pos, hand_quat, candidates)
-                        if before != so101_latch.held_name:
-                            action = "latch" if so101_latch.held_name is not None else "release"
+                        before = carry_latch_obj.held_name
+                        attached = carry_latch_obj.update(grip, tcp_pos, hand_quat, candidates)
+                        if before != carry_latch_obj.held_name:
+                            action = "latch" if carry_latch_obj.held_name is not None else "release"
+                            held_or_released = before or carry_latch_obj.held_name
                             print(
-                                f"so101 carry {action}: {before or so101_latch.held_name}",
+                                f"carry {action}: {held_or_released} ({cfg.embodiment})",
                                 file=sys.stderr,
                             )
                         if attached is not None:
@@ -1767,13 +1768,14 @@ def main(
                             # oracle_state, base_pose...) is a function of the episode,
                             # not of the wall tick the request happened to land on
                             scheduler = RateScheduler(topic_rates, dt)
-                        if so101_latch is not None:
-                            if so101_latch.held_name is not None:
+                        if carry_latch_obj is not None:
+                            if carry_latch_obj.held_name is not None:
                                 print(
-                                    f"so101 carry release: {so101_latch.held_name} (reset)",
+                                    f"carry release: {carry_latch_obj.held_name} "
+                                    f"(reset, {cfg.embodiment})",
                                     file=sys.stderr,
                                 )
-                            so101_latch.reset()
+                            carry_latch_obj.reset()
                         if is_mobile:
                             # MOB-1/ADR-13: re-home the base to the store-frame start and
                             # drop the in-flight base command (mirrors the arm re-home).
