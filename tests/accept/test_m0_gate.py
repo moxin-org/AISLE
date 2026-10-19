@@ -207,6 +207,72 @@ def _so101_ready() -> bool:
     return SO101_URDF.exists() and all("so101" in manifest for manifest in manifests)
 
 
+def _g1_ready() -> bool:
+    """M0-6 starts only when the vendored asset and BOTH motion/safety
+    manifests declare g1_right (G1-F2's scope); partial readiness must not
+    spend 50 episodes on an embodiment the gate would refuse anyway."""
+    manifests = [
+        (REPO_ROOT / "registry" / "manifests" / name).read_text()
+        for name in ("ik-trajectory.yaml", "budget-guard.yaml", "grasp-planner-topdown.yaml")
+    ]
+    g1_urdf = REPO_ROOT / "assets" / "g1" / "g1_29dof_mode_15_with_dex1_1.urdf"
+    return g1_urdf.exists() and all("g1_right" in manifest for manifest in manifests)
+
+
+@pytest.mark.skipif(
+    not _g1_ready(),
+    reason="g1_right blocked: G1-F2 (ik/grasp/guard g1_right kinematics) not merged; "
+    "the HAR-2 gate refuses the swap (EMBODIMENT_MISMATCH) until then",
+)
+def test_m0_6_g1_right_profile_swap_pass1_at_least_80():
+    """SPEC 090 M0-6 (TC-5, SCN-4): the same T0 graph with --embodiment
+    g1_right (profile swap only, zero YAML edits) reaches pass1 >= 0.80.
+    The bridge serves the 9-DOF wire while 24 held DOFs stay at standing
+    home (G1-C1/G1-C2)."""
+    run_id = f"m0-6-{uuid.uuid4().hex[:6]}"
+    code, logged = run_harness("report", "log", "--idea", f"M0-6 g1_right {run_id}", timeout=60)
+    assert code == 0, logged
+    try:
+        code, report = run_harness(
+            "rollout",
+            "--graph",
+            str(GRAPH),
+            "--tier",
+            "T0",
+            "--embodiment",
+            "g1_right",
+            "--episodes",
+            "50",
+            "--seeds",
+            "0..49",
+            "--reset",
+            "teleport",
+            # g1_right's frozen-set changes (assets/g1, env_hash.py) live on
+            # feat/g1-support, not yet on protected main — the trusted
+            # origin/main baseline refuses the gate tooling itself. local is
+            # the documented dev override (rollout.py, HAR-2).
+            "--env-baseline",
+            "local",
+            "--run-id",
+            run_id,
+            timeout=4 * 3600,
+        )
+        assert code == 0, report
+        assert report["pass1"] >= 0.80, report["failures"]
+    finally:
+        run_harness(
+            "report",
+            "close",
+            "--id",
+            logged["id"],
+            "--observed",
+            "m0-6 finished",
+            "--verdict",
+            "flat",
+            timeout=60,
+        )
+
+
 @pytest.mark.skipif(
     not _so101_ready(),
     reason="so101 blocked: asset acquisition (ADR-6) and/or both motion manifests' "

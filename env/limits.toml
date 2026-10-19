@@ -70,14 +70,19 @@ cmd_dt_s = 0.01
 # Workspace AABB (world frame, pelvis at 0.7872, shoulder at ~[0, -0.10,
 # 1.08]): covers the a7dd234 shelf band x 0.21..0.49 / z 0.92..1.02, tray
 # top x 0.07..0.19 / y -0.43..-0.27 / z 0.95..1.01, the 1.00 staging band,
-# and the home TCP [0.408, -0.113, 0.911]; excludes the torso column
-# (x < 0.05), everything below the waist band (z < 0.70: legs, fixture
-# bases, the table), and beyond-reach extents (x > 0.55: the shoulder->TCP
-# chain is 0.42 m from a shoulder at x~0).
+# and the G1-H-r1 off-shelf home [0.4356, -0.0892, 1.0128] plus its
+# home->rise reorientation arc (measured interpolated peak z 1.2534 over
+# the free space above the shelf — no excluded object lives there);
+# excludes the torso column (x < 0.05), everything below the waist band
+# (z < 0.70: legs, fixture bases, the table), and beyond-reach extents
+# (x > 0.55: the shoulder->TCP chain is 0.42 m from a shoulder at x~0).
 workspace_min = [0.05, -0.55, 0.70]
-workspace_max = [0.55, 0.25, 1.15]
-# a7dd234 wire home: mildly bent ready pose, fingers at the open stop.
-fallback_qpos = [-0.35, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0245, 0.0245]
+workspace_max = [0.55, 0.25, 1.30]
+# G1-H-r1 wire home (== physics.toml home_qpos, pinned by test): arm up,
+# wrist pitched near-palm-down, hand off the shelf — TCP
+# [0.4356, -0.0892, 1.0128], hand AABB z >= 0.973 (3.3 cm above the
+# tallest box top 0.94).
+fallback_qpos = [-1.2, -0.1, 0.0, 0.3, 0.0, 1.5, 0.0, 0.0245, 0.0245]
 gripper_min = 0.0
 gripper_max = 1.0
 # Dex1-1 fingers: 0.2 m/s URDF velocity over the 0.0445 m travel (-0.02..0.0245).
