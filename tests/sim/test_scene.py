@@ -182,6 +182,33 @@ def test_so101_official_profile_builds():
     assert list(handle.boxes) == MED_NAMES
 
 
+def test_g1_right_profile_builds():
+    """SCN-4, TC-5: the G1 g1_right profile builds as 33 native DOFs (9
+    wire + 24 held), starts every wire joint at home_qpos and every held
+    joint at held_home_qpos, keeps all placements IK-reachable, and the
+    held-DOF PD holds standing home against gravity (200 steps, < 0.02 rad
+    droop)."""
+    from aisle.embodiment import G1_RIGHT_JOINTS, held_dof_indices, profile_dof_indices
+
+    handle = build_scene(seed=7, embodiment="g1_right", headless=True)
+    profile = load_physics()["embodiment"]["g1_right"]
+    wire = profile_dof_indices(handle.robot, profile)
+    held = held_dof_indices(handle.robot, profile)
+    names = tuple(profile["arm_joint_names"] + profile["gripper_joint_names"])
+    assert handle.robot.n_dofs == 33
+    assert names == G1_RIGHT_JOINTS
+    qpos = to_numpy(handle.robot.get_qpos()).reshape(-1)
+    assert np.allclose(qpos[list(wire)], profile["home_qpos"], atol=1e-5)
+    assert np.allclose(qpos[list(held)], profile["held_home_qpos"], atol=1e-5)
+    assert handle.reachability_errors == []
+    assert list(handle.boxes) == MED_NAMES
+    for _ in range(200):
+        handle.scene.step()
+    after = to_numpy(handle.robot.get_qpos()).reshape(-1)
+    droop = float(np.abs(after[list(held)] - np.asarray(profile["held_home_qpos"])).max())
+    assert droop < 0.02, f"held joints drooped {droop:.4f} rad from standing home"
+
+
 def test_physics_stability_at_substeps_one():
     """SCN-2/ADR-7: with substeps=1 (the bridge tick-budget setting),
     contact-rich stacking stays stable — 200 steps leave every box resting

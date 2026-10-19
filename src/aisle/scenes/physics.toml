@@ -250,6 +250,152 @@ shelf_level_size = [0.30, 0.68]
 tray_pos = [0.16, -0.16, 0.04]
 tray_size = [0.12, 0.14, 0.08]
 
+[embodiment.g1_right]
+# Unitree G1, scope A (ADR-g1-embodiment, PROPOSED): the wire drives the
+# right arm's 7 revolute joints + the right Dex1-1's 2 prismatic fingers
+# (TC-5 draft, 7+2 like franka); the other 24 DOFs are held at standing
+# home via held_joint_names (wire ∪ held MUST partition all 33 DOFs).
+# Asset: unitree_ros @5994d4f, g1_29dof_mode_15_with_dex1_1.urdf (mode 15).
+# CoACD full decomposition (addendum-2 ruling): threshold 0.0 keeps the
+# official non-convex collision meshes; cached second load ≈20 s.
+collision_decompose_error_threshold = 0.0
+# FK probe (zero pose, vendored URDF, collision spheres r=0.005 at ankle
+# z=-0.03): sole min-z = -0.7872 => pelvis height for soles on the ground.
+# Shoulder then sits at world [0, -0.1002, 1.0790]; shoulder->dex1_base
+# chain = 0.3254 m; finger AABB x∈[0.0523, 0.1433] => grasp center x≈0.098.
+pelvis_height_m = 0.7872
+# TC-5 wire (URDF document order for the right arm).
+arm_joint_names = [
+  "right_shoulder_pitch_joint",
+  "right_shoulder_roll_joint",
+  "right_shoulder_yaw_joint",
+  "right_elbow_joint",
+  "right_wrist_roll_joint",
+  "right_wrist_pitch_joint",
+  "right_wrist_yaw_joint",
+]
+gripper_joint_names = ["right_dex1_finger_joint_1", "right_dex1_finger_joint_2"]
+# Held DOFs, remaining 24 of 33 in URDF document order (left leg, right
+# leg, waist, left arm, left Dex1-1). Standing home = all zeros: the FK
+# probe verified both soles flat at zero pose.
+held_joint_names = [
+  "left_hip_pitch_joint",
+  "left_hip_roll_joint",
+  "left_hip_yaw_joint",
+  "left_knee_joint",
+  "left_ankle_pitch_joint",
+  "left_ankle_roll_joint",
+  "right_hip_pitch_joint",
+  "right_hip_roll_joint",
+  "right_hip_yaw_joint",
+  "right_knee_joint",
+  "right_ankle_pitch_joint",
+  "right_ankle_roll_joint",
+  "waist_yaw_joint",
+  "waist_roll_joint",
+  "waist_pitch_joint",
+  "left_shoulder_pitch_joint",
+  "left_shoulder_roll_joint",
+  "left_shoulder_yaw_joint",
+  "left_elbow_joint",
+  "left_wrist_roll_joint",
+  "left_wrist_pitch_joint",
+  "left_wrist_yaw_joint",
+  "left_dex1_finger_joint_1",
+  "left_dex1_finger_joint_2",
+]
+held_home_qpos = [
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0,
+]
+# Wire home: mildly bent ready pose (shoulder pitched forward, elbow
+# flexed), fingers at the open stop. 待 G1-F 调.
+home_qpos = [-0.35, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 0.0245, 0.0245]
+# Dex1-1 derivation (URDF): finger_joint_1 axis (0,-1,0), finger_joint_2
+# axis (0,1,0) => +q separates the fingers (outward ±y), -q closes them;
+# limits [-0.02, 0.0245]. So open_qpos = +0.0245 (max gap), close = -0.02
+# (finger contact). Driver normalization contract: 0.0 = open, 1.0 =
+# closed (lane2 must map linearly onto these stops).
+gripper_dofs = 2
+gripper_open_qpos = 0.0245
+gripper_close_qpos = -0.02
+# Conservative Dex1-1 PD gains (effort limit 20 N per finger). 待 G1-F 调.
+gripper_kp = [500.0, 500.0]
+gripper_kv = [20.0, 20.0]
+# Physical jaw metrics from the finger AABBs (inner faces ±0.039 at q=0,
+# ±0.0635 at open => ~0.06 usable gap). 待 G1-F 调.
+gripper_open_m = 0.06
+gripper_close_m = 0.0
+gripper_finger_clear_m = 0.008
+# Held-DOF PD (pelvis fixed: only limb weight, no balance burden); the PD
+# target is always held_home_qpos. kp 200 left a 0.0432 rad static droop
+# (τ_g/kp with the waist/hip gravity torque ≈ 8.6 N·m); 800 holds it
+# under 0.012 rad. The bridge never commands these DOFs. 待 G1-F 调.
+held_kp = 800.0
+held_kv = 40.0
+# TCP frame: Genesis collapses the massless fixed right_dex1_base_link
+# (right_base_joint, pure translation [0.0415, 0, 0]) — same as SO-101's
+# gripper_frame_link. Compose onto the surviving right_wrist_yaw_link:
+# offset = base joint 0.0415 + finger-AABB grasp center 0.0978 = 0.1393
+# along link +x (the direction the fingers extend). rpy pitch +π/2 makes
+# a top-down TCP (diag(1,−1,−1) in _assert_reachable) face the palm down:
+# the vertical forearm puts link +x straight down, and with +π/2 the near
+# column's IK solves (rot err 0.44); −π/2 flipped the palm backward and
+# pushed rotation errors to 1.86 — the sign the second IK run disproved.
+ee_link = "right_wrist_yaw_link"
+ee_frame_offset_xyz = [0.1393, 0.0, 0.0]
+ee_frame_offset_rpy = [0.0, 1.5707963, 0.0]
+# Workspace: origin-distance envelope (sampler pre-filter measures from
+# the world origin). Vertical-forearm top-down budget: |shoulder ->
+# wrist_yaw| <= 0.394 (chain 0.2031+0.1005+0.091); with the 0.19 vertical
+# hand offset, slots are kept at |S->W| <= ~0.34 (86%) for IK conditioning.
+reach_m = 1.30
+placement_radius_m = 0.45
+# Waist-height shelf in front of the right shoulder (y biased to the
+# robot's right, -y): two levels, the upper a 10 mm rear rail like so101
+# (geometry-only; the reach pre-filter excludes it).
+shelf_pos = [0.30, 0.0, 0.76]
+shelf_level_heights = [0.06, 0.34]
+shelf_level_depths = [0.24, 0.01]
+shelf_level_size = [0.24, 0.44]
+shelf_hand_clearance_m = 0.05
+shelf_edge_margin_m = 0.015
+min_separation = 0.02
+# Measured collision-free slot lattice: two columns biased to the robot's
+# right. Cross-column y stagger 0.08 exceeds the worst medicine half-width
+# pair + min_separation (amoxicillin+metformin 0.0625); same-column gaps
+# 0.16. Far column kept at |target-shoulder| <= 0.372 against the
+# vertical-forearm chain budget 0.394 (the x=0.36 column sat at 0.397 and
+# the IK failed). 待 G1-F 调.
+placement_slots_xy = [
+  [0.24, -0.16],
+  [0.24, 0.00],
+  [0.24, 0.16],
+  [0.28, -0.08],
+  [0.28, 0.08],
+]
+placement_global_jitter_m = 0.001
+# Delivery tray on a waist-height stand, fully outside the shelf
+# footprint (x front of 0.20, y behind -0.26), inside the reach sphere.
+tray_pos = [0.13, -0.35, 0.95]
+tray_size = [0.12, 0.16, 0.06]
+# IK / trajectory at so101 scale, conservative (7-DOF arm, top-down
+# intended, full orientation). 待 G1-F 调.
+pregrasp_height_m = 0.10
+ik_max_starts = 32
+ik_max_solver_iters = 200
+ik_pos_tol_m = 0.015
+ik_full_range_starts = true
+trajectory_staging_z = 1.00
+trajectory_lift_m = 0.05
+trajectory_transfer_z = 1.00
+trajectory_retract_vel_scale = 0.5
+trajectory_transfer_vel_scale = 0.5
+trajectory_transfer_route = []
+
 [ik]
 pregrasp_height_m = 0.10
 pos_tol_m = 0.015
