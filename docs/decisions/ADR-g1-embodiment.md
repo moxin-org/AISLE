@@ -180,6 +180,39 @@ Dex1-1 can retain the box: real retention is a force-controlled pinch
 whose characterization belongs to the hardware phase. Any real-robot
 grasp claim must be re-established with measured finger forces.
 
+## G1-H-r4: grasp command and latch threshold consistency
+
+The r3 smoke dropped the box because two lanes' parameters were each
+locally sane and JOINTLY contradictory: `gripper_grasp_cmd` 0.55 closed
+BELOW `carry_latch_close` 0.65, so the latch could never fire (and the
+command was a dead stop, not a squeeze). The invariant, now pinned by
+tests/unit/test_g1_grasp_consistency.py for every med and for so101:
+
+- per-med contact plateau (finger qpos at two-face contact, normalized
+  grip `g = (0.0245 - f)/0.0445`, `f` = grasp-axis width / 2):
+
+  | med | grasp-axis width | contact plateau |
+  |---|---|---|
+  | omeprazole | 0.045 m | 0.045 |
+  | amoxicillin | 0.040 m | 0.101 |
+  | ibuprofen | 0.035 m | 0.157 |
+  | metformin | 0.035 m | 0.157 |
+  | cetirizine | 0.030 m | 0.213 |
+
+- `gripper_grasp_cmd` 0.90 is a SQUEEZE above every plateau (the PD
+  keeps holding force after contact);
+- `carry_latch_close` 0.03 sits under the LOWEST plateau (0.045) — the
+  latch engages mid-close BEFORE two-face contact, mirroring so101's
+  design (its 0.68 fires under the measured 0.75 contact onset);
+- an empty-hand close ramps g through 0.03 but cannot mis-latch: the
+  planner opens fully (`gripper_pregrasp_cmd` 0) before every approach,
+  so a close stroke only begins with the target box already the nearest
+  neighbour, and `carry_latch_max_distance_m` 0.15 bounds the capture to
+  the pinched volume;
+- `carry_latch_release` 0.01 keeps a wide hysteresis band (no chatter).
+
+Still a sim aid only — NOT evidence of real-robot grasp capability.
+
 ## G1-H: cold-build budget — warmup, not budget inflation
 
 Genesis caches CoACD convex decompositions and compiled kernels per
