@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 
 import numpy as np
@@ -1387,6 +1387,28 @@ class StagedPlan:
         return not self.error
 
 
+def _held_replan_stages(stages: list, grasp_cmd: float, held: bool = True) -> list:
+    """G1-F6 anti-triangle: rewrite every stage BEFORE close to hold
+    grasp_cmd when a replan starts with the box still latched.
+
+    Measured (lane1 smoke 20261020-011256): a plan that finishes via
+    stage bails leaves the fingers closed; the NEXT grasp_pose is then
+    accepted, and its free-space stages command gripper 0.0 — on g1 that
+    is the profile's own gripper_pregrasp_cmd — opening the still-
+    latched box in mid-air (the triangle's down-edge; the box fell back
+    onto its own slot). Holding grasp_cmd through the re-approach keeps
+    the latch engaged until the new plan's own close/release semantics
+    take over; `held=False` is the identity (nothing to preserve)."""
+    if not held:
+        return stages
+    rewritten = []
+    for stage in stages:
+        if stage.name == "close":
+            break
+        rewritten.append(replace(stage, gripper=grasp_cmd))
+    return rewritten + stages[len(rewritten) :]
+
+
 def plan_done_declared(turn_outputs: str) -> bool:
     """HAR-3 vs ADR-30: is `plan_done` among the outputs THIS graph
     declared for the node?
@@ -1567,9 +1589,16 @@ def main() -> None:
     )
 
     env_pin = env_pin_from_env(os.environ)
+    grasp_cmd_profile = float(
+        load_physics()["embodiment"][embodiment].get("gripper_grasp_cmd", 1.0)
+    )
     node = Node()
     send = make_sender(node, env_pin)
     streamer: StageStreamer | None = None
+    # G1-F6: the gripper value the LAST plan ended on — a bail-completed
+    # plan leaves the box latched, and the next grasp_pose must not open
+    # it in mid-air (see _held_replan_stages)
+    held_grip = 0.0
     # while a read move runs: {request_id, face, attempts: [(q, range_m)],
     # attempt_idx} — the executor walks the ladder until one attempt TRACKS
     pending_read: dict | None = None
@@ -1606,6 +1635,7 @@ def main() -> None:
         if not env_accepts(metadata, env_pin):
             continue  # fleet mode (BRG-5): another env's stream
         if event["id"] == "reset_done":
+            held_grip = 0.0  # episode boundary: nothing is carried
             # episode boundary: NEVER keep executing a stale plan — in the
             # first live run a stale stream fought the post-reset guard
             # reference until the wall timeout froze everything
@@ -1667,6 +1697,15 @@ def main() -> None:
                 print(f"grasp plan failed: {candidate.error}", file=sys.stderr)
                 continue
             stages = list(candidate.stages)
+            # G1-F6: if the previous plan ended holding a box (bail-
+            # completed mid-carry), the re-approach must NOT open the
+            # gripper — rise/pregrasp/preclose command 0.0 (g1's
+            # preclose IS 0.0 by profile), which mid-air-released the
+            # box in the 20261020-011256 smoke. Hold grasp_cmd until the
+            # new plan's own close/release.
+            if held_grip >= 0.5 * grasp_cmd_profile:
+                stages = _held_replan_stages(stages, grasp_cmd_profile)
+            held_grip = 0.0
             if parked_at_read:
                 # the arm is parked at a shelf-front read pose; going
                 # straight to pregrasp drags the fingers through the
@@ -1704,6 +1743,7 @@ def main() -> None:
             for line in logs:
                 print(line, file=sys.stderr)
             if streamer.done:
+                held_grip = float(streamer.current_grip)  # latch state carries
                 streamer = None  # finished: idle until the next episode
                 if pending_read is None and plan_done_declared(
                     os.environ.get("AISLE_TURN_OUTPUTS", "")
