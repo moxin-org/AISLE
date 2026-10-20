@@ -450,8 +450,17 @@ tray_size = [0.12, 0.16, 0.06]
 # IK / trajectory at so101 scale, conservative (7-DOF arm, top-down
 # intended, full orientation). 待 G1-F 调.
 pregrasp_height_m = 0.10
-ik_max_starts = 32
-ik_max_solver_iters = 200
+# G1-F8: 16 starts keep the whole lattice plannable (measured sweep:
+# 25/25 at 16 and below down to 10) while halving every cold-ladder walk
+# inside the turn budget.
+ik_max_starts = 16
+# G1-F8: measured at the real consumption point — full-budget stalls on
+# the Pareto plateau burned 3x the turn watchdog (lattice worst 15.7s at
+# 200 iters; the tolerance early-exit in _dls buys 10.5s, and 80 iters
+# completes the cut: slow-case worst 5.37s, zero planning failures
+# across the lattice; 60 iters regresses to 5.86s, so 80 is the floor).
+# 80 also matches the bootstrap floor the descent already uses.
+ik_max_solver_iters = 80
 # G1-F2 tuning, measured on the C1 far slot column (x=0.24, ~95 percent
 # of the 0.394 m vertical-forearm chain budget per the slot comments): the
 # redundant 7-DOF DLS sits on a Pareto plateau there — nailing position
@@ -472,7 +481,13 @@ ik_rot_tol_rad = 0.15
 # the planning wall budget: legitimate plans measure 4.7-5.8s per med
 # (F3 probe), so 30s is ~5x headroom; on expiry the plan fails LOUD
 # (plan.error names the budget) instead of freezing the turn.
-ik_plan_budget_s = 30.0
+# G1-F8: planning runs SYNCHRONOUSLY inside a lockstep turn, so this
+# budget must fit inside the turn watchdog (outer smoke outer-smoke-f7b:
+# `plan ready` landed 3s after the 10s watchdog expired at 1:8 and the
+# dataflow froze). 6.0 = 0.6 x ORDINARY_TURN_WATCHDOG_S (10s, read from
+# turn_barrier) leaves CPU-jitter margin; the lattice worst measures
+# ~5.4s, and expiry still fails LOUD with the budget named.
+ik_plan_budget_s = 5.5
 ik_full_range_starts = true
 trajectory_staging_z = 1.00
 trajectory_lift_m = 0.05

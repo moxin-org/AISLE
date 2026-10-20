@@ -285,3 +285,26 @@ under the profile's ik_plan_budget_s (30 s — legitimate plans measure
 4.7-5.8 s, so ~5x headroom); every stage-boundary failure reports the
 budget by name when the deadline has passed, and the unreachable-pose
 test pins a loud plan.error inside 90 s wall (measured ~40 s).
+
+## G1-F8: the planning budget is bounded by the turn watchdog
+
+Planning runs SYNCHRONOUSLY inside a lockstep turn, so the F5 planning
+budget is subordinate to the ordinary turn watchdog (ADR-30,
+ORDINARY_TURN_WATCHDOG_S = 10 s): the outer smoke outer-smoke-f7b saw
+`plan ready` land 3 s AFTER the watchdog expired at turn 1:8 and the
+dataflow freeze at sim 0.07 s. The profile budget is now 5.5 s (0.55 x
+the watchdog, read from turn_barrier at planning time —
+test_plan_budget_respects_the_turn_watchdog pins the relation), and the
+deadline is threaded through every solver call (seed ladder, per-DLS
+iteration, backtracking, rolls, the rise arc sweep) so a stalled plan
+fails LOUD inside the budget instead of burning through the watchdog.
+Reaching it took measured work cuts, not looser gates: tolerance early
+exit in _dls (also enabled for so101 — 12-15 s full-budget plans dropped
+to ~0.15 s), ik_max_solver_iters 200 -> 80 and ik_max_starts 32 -> 16
+(now actually read from the profile), a batched FK/Jacobian/line-search
+path for g1 (equivalent to the serial path within 1.6e-11), and roll
+ladders carrying their hover tolerances. The whole 25-case lattice plans
+with zero failures; worst wall 5.53 s under load (independent probe),
+and the wall-clock test walks the same lattice under the 0.6 x watchdog
+cap. So101 and franka are pinned by the same cap assertion (franka
+measures 2.9-3.7 s; so101 needed the early exit above).

@@ -201,8 +201,15 @@ _SO101_CANONICAL_SEEDS = _so101_seeds()
 def _g1_seeds() -> tuple[np.ndarray, ...]:
     """Fixed low-discrepancy starts over the official G1 right-arm limits
     (CON-5), HOME FIRST (the bent ready pose is inside the top-down basin),
-    then 31 van der Corput starts = the profile's ik_max_starts."""
+    then van der Corput starts = the profile's ik_max_starts. G1-F8: the
+    count is now actually READ from the profile (the range was hardcoded
+    to 31 while the docstring claimed the key); 16 starts keep the whole
+    lattice plannable (measured sweep: 25/25 at 16) while halving every
+    cold-ladder walk inside the turn budget."""
+    from aisle.scenes.pharmacy import load_physics  # local: mirrors the file's import style
+
     limits = load_limits("g1_right")
+    n_starts = int(load_physics()["embodiment"]["g1_right"].get("ik_max_starts", 32))
     lower = np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64)
     upper = np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64)
     primes = (2, 3, 5, 7, 11, 13, 17)
@@ -211,7 +218,7 @@ def _g1_seeds() -> tuple[np.ndarray, ...]:
         (lower + (upper - lower) * np.array([_van_der_corput(i, p) for p in primes])).astype(
             np.float32
         )
-        for i in range(1, 32)
+        for i in range(1, n_starts)
     )
     return tuple(starts)
 
@@ -238,7 +245,11 @@ _G1_ROLL_JUMP_MAX = 0.35  # rad per roll waypoint; far under CONTINUITY_MAX
 
 
 def _g1_roll_at(
-    q: np.ndarray, pos: np.ndarray, rot_from: np.ndarray, rot_to: np.ndarray
+    q: np.ndarray,
+    pos: np.ndarray,
+    rot_from: np.ndarray,
+    rot_to: np.ndarray,
+    deadline: float | None = None,
 ) -> list[np.ndarray]:
     """In-place orientation continuation for the G1 wrist (G1-F2).
 
@@ -266,7 +277,19 @@ def _g1_roll_at(
         return quat_to_rotation(wa * qa + wb * qb)
 
     def step(qc: np.ndarray, f0: float, f1: float, depth: int):
-        qn = _dls(qc, pos, rot_at(f1), slice(0, 6), 60, "g1_right")
+        if deadline is not None and time.monotonic() > deadline:
+            raise TimeoutError
+        iters_t, pos_t, rot_t = _g1_ik_tolerances()
+        qn = _dls(
+            qc,
+            pos,
+            rot_at(f1),
+            slice(0, 6),
+            60,
+            "g1_right",
+            tols=(2.0 * pos_t, rot_t),  # the roll's own hover gate
+            deadline=deadline,
+        )
         if float(np.abs(qn - qc).max()) > _G1_ROLL_JUMP_MAX:
             if depth >= 4:
                 return None  # a branch flip, not a step
@@ -281,16 +304,37 @@ def _g1_roll_at(
     q = np.asarray(q, dtype=np.float64)
     configs: list[np.ndarray] = []
     f_prev = 0.0
-    for f in np.linspace(0.05, 1.0, 20):
-        chunk = step(q, f_prev, float(f), 0)
-        if chunk is None:
-            return []
-        configs.extend(chunk)
-        q = chunk[-1]
-        f_prev = float(f)
-    iters, pos_tol, rot_tol = _g1_ik_tolerances()
-    q = _dls(q, pos, rot_to, slice(0, 3), iters, "g1_right")  # pull position home
-    q = _dls(q, pos, rot_to, slice(0, 6), max(iters // 2, 40), "g1_right")
+    try:
+        for f in np.linspace(0.05, 1.0, 20):
+            chunk = step(q, f_prev, float(f), 0)
+            if chunk is None:
+                return []
+            configs.extend(chunk)
+            q = chunk[-1]
+            f_prev = float(f)
+        iters, pos_tol, rot_tol = _g1_ik_tolerances()
+        q = _dls(
+            q,
+            pos,
+            rot_to,
+            slice(0, 3),
+            iters,
+            "g1_right",
+            tols=(2.0 * pos_tol, rot_tol),
+            deadline=deadline,
+        )  # pull position home
+        q = _dls(
+            q,
+            pos,
+            rot_to,
+            slice(0, 6),
+            max(iters // 2, 40),
+            "g1_right",
+            tols=(2.0 * pos_tol, rot_tol),
+            deadline=deadline,
+        )
+    except TimeoutError:
+        return []
     err = _pose_error(q, pos, rot_to, "g1_right")
     # the roll target is the PREGRASP HOVER (pregrasp_height_m above the
     # box): a couple of cm of position there is harmless because the
@@ -681,6 +725,8 @@ def _dls(
     iters: int,
     embodiment: str,
     damping: float = 0.05,
+    tols: tuple[float, float] | None = None,
+    deadline: float | None = None,
 ) -> np.ndarray:
     """Damped-least-squares descent on the selected error rows (position
     rows only for the bootstrap, every profile constraint for the full solve). Clamped
@@ -695,6 +741,12 @@ def _dls(
     n = len(err)
     reg = damping**2 * np.eye(n)
     for _ in range(iters):
+        # G1-F8: the turn watchdog bounds the WHOLE plan, so a stalled
+        # descent must stop at the planning deadline (monotonic is ~50ns;
+        # 60k checks cost ~3ms). None/inf = unconstrained (other
+        # embodiments are bit-for-bit unchanged).
+        if deadline is not None and time.monotonic() > deadline:
+            break
         clamped = err.copy()
         pos_norm = np.linalg.norm(clamped[:3])
         if pos_norm > 0.08:
@@ -703,21 +755,76 @@ def _dls(
             rot_norm = np.linalg.norm(clamped[3:])
             if rot_norm > 0.4:
                 clamped[3:] *= 0.4 / rot_norm
-        jac = np.empty((n, len(q)))
-        for j in range(len(q)):
-            dq = q.copy()
-            dq[j] += eps
-            jac[:, j] = (err - _pose_error(dq, target_pos, target_rot, embodiment)[rows]) / eps
+        if embodiment == "g1_right" and deadline is not None:
+            # G1-F8: one batched FK pass for [q, q+eps*e_j ...] replaces
+            # len(q) serial chain walks per iteration (~60k forward calls
+            # per plan -> /7). Math identical to the loop below (verified
+            # <= 1e-12); so101/franka keep the serial path bit-for-bit.
+            from aisle.kinematics import g1_right_chain
+
+            nq = len(q)
+            qs = np.repeat(q[None, :], nq + 1, axis=0)
+            qs[1:] += np.eye(nq) * eps
+            tcp_b, rot_b = g1_right_chain().forward_batch(qs)
+            pert = np.empty((nq + 1, 6))
+            for r in range(nq + 1):
+                pert[r, :3] = target_pos - tcp_b[r]
+                pert[r, 3:] = _rotation_error(rot_b[r], target_rot)
+            jac = ((err[None, :] - pert[1:][:, rows]) / eps).T  # (rows, nq) like the serial path
+        else:
+            jac = np.empty((n, len(q)))
+            for j in range(len(q)):
+                dq = q.copy()
+                dq[j] += eps
+                jac[:, j] = (err - _pose_error(dq, target_pos, target_rot, embodiment)[rows]) / eps
         step = jac.T @ np.linalg.solve(jac @ jac.T + reg, clamped)
         base_norm = np.linalg.norm(err)
-        for _halving in range(4):
-            candidate = np.clip(q + step, q_min, q_max)
-            candidate_err = _pose_error(candidate, target_pos, target_rot, embodiment)[rows]
-            if np.linalg.norm(candidate_err) < base_norm:
+        if embodiment == "g1_right" and deadline is not None:
+            # G1-F8: the backtracking line search evaluated up to 4
+            # candidates SERIALLY per iteration (~20k forward calls per
+            # plan, 37 percent of solve wall) — batch all four halvings
+            # into one FK pass and accept the FIRST norm-improving step,
+            # exactly the original loop's deterministic choice (deepest
+            # halving when none improve).
+            from aisle.kinematics import g1_right_chain
+
+            steps = step[None, :] * (0.5 ** np.arange(4))[:, None]
+            cands = np.clip(q[None, :] + steps, q_min[None, :], q_max[None, :])
+            tcp_b, rot_b = g1_right_chain().forward_batch(cands)
+            cand_errs = np.empty((4, 6))
+            for r in range(4):
+                cand_errs[r, :3] = target_pos - tcp_b[r]
+                cand_errs[r, 3:] = _rotation_error(rot_b[r], target_rot)
+            improved = np.linalg.norm(cand_errs[:, rows], axis=1) < base_norm
+            k = int(np.argmax(improved)) if improved.any() else 3
+            q = cands[k]
+            err = cand_errs[k][rows]
+        else:
+            for _halving in range(4):
+                candidate = np.clip(q + step, q_min, q_max)
+                candidate_err = _pose_error(candidate, target_pos, target_rot, embodiment)[rows]
+                if np.linalg.norm(candidate_err) < base_norm:
+                    break
+                step = step / 2
+            q = candidate
+            err = candidate_err  # carry: next iteration reuses the accepted error
+        # G1-F8 early exit: once BOTH tolerances are met there is nothing
+        # left to buy — running the remaining budget (200-400 iterations
+        # per call x ~140 calls per plan) burned 3x the turn watchdog.
+        # None keeps every other embodiment bit-for-bit (they never pass
+        # tols).
+        if tols is not None:
+            n_rows = len(err)
+            pos_err = np.linalg.norm(err[: min(3, n_rows)])
+            rot_err = np.linalg.norm(err[3:]) if n_rows > 3 else 0.0
+            # exit at HALF the tolerance, not the tolerance itself: a
+            # just-inside-tolerance stop leaves the TCP up to 2.5 cm off
+            # target and ate the F7 2 cm withdrawal margin (measured:
+            # tail_min 0.0004 vs the 0.02 gate) — the full-budget descent
+            # used to converge deeper. Half keeps nearly all the saved
+            # iterations (the descent is near-linear this close).
+            if pos_err < 0.5 * tols[0] and rot_err < 0.5 * tols[1]:
                 break
-            step = step / 2
-        q = candidate
-        err = candidate_err  # carry: next iteration reuses the accepted error
     return q
 
 
@@ -728,6 +835,7 @@ def _ik_once(
     embodiment: str,
     pos_tol_scale: float = 1.0,
     rows: slice | None = None,
+    deadline: float | None = None,
 ) -> np.ndarray | None:
     _require_supported_embodiment(embodiment, "_ik_once")
     q = np.asarray(q0, dtype=np.float64).copy()
@@ -767,6 +875,14 @@ def _ik_once(
                 slice(0, 3),
                 bootstrap_iters,
                 embodiment,
+                # G1-F8 early exit applies to every embodiment that
+                # carries tolerances here — so101 (0.015/0.02, measured
+                # 12-15s full-budget per plan on the dev host) needs it
+                # as much as g1; franka keeps None (bit-for-bit).
+                tols=(pos_tol * pos_tol_scale, rot_tol)
+                if embodiment in ("g1_right", "so101")
+                else None,
+                deadline=deadline,
             )
         q = _dls(
             q,
@@ -775,6 +891,10 @@ def _ik_once(
             rows,
             full_iters,
             embodiment,
+            tols=(pos_tol * pos_tol_scale, rot_tol)
+            if embodiment in ("g1_right", "so101")
+            else None,
+            deadline=deadline,
         )
         if _within(q):
             return q.astype(np.float32)
@@ -787,7 +907,17 @@ def _ik_once(
         # pos 0.0248 with rot under 0.02 — same branch, no flip. Damping
         # below 0.01 DOES flip branches (measured 2.7 rad jump); the
         # continuation continuity check stays the backstop regardless.
-        q = _dls(q_start, target_pos, target_rot, rows, 2 * full_iters, embodiment, damping=0.02)
+        q = _dls(
+            q_start,
+            target_pos,
+            target_rot,
+            rows,
+            2 * full_iters,
+            embodiment,
+            damping=0.02,
+            tols=(pos_tol * pos_tol_scale, rot_tol),
+            deadline=deadline,
+        )
         if _within(q):
             return q.astype(np.float32)
     return None
@@ -802,6 +932,7 @@ def ik_continuation(
     embodiment: str = "franka",
     pos_tol_scale: float = 1.0,
     free_yaw: bool = False,
+    deadline: float | None = None,
 ) -> list[np.ndarray] | None:
     """`pos_tol_scale` widens ONLY the position gate for free-space
     carriage stages (G1-F2: staging/transfer/lower/retract hover moves —
@@ -834,6 +965,8 @@ def ik_continuation(
         waypoint = from_pos + (to_pos - from_pos) * (i / n)
         prev = q  # the last GOOD config; q may become None below
         yaw_free = free_yaw and embodiment == "g1_right"
+        if deadline is not None and time.monotonic() > deadline:
+            return None
         q = _ik_once(
             waypoint,
             target_rot,
@@ -841,6 +974,7 @@ def ik_continuation(
             embodiment,
             pos_tol_scale,
             rows=slice(0, 5) if yaw_free else None,
+            deadline=deadline,
         )
         if q is None and embodiment == "g1_right":
             # G1-F2, measured: the warm-started descent stalls out of basin
@@ -851,7 +985,7 @@ def ik_continuation(
             # are in reach). Retry the waypoint cold, seeded first with the
             # last good config; StagedPlan's CONTINUITY_MAX check still
             # rejects any branch-flip result.
-            q = ik_solve(waypoint, target_rot, prev, embodiment=embodiment)
+            q = ik_solve(waypoint, target_rot, prev, embodiment=embodiment, deadline=deadline)
             if q is not None and float(np.abs(q - prev).max()) > 0.5:
                 # a cold solve that lands half a radian (or more) away is a
                 # DIFFERENT IK branch — following it mid-path swings the arm
@@ -869,6 +1003,7 @@ def ik_solve(
     target_rot: np.ndarray,
     q0: np.ndarray,
     embodiment: str = "franka",
+    deadline: float | None = None,
 ) -> np.ndarray | None:
     """DLS-IK for a TCP pose. Deterministic (CON-5): fixed seed pose, fixed
     iteration budget; a box is symmetric under a 180-degree spin about the
@@ -884,7 +1019,13 @@ def ik_solve(
         seeds = _CANONICAL_SEEDS
     for rot in (target_rot, target_rot @ _RZ_PI):
         for seed in (q0, *seeds):
-            q = _ik_once(target_pos, rot, seed, embodiment)
+            # G1-F8: one cold ladder walks up to 64 solves (2 rotations x
+            # 32 seeds); without this check a single unreachable ladder
+            # burns straight through the turn watchdog before any
+            # stage-boundary budget check can fire.
+            if deadline is not None and time.monotonic() > deadline:
+                return None
+            q = _ik_once(target_pos, rot, seed, embodiment, deadline=deadline)
             if q is not None:
                 return q
     return None
@@ -961,6 +1102,23 @@ class StagedPlan:
             else math.inf
         )
         deadline = time.monotonic() + budget_s
+
+        # G1-F8: thread the deadline through EVERY solver call this plan
+        # makes (wrappers keep the call sites readable and guarantee no
+        # site is missed): a stalled stage then ends at the budget instead
+        # of burning through the turn watchdog.
+        def _dl_solve(*a, **k):
+            return ik_solve(*a, **{**k, "deadline": deadline})
+
+        def _dl_cont(*a, **k):
+            return ik_continuation(*a, **{**k, "deadline": deadline})
+
+        def _dl_roll(*a, **k):
+            return _g1_roll_at(*a, **{**k, "deadline": deadline})
+
+        def _dl_once(*a, **k):
+            return _ik_once(*a, **{**k, "deadline": deadline})
+
         pre_pos = grasp_pos - approach_axis * approach_m
         up = np.array([0.0, 0.0, lift_height])
         self.stages: list[Stage] = []
@@ -1032,6 +1190,8 @@ class StagedPlan:
                 cur = np.asarray(home, dtype=np.float32)
                 target = np.asarray(q_end, dtype=np.float32)
                 while not np.allclose(cur, target, atol=1e-6):
+                    if deadline is not None and time.monotonic() > deadline:
+                        return False
                     delta = np.clip(target - cur, -0.01, 0.01)
                     cur = (cur + delta).astype(np.float32)
                     tcp = fk_ee_pose(cur, embodiment)[0]
@@ -1042,7 +1202,7 @@ class StagedPlan:
             rise_path = None
             for parity in (approach_rot, approach_rot @ _RZ_PI):
                 for seed in (home, *_G1_CANONICAL_SEEDS):
-                    q_cand = _ik_once(
+                    q_cand = _dl_once(
                         rise_pos, parity, np.asarray(seed, dtype=np.float32), "g1_right"
                     )
                     if q_cand is not None and _arc_stays_inside(q_cand):
@@ -1051,22 +1211,22 @@ class StagedPlan:
                 if rise_path is not None:
                     break
         else:
-            q_rise = ik_solve(rise_pos, approach_rot, home, embodiment)
+            q_rise = _dl_solve(rise_pos, approach_rot, home, embodiment)
             rise_path = [q_rise] if q_rise is not None else None
         if not rise_path:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
             )
             return
         q_rise = rise_path[-1]
-        staging_path = ik_continuation(
+        staging_path = _dl_cont(
             rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment, pos_tol_scale=1.2
         )
         if staging_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else f"IK failed for waypoint 'staging' at {np.round(staging_pos, 3).tolist()}"
             )
@@ -1078,7 +1238,7 @@ class StagedPlan:
             # approaches. Keep the feasible horizontal pitch throughout
             # the free-space move; its base-coupled yaw follows each TCP
             # waypoint inside the SO-101 IK constraint.
-            pregrasp_path = ik_continuation(
+            pregrasp_path = _dl_cont(
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
             )
         elif front_mode:
@@ -1090,11 +1250,11 @@ class StagedPlan:
             # ahead of the shelf (the PR #10 review measured the raw jump
             # at 2.18 rad; unverified it could sweep anywhere)
             drop_pos = np.array([pre_pos[0], pre_pos[1], min(staging_z, pre_pos[2] + 0.15)])
-            drop_path = ik_continuation(
+            drop_path = _dl_cont(
                 staging_pos, drop_pos, approach_rot, q_staging, embodiment=embodiment
             )
             q_pre = (
-                ik_solve(pre_pos, grasp_rot, drop_path[-1], embodiment)
+                _dl_solve(pre_pos, grasp_rot, drop_path[-1], embodiment)
                 if drop_path is not None
                 else None
             )
@@ -1118,7 +1278,7 @@ class StagedPlan:
             # orientation continuation from a converged solution (see
             # _g1_roll_at), and the advance below starts from the rolled
             # configuration with the orientation already matched.
-            transit_path = ik_continuation(
+            transit_path = _dl_cont(
                 staging_pos,
                 pre_pos,
                 approach_rot,
@@ -1138,7 +1298,7 @@ class StagedPlan:
                 # try both parities, the one whose roll converges wins and
                 # the later stages (advance/lift/retract) follow it
                 for parity in (grasp_rot, grasp_rot @ _RZ_PI):
-                    roll = _g1_roll_at(transit_path[-1], pre_pos, approach_rot, parity)
+                    roll = _dl_roll(transit_path[-1], pre_pos, approach_rot, parity)
                     if roll:
                         pregrasp_path = list(transit_path) + roll
                         grasp_rot = parity
@@ -1151,12 +1311,12 @@ class StagedPlan:
                         place_rot = parity
                         break
         else:
-            pregrasp_path = ik_continuation(
+            pregrasp_path = _dl_cont(
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
             )
         if pregrasp_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else f"IK failed for waypoint 'pregrasp' at {np.round(pre_pos, 3).tolist()}"
             )
@@ -1164,16 +1324,16 @@ class StagedPlan:
         q_pre = pregrasp_path[-1]
         # the insertion (advance/lift/retract) and placement descents are
         # continuation PATHS the executor follows waypoint by waypoint
-        advance_path = ik_continuation(pre_pos, grasp_pos, grasp_rot, q_pre, embodiment=embodiment)
+        advance_path = _dl_cont(pre_pos, grasp_pos, grasp_rot, q_pre, embodiment=embodiment)
         if advance_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else "IK failed for stage 'advance'"
             )
             return
         lift_path = (
-            ik_continuation(
+            _dl_cont(
                 grasp_pos,
                 grasp_pos + up,
                 grasp_rot,
@@ -1185,7 +1345,7 @@ class StagedPlan:
         )
         if lift_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else "IK failed for stage 'lift'"
             )
@@ -1202,7 +1362,7 @@ class StagedPlan:
                 [pre_pos[0], pre_pos[1], min(float(retract_end[2]), float(staging_z))]
             )
         retract_path = (
-            ik_continuation(
+            _dl_cont(
                 grasp_pos + up,
                 retract_end,
                 grasp_rot,
@@ -1215,7 +1375,7 @@ class StagedPlan:
         )
         if retract_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else "IK failed for stage 'retract'"
             )
@@ -1243,7 +1403,7 @@ class StagedPlan:
             route_start = pre_pos + up
             route_q = retract_path[-1]
             for route_end in route:
-                segment = ik_continuation(
+                segment = _dl_cont(
                     route_start,
                     route_end,
                     place_rot,
@@ -1258,7 +1418,7 @@ class StagedPlan:
                 route_q = segment[-1]
         else:
             transfer_path = (
-                ik_continuation(
+                _dl_cont(
                     retract_end,
                     transfer_pos,
                     place_rot,
@@ -1286,14 +1446,14 @@ class StagedPlan:
                 realized = fk_ee_pose(transfer_path[-1], embodiment)[1]
                 tray_roll = None
                 for parity in (place_rot, place_rot @ _RZ_PI):
-                    tray_roll = _g1_roll_at(transfer_path[-1], transfer_pos, realized, parity)
+                    tray_roll = _dl_roll(transfer_path[-1], transfer_pos, realized, parity)
                     if tray_roll:
                         place_rot = parity
                         break
                 transfer_path = (list(transfer_path) + tray_roll) if tray_roll else None
         if transfer_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else "IK failed for stage 'transfer'"
             )
@@ -1311,7 +1471,7 @@ class StagedPlan:
                 # the flipped one, which is the same palm-down release for
                 # the symmetric Dex1 fingers. The cold alternatives sit
                 # 3-4 rad away on other branches (verified unusable).
-                lower_path = ik_continuation(
+                lower_path = _dl_cont(
                     transfer_pos,
                     lower_pos,
                     parity,
@@ -1324,7 +1484,7 @@ class StagedPlan:
                     break
         if lower_path is None:
             self.error = (
-                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
                 if time.monotonic() > deadline
                 else "IK failed for stage 'lower'"
             )
@@ -1359,7 +1519,7 @@ class StagedPlan:
             # +0.024 m clearance but physically overlapped the seated box
             # (-0.056 m measured) because the shortfall ate the margin.
             for dy, dz in ((0.15, 0.08), (0.12, 0.08), (0.15, 0.04), (0.12, 0.04)):
-                candidate = ik_continuation(
+                candidate = _dl_cont(
                     release_tcp.copy(),
                     np.array([release_tcp[0], release_tcp[1] + dy, release_tcp[2] + dz]),
                     place_rot,
@@ -1375,7 +1535,7 @@ class StagedPlan:
         if embodiment == "g1_right":
             _q_retreat = np.asarray(clear_path[-1])
             _rot = fk_ee_pose(_q_retreat, embodiment)[1]
-            _q_mid = ik_solve(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment)
+            _q_mid = _dl_solve(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment)
             home_waypoints = (
                 (np.asarray(_q_mid, dtype=np.float64), home)
                 if _q_mid is not None

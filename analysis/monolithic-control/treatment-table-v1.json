@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:696515e2cb392aaa1a70fbb68123a158e06c3531b66b3b47e115de9f8d29d2a9",
+  "immutable_id": "sha256:c678a44460ed7629a8c40a276e5e77218615cffd58a7d92d9261a41c34a51156",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -8,7 +8,7 @@
       "justification": "this is the treatment: bundled typed-dataflow engineering surface versus one ordinary module",
       "monolithic": "experts/monolithic/expert_t1.py#sha256:e917cc9b8dd1a323d633e5d96a9af5f485dff2b594e5b2c75ebb8c853a81f25e",
       "surface": "agent deliverable",
-      "typed": "graphs/expert_t1.yaml#sha256:816da6ee0e57f512d4d1636ae5de84ef94565f33312f0dc392a51fe955b3add6"
+      "typed": "graphs/expert_t1.yaml#sha256:bd579ab71f4ad59c72d64455ac10a8f933f9aec2ef4d059282e26485c88f5f00"
     },
     {
       "analysis": "recorded as treatment property; check/run attempt and error events compared descriptively",
@@ -44,7 +44,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/monolith/primitives.py#sha256:b408cf09cb4a2dc76a43bee63f0b61a46e247361cad307ec71f182e3d797a06d",
       "surface": "robot primitives (pose, grasp, trajectory, executor)",
-      "typed": "src/aisle/nodes/segmented_pose.py#sha256:994ca57fbea0f38f5701ec54a9274561b5d1d111a58bf92c312b9735b2280559"
+      "typed": "src/aisle/nodes/segmented_pose.py#sha256:3f63433d2ffc20cb4f4efbcae0ba45f3e6205a71f9053ae9a7aea6d754476019"
     },
     {
       "analysis": "held fixed; exactness checked by harness monolith interface",
@@ -80,7 +80,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/nodes/monolith_broker.py#sha256:872741da1be8cfa0c89a4ee77ee4fb8a457f130a48228d39ebb8e09a84ee3d46",
       "surface": "trusted controller (bridge, reset, verifier, rollout client, turn barrier)",
-      "typed": "src/aisle/nodes/dora_genesis.py#sha256:9e0e776766aeb411d1ada37540bbd65187e97073e33b3ef8dd7383a2d2af1d43"
+      "typed": "src/aisle/nodes/dora_genesis.py#sha256:166c20681c0c2811853dade8b613d58ce6ea6fae898ec4684717df178a0fae2e"
     },
     {
       "analysis": "excluded from task authority (MON-4); no analysis treatment",

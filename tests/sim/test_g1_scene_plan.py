@@ -311,3 +311,113 @@ def test_post_release_withdrawal_clears_the_placed_box_by_2cm(slot_xy, med):
     assert corridor_min >= 0.0, (slot_xy, med, "re-overlapped in corridor", corridor_min)
     assert reached_2cm, (slot_xy, med, "never reached 2 cm clearance after release")
     assert tail_min >= 0.02, (slot_xy, med, "fell back under 2 cm after clearing", tail_min)
+
+
+def test_plan_budget_respects_the_turn_watchdog():
+    """G1-F8: the planning wall budget must fit INSIDE the turn watchdog
+    (with a 0.6 factor for CPU jitter) — planning runs synchronously in
+    the turn, and ik_plan_budget_s = 30 vs the 10 s watchdog froze the
+    dataflow at every episode start (outer smoke outer-smoke-f7b: turn
+    watchdog expired at 1:8 while `plan ready` landed 3 s later). The
+    watchdog default is READ from turn_barrier, not hardcoded."""
+    from aisle.nodes.turn_barrier import ORDINARY_TURN_WATCHDOG_S
+
+    cap = 0.6 * ORDINARY_TURN_WATCHDOG_S
+    budget = float(PROFILE["ik_plan_budget_s"])
+    assert budget <= cap, f"ik_plan_budget_s {budget} > 0.6*watchdog {cap}"
+
+
+@pytest.mark.parametrize(
+    ("embodiment", "grasp_kind"),
+    [("g1_right", "lattice"), ("so101", "recorded"), ("franka", "probe")],
+)
+def test_planning_wall_clock_fits_the_watchdog_cap(embodiment, grasp_kind):
+    """G1-F8: measured wall-clock planning per (slot, med) stays under the
+    same 0.6 x watchdog cap. g1_right walks the whole lattice (the F7
+    retreat ladder made the worst case 15.7 s > 10 s watchdog); so101 and
+    franka plan one representative grasp each — their profiles carry no
+    budget key, so the MEASURED time is the assertion."""
+    import time as _time
+
+    from aisle.nodes.grasp_topdown import GRIP_ENGAGEMENT, plan_grasp
+    from aisle.nodes.ik_trajectory import StagedPlan
+    from aisle.nodes.turn_barrier import ORDINARY_TURN_WATCHDOG_S
+
+    cap = 0.6 * ORDINARY_TURN_WATCHDOG_S
+    if embodiment == "g1_right":
+        worst = 0.0
+        worst_case = None
+        for slot in PROFILE["placement_slots_xy"]:
+            slot_xy = (float(slot[0]), float(slot[1]))
+            for med in MED_NAMES:
+                grasp, approach, place_z = _grasp_for_slot_med(slot_xy, med)
+                t0 = _time.monotonic()
+                plan = StagedPlan(
+                    grasp,
+                    tuple(np.asarray(PROFILE["tray_pos"][:2], dtype=float)),
+                    approach_m=approach,
+                    q_seed=HOME,
+                    place_z=place_z,
+                    embodiment="g1_right",
+                )
+                elapsed = _time.monotonic() - t0
+                assert plan.ok, (slot_xy, med, plan.error)
+                if elapsed > worst:
+                    worst, worst_case = elapsed, (slot_xy, med)
+        assert worst <= cap, f"worst planning wall {worst:.2f}s at {worst_case} > cap {cap:.1f}s"
+
+    def _plan_one(physics, emb, grasp, approach, place_z):
+        prof = physics["embodiment"][emb]
+        q_home = np.asarray(prof["home_qpos"], dtype=np.float32)
+        t0 = _time.monotonic()
+        plan = StagedPlan(
+            grasp,
+            tuple(np.asarray(prof["tray_pos"][:2], dtype=float)),
+            approach_m=approach,
+            q_seed=q_home,
+            place_z=place_z,
+            embodiment=emb,
+        )
+        return _time.monotonic() - t0, plan
+
+    if embodiment == "so101":
+        from aisle.nodes.grasp_topdown import place_tcp_z
+
+        physics = load_physics()
+        prof = physics["embodiment"]["so101"]
+        size = MEDS["amoxicillin"]["size"]
+        tray_top = prof["tray_pos"][2] + prof["tray_size"][2] / 2
+        grasp = np.array(
+            [0.39851335, 0.00547770, 0.095, 0.49655211, 0.50342429, 0.50342429, 0.49655211],
+            dtype=np.float32,
+        )
+        # place_z from the same entry test_ik_plan_done uses — a hardcoded
+        # 1.04 made the recorded radial plan fail its lower stage
+        place_z = place_tcp_z(size, 0.0, tray_top)
+        elapsed, plan = _plan_one(physics, "so101", grasp, 0.13852643, place_z)
+        assert plan.ok, plan.error
+        assert elapsed <= cap, f"so101 planning wall {elapsed:.2f}s > cap {cap:.1f}s"
+
+    if embodiment == "franka":
+        physics = load_physics()
+        prof = physics["embodiment"]["franka"]
+        layout = resolve_layout(physics, "franka")
+        size = MEDS["amoxicillin"]["size"]
+        shelf = layout["shelf"]
+        z_lo = shelf["pos"][2] + shelf["level_heights"][0] + shelf["board_thickness"] / 2
+        pose = np.array([0.42, 0.0, z_lo + size[2] / 2, 0, 0, 0, 1], dtype=np.float32)
+        grasp, approach, place_z = plan_grasp(
+            pose,
+            size,
+            grip=GRIP_ENGAGEMENT,
+            shelf_front_x=shelf["pos"][0] - shelf["level_size"][0] / 2,
+            tray_top_z=prof["tray_pos"][2] + prof["tray_size"][2] / 2,
+            finger_open=float(prof["gripper_open_m"]),
+            finger_clear=float(prof["gripper_finger_clear_m"]),
+            topdown_approach=float(
+                prof.get("pregrasp_height_m", physics["ik"]["pregrasp_height_m"])
+            ),
+        )
+        elapsed, plan = _plan_one(physics, "franka", grasp, approach, place_z)
+        assert plan.ok, plan.error
+        assert elapsed <= cap, f"franka planning wall {elapsed:.2f}s > cap {cap:.1f}s"

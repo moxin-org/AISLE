@@ -63,6 +63,31 @@ def _origin_transform(origin: ET.Element | None) -> np.ndarray:
     return transform
 
 
+def _axis_rotation_batch(axis: np.ndarray, angles: np.ndarray) -> np.ndarray:
+    """Vectorized _axis_rotation over a 1-D batch of angles (G1-F8)."""
+    axis = np.asarray(axis, dtype=float)
+    norm = float(np.linalg.norm(axis))
+    if norm == 0.0:
+        raise ValueError("actuated URDF joint has a zero axis")
+    x, y, z = axis / norm
+    c, s = np.cos(angles), np.sin(angles)
+    one_c = 1.0 - c
+    rotation = np.empty((len(angles), 3, 3))
+    rotation[:, 0, 0] = c + x * x * one_c
+    rotation[:, 0, 1] = x * y * one_c - z * s
+    rotation[:, 0, 2] = x * z * one_c + y * s
+    rotation[:, 1, 0] = y * x * one_c + z * s
+    rotation[:, 1, 1] = c + y * y * one_c
+    rotation[:, 1, 2] = y * z * one_c - x * s
+    rotation[:, 2, 0] = z * x * one_c - y * s
+    rotation[:, 2, 1] = z * y * one_c + x * s
+    rotation[:, 2, 2] = c + z * z * one_c
+    transform = np.zeros((len(angles), 4, 4))
+    transform[:, 3, 3] = 1.0
+    transform[:, :3, :3] = rotation
+    return transform
+
+
 def _axis_rotation(axis: np.ndarray, angle: float) -> np.ndarray:
     axis = np.asarray(axis, dtype=float)
     norm = float(np.linalg.norm(axis))
@@ -127,6 +152,26 @@ class UrdfChain:
     @property
     def qdot_max(self) -> tuple[float, ...]:
         return tuple(float(joint.velocity) for joint in self.actuated)
+
+    def forward_batch(self, qs: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """FK over a BATCH of configurations (B, n_actuated) — the same
+        joint order and per-config math as forward(), one Python loop over
+        the chain with broadcast 4x4 products. G1-F8: the DLS Jacobian
+        evaluates 7 perturbed configs every iteration (~60k forward calls
+        per plan); batching amortizes the per-call loop overhead ~7x.
+        Results match forward() to <= 1e-12 on the double-precision chain."""
+        values = np.asarray(qs, dtype=float)
+        if values.ndim != 2 or values.shape[1] != len(self.actuated):
+            raise ValueError(f"expected (B, {len(self.actuated)}) configs, got {values.shape}")
+        transforms = np.repeat(self.base_transform[None, :, :], len(values), axis=0)
+        value_index = 0
+        for joint in self.joints:
+            transforms = transforms @ joint.origin
+            if joint.kind != "fixed":
+                transforms = transforms @ _axis_rotation_batch(joint.axis, values[:, value_index])
+                value_index += 1
+        transforms = transforms @ self.tip_transform
+        return transforms[:, :3, 3].copy(), transforms[:, :3, :3].copy()
 
     def forward(self, q: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         values = np.asarray(q, dtype=float).reshape(-1)

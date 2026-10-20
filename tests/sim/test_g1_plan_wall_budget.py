@@ -46,7 +46,14 @@ def test_unreachable_plan_fails_loud_within_the_wall_budget():
     )
     elapsed = time.monotonic() - t0
     assert not plan.ok
-    assert "budget" in str(plan.error).lower(), plan.error
+    # G1-F8: two LOUD failure modes are both correct — the budget path
+    # (error names ik_plan_budget_s; verified under load at 5.5s) or, now
+    # that the seed ladder is 16 starts x 80 iters, the ladder EXHAUSTS
+    # inside the budget and the waypoint fails as a plain IK error
+    # (faster and just as loud). Either way: bounded wall, no crash, no
+    # freeze — the 9-minute silent stall cannot recur.
+    err = str(plan.error).lower()
+    assert "budget" in err or "ik failed" in err, plan.error
     assert elapsed < 90.0, f"planning burned {elapsed:.0f}s before failing"
 
 
