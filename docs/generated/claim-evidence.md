@@ -26,6 +26,8 @@
 | [`development-ledger`](#development-ledger) | `structural` | `supported` | agnostic | {"rationale": "The catalog checker enforces the one-source marker and dated snapshot links.", "status": "repository_verified"} |
 | [`evidence-attestation`](#evidence-attestation) | `structural` | `supported` | agnostic | {"rationale": "The frozen inventory and guard dependencies are tested from tracked sources.", "status": "repository_verified"} |
 | [`external-reproduction`](#external-reproduction) | `reproducibility` | `unrun` | simulation_and_hardware | {"rationale": "Self-runs are not independent reproduction.", "status": "not_applicable"} |
+| [`g1-right-embodiment-simulation`](#g1-right-embodiment-simulation) | `empirical` | `unrun` | simulation | {"rationale": "Branch tests and cross-checks are retained (FK vs Genesis worst 1.2e-7 m / 1.5e-7 rad, outer-loop verified at G1-F1; whole-lattice planning green at G1-F3), but the acceptance gate itself is unrun — no independent reproduction.", "status": "repository_recorded"} |
+| [`g1-right-hardware`](#g1-right-hardware) | `future` | `hardware_pending` | hardware | {"rationale": "Loopback doubles and simulation are not physical evidence.", "status": "not_applicable"} |
 | [`hardware-so101-validation`](#hardware-so101-validation) | `future` | `hardware_pending` | hardware | {"rationale": "Simulation and loopback tests are not physical evidence.", "status": "not_applicable"} |
 | [`live-fault-feasibility`](#live-fault-feasibility) | `empirical` | `supported` | simulation | {"rationale": "Cell records and scorer are retained; no independent reproduction exists.", "status": "repository_recorded"} |
 | [`safety-exposure-hardware`](#safety-exposure-hardware) | `future` | `hardware_pending` | hardware | {"rationale": "Simulated contacts, gateway receipts, and held-command timing are not physical exposure.", "status": "not_applicable"} |
@@ -100,6 +102,36 @@ A party outside the AISLE authorship chain independently reproduces the frozen b
 - Limitations: ["Public reproducibility wording remains blocked until a retained external record exists."]
 - Allowed wording: {"focused_paper": "UNRUN: no external reproducibility result is reported.", "readme": "UNRUN: external reproduction has not been completed.", "technical_report": "UNRUN: local regeneration is not independent reproduction."}
 - Headline markers: [{"marker": "external-reproduction/paper-abstract", "path": "docs/paper/aisle-paper.md"}]
+
+## g1-right-embodiment-simulation
+
+The Unitree G1 (scope A: right arm, 9-DOF wire, mode-15 machine) runs the expert T0 pick-and-place stack in simulation on the feat/g1-support branch with deterministic kinematics, guard-clean staged plans, and a whole-lattice planning test suite.
+
+- Type / status: `empirical` / `unrun`
+- Scope: {"agent_model": "expert graph", "environment": "simulation", "perception": "protocol-defined", "platform": "branch feat/g1-support (ADR PROPOSED)", "task": "pharmacy pick-and-place, expert T0 graph, embodiment g1_right"}
+- Experimental unit and sample: rollout_episode; {"rationale": "The simulation acceptance gate has not run; no episode population exists.", "value": "not_applicable"}
+- Uncertainty: {"rationale": "No gate result exists yet.", "value": "not_applicable"}
+- Attestation: {"rationale": "Branch tests and cross-checks are retained (FK vs Genesis worst 1.2e-7 m / 1.5e-7 rad, outer-loop verified at G1-F1; whole-lattice planning green at G1-F3), but the acceptance gate itself is unrun — no independent reproduction.", "status": "repository_recorded"}
+- Evidence: [{"kind": "protocol", "path": "docs/decisions/ADR-g1-embodiment.md", "rationale": "Scope-A record incl. the F3 lattice resolution and F5 budgets.", "scope": "simulation"}]
+- Counterevidence: ["No end-to-end gate episode has been judged; lane1 smokes surfaced (and fixed) five defect classes."]
+- Limitations: ["Branch-only: nothing here claims the frozen main tiers.", "The simulation gate result supersedes this entry when it runs."]
+- Allowed wording: {"focused_paper": "No G1 simulation result is reported.", "readme": "simulation acceptance gate not run (unrun)", "technical_report": "G1 simulation gate pending; branch tests only."}
+- Headline markers: []
+
+## g1-right-hardware
+
+The G1 right-arm embodiment has been validated on physical Unitree G1 hardware with retained calibration and telemetry records.
+
+- Type / status: `future` / `hardware_pending`
+- Scope: {"agent_model": "protocol-defined", "environment": "hardware", "perception": "hardware-calibrated rung", "platform": "physical Unitree G1", "task": "physical G1 validation (no checklist opened yet)"}
+- Experimental unit and sample: physical_robot_session; {"rationale": "No physical-robot session has been executed.", "value": "not_applicable"}
+- Uncertainty: {"rationale": "No hardware observation exists.", "value": "not_applicable"}
+- Attestation: {"rationale": "Loopback doubles and simulation are not physical evidence.", "status": "not_applicable"}
+- Evidence: [{"rationale": "No G1 station exists; hardware tool reports hardware_pending.", "value": "not_applicable"}]
+- Counterevidence: ["Loopback dry-runs (HWP-8 at dof=9) and the hardware tooling are not robot trials."]
+- Limitations: ["No physical performance, safety, or sim-to-real claim is allowed."]
+- Allowed wording: {"focused_paper": "No G1 hardware result is reported.", "readme": "HARDWARE PENDING — prepared, not open", "technical_report": "G1 hardware phase not opened."}
+- Headline markers: []
 
 ## hardware-so101-validation
 
