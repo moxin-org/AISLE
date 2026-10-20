@@ -875,13 +875,11 @@ def _ik_once(
                 slice(0, 3),
                 bootstrap_iters,
                 embodiment,
-                # G1-F8 early exit applies to every embodiment that
-                # carries tolerances here — so101 (0.015/0.02, measured
-                # 12-15s full-budget per plan on the dev host) needs it
-                # as much as g1; franka keeps None (bit-for-bit).
-                tols=(pos_tol * pos_tol_scale, rot_tol)
-                if embodiment in ("g1_right", "so101")
-                else None,
+                # G1-F8 early exit is g1_right-only: so101 and franka keep
+                # None so their measured-record IK stays bit-for-bit (the
+                # so101 12-15 s plan vs the 10 s turn watchdog is a
+                # separate main-branch finding, not changed here).
+                tols=(pos_tol * pos_tol_scale, rot_tol) if embodiment == "g1_right" else None,
                 deadline=deadline,
             )
         q = _dls(
@@ -891,9 +889,7 @@ def _ik_once(
             rows,
             full_iters,
             embodiment,
-            tols=(pos_tol * pos_tol_scale, rot_tol)
-            if embodiment in ("g1_right", "so101")
-            else None,
+            tols=(pos_tol * pos_tol_scale, rot_tol) if embodiment == "g1_right" else None,
             deadline=deadline,
         )
         if _within(q):
