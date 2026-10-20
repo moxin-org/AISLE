@@ -738,6 +738,85 @@ claims:
       - path: docs/paper/aisle-paper.md
         marker: external-reproduction/paper-abstract
 
+  - id: g1-right-embodiment-simulation
+    claim: >-
+      The Unitree G1 (scope A: right arm, 9-DOF wire, mode-15 machine) runs
+      the expert T0 pick-and-place stack in simulation on the feat/g1-support
+      branch with deterministic kinematics, guard-clean staged plans, and a
+      whole-lattice planning test suite.
+    type: empirical
+    status: unrun
+    scope:
+      environment: simulation
+      task: "pharmacy pick-and-place, expert T0 graph, embodiment g1_right"
+      perception: protocol-defined
+      agent_model: expert graph
+      platform: branch feat/g1-support (ADR PROPOSED)
+    experimental_unit: rollout_episode
+    sample:
+      value: not_applicable
+      rationale: The simulation acceptance gate has not run; no episode population exists.
+    uncertainty:
+      value: not_applicable
+      rationale: No gate result exists yet.
+    attestation:
+      status: repository_recorded
+      rationale: >-
+        Branch tests and cross-checks are retained (FK vs Genesis worst
+        1.2e-7 m / 1.5e-7 rad, outer-loop verified at G1-F1; whole-lattice
+        planning green at G1-F3), but the acceptance gate itself is unrun —
+        no independent reproduction.
+    evidence:
+      - kind: protocol
+        path: docs/decisions/ADR-g1-embodiment.md
+        scope: simulation
+        rationale: Scope-A record incl. the F3 lattice resolution and F5 budgets.
+    counterevidence:
+      - No end-to-end gate episode has been judged; lane1 smokes surfaced (and fixed) five defect classes.
+    limitations:
+      - "Branch-only: nothing here claims the frozen main tiers."
+      - The simulation gate result supersedes this entry when it runs.
+    allowed_wording:
+      readme: "simulation acceptance gate not run (unrun)"
+      technical_report: "G1 simulation gate pending; branch tests only."
+      focused_paper: "No G1 simulation result is reported."
+    headlines: []
+
+  - id: g1-right-hardware
+    claim: >-
+      The G1 right-arm embodiment has been validated on physical Unitree G1
+      hardware with retained calibration and telemetry records.
+    type: future
+    status: hardware_pending
+    scope:
+      environment: hardware
+      task: "physical G1 validation (no checklist opened yet)"
+      perception: hardware-calibrated rung
+      agent_model: protocol-defined
+      platform: physical Unitree G1
+    experimental_unit: physical_robot_session
+    sample:
+      value: not_applicable
+      rationale: No physical-robot session has been executed.
+    uncertainty:
+      value: not_applicable
+      rationale: No hardware observation exists.
+    attestation:
+      status: not_applicable
+      rationale: Loopback doubles and simulation are not physical evidence.
+    evidence:
+      - value: not_applicable
+        rationale: "No G1 station exists; hardware tool reports hardware_pending."
+    counterevidence:
+      - Loopback dry-runs (HWP-8 at dof=9) and the hardware tooling are not robot trials.
+    limitations:
+      - No physical performance, safety, or sim-to-real claim is allowed.
+    allowed_wording:
+      readme: "HARDWARE PENDING — prepared, not open"
+      technical_report: "G1 hardware phase not opened."
+      focused_paper: "No G1 hardware result is reported."
+    headlines: []
+
   - id: hardware-so101-validation
     claim: >-
       The complete AISLE benchmark protocol has been validated on a physical

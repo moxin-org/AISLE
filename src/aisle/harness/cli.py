@@ -407,7 +407,13 @@ def main() -> int:
     args = build_parser().parse_args()
 
     if args.command == "hardware":
-        from aisle.hardware.adapters import G1_DOF, G1_SCENARIOS, SCENARIOS, run_scenario
+        from aisle.hardware.adapters import (
+            G1_DOF,
+            G1_SCENARIOS,
+            SCENARIOS,
+            SO101_DOF,
+            run_scenario,
+        )
         from aisle.harness.hardware_phase import (
             HardwarePhaseError,
             hardware_report,
@@ -435,6 +441,11 @@ def main() -> int:
                     "ok": True,
                     "schema_version": "aisle.hardware-phase.dry-run.v1",
                     "evidence_kind": "loopback",
+                    # G1-I-a: embodiment/dof at the TOP level — the reader
+                    # must not infer the wire width from scenario payloads
+                    # (outer-loop note from the G1-G acceptance)
+                    "embodiment": args.embodiment,
+                    "dof": G1_DOF if args.embodiment == "g1_right" else SO101_DOF,
                     "scenarios": scenarios,
                     "wording": "doubles only; no realized-hardware field is produced here",
                 }
@@ -448,7 +459,12 @@ def main() -> int:
                     interventions=None,
                     embodiment=args.embodiment,
                 )
+                # G1-I-a: top-level embodiment/dof, stamped AFTER
+                # hardware_report computed report_hash — the hash (and so
+                # every other field) stays byte-identical for so101
                 report["ok"] = True
+                report["embodiment"] = args.embodiment
+                report["dof"] = G1_DOF if args.embodiment == "g1_right" else SO101_DOF
             if args.output is not None:
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

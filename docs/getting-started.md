@@ -258,6 +258,26 @@ uv run --no-sync harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local --sim-engine rapier
 ```
 
+## 3d. Optional: run the G1 right arm (branch-only, PROPOSED)
+
+The Unitree G1 embodiment ([ADR-g1-embodiment](decisions/ADR-g1-embodiment.md),
+scope A: right arm, 9-DOF wire) lives on the `feat/g1-support` branch and is
+PROPOSED — the simulation acceptance gate has not run, so treat it as
+experimental.
+
+```bash
+# 1. install the Unitree SDK2 runtime into the project env (receipt is
+#    local + gitignored; run once per machine)
+uv run --frozen python tools/g1_runtime.py install
+
+# 2. pre-build the g1 scene so cold caches never eat the first rollout's
+#    wall budget (headless; add --show-viewer to inspect)
+uv run --extra sim --locked python tools/sim_warmup.py --embodiment g1_right
+
+# 3. run the expert graph on the G1 right arm
+uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0     --embodiment g1_right --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local
+```
+
 ## 4. Where to go next
 
 - `docs/physical-ai-primer.md` — the concepts behind the project
