@@ -174,3 +174,140 @@ def test_every_slot_med_plans_and_passes_the_guard(slot_xy, med):
                 _, violations = clamp_joint_cmd(full, prev, LIMITS, timed_out=False)
                 prev = full
                 assert violations == [], (slot_xy, med, stage.name, violations)
+
+
+def _placed_box_aabb(med: str) -> tuple[np.ndarray, np.ndarray]:
+    """The just-placed box resting on the tray (G1-F7): tray top + half
+    height, xy centered on the tray's target xy."""
+    size = MEDS[med]["size"]
+    x, y = float(PROFILE["tray_pos"][0]), float(PROFILE["tray_pos"][1])
+    z_lo = float(TRAY_TOP)
+    lo = np.array([x - size[0] / 2, y - size[1] / 2, z_lo])
+    hi = np.array([x + size[0] / 2, y + size[1] / 2, z_lo + size[2]])
+    return lo, hi
+
+
+def _aabb_gap(a_lo, a_hi, b_lo, b_hi) -> float:
+    return float(np.max(np.maximum(a_lo - b_hi, b_lo - a_hi)))
+
+
+#: hand meshes loaded ONCE (trimesh.load per tick was the 10-minute
+#: timeout: 25 cases x hundreds of ticks x 4 meshes); ticks only do the
+#: numpy vertex transform below.
+from pathlib import Path  # noqa: E402
+
+import trimesh  # noqa: E402
+
+from aisle.kinematics import load_urdf_chain  # noqa: E402
+
+_REPO = Path(__file__).resolve().parents[2]
+_MESHES = _REPO / "assets" / "g1" / "meshes"
+_PELVIS_Z = 0.7872
+_CHAIN = load_urdf_chain(
+    _REPO / "assets" / "g1" / "g1_29dof_mode_15_with_dex1_1.urdf",
+    "pelvis",
+    "right_wrist_yaw_link",
+)
+_T_BASE_T = np.eye(4)
+_T_BASE_T[0, 3] = 0.0415
+_FY = float(HOME[7])
+_HAND_VERTS = tuple(
+    (
+        np.asarray(trimesh.load(_MESHES / name, force="mesh").vertices, dtype=float),
+        local,
+    )
+    for name, local in (
+        ("right_wrist_yaw_link_5010.STL", np.eye(4)),
+        ("Dex1_base_link.STL", _T_BASE_T),
+        (
+            "Dex1_finger_link_1.STL",
+            _T_BASE_T @ np.array([[1, 0, 0, 0], [0, 1, 0, -_FY], [0, 0, 1, 0], [0, 0, 0, 1]]),
+        ),
+        (
+            "Dex1_finger_link_2.STL",
+            _T_BASE_T @ np.array([[1, 0, 0, 0], [0, 1, 0, _FY], [0, 0, 1, 0], [0, 0, 0, 1]]),
+        ),
+    )
+)
+
+
+def _hand_aabb(q7: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """World AABB of wrist+dex1+fingers at ARM config q7 (waist at held
+    home, pelvis fixed) — mesh vertices cached at module level."""
+    q = np.concatenate([np.zeros(3), np.asarray(q7, dtype=float)[:7]])
+    pos, rot = _CHAIN.forward(q)
+    wrist = np.eye(4)
+    wrist[:3, :3] = rot
+    wrist[:3, 3] = pos + np.array([0.0, 0.0, _PELVIS_Z])
+    lo = np.full(3, np.inf)
+    hi = np.full(3, -np.inf)
+    for verts, local in _HAND_VERTS:
+        R = wrist @ local
+        world = verts @ R[:3, :3].T + R[:3, 3]
+        lo = np.minimum(lo, world.min(axis=0))
+        hi = np.maximum(hi, world.max(axis=0))
+    return lo, hi
+
+
+@pytest.mark.parametrize("slot_xy", [tuple(map(float, s)) for s in PROFILE["placement_slots_xy"]])
+@pytest.mark.parametrize("med", MED_NAMES)
+def test_post_release_withdrawal_clears_the_placed_box_by_2cm(slot_xy, med):
+    """SCN-4, G1-F7 (outer-loop #14): every waypoint AFTER the release
+    stage — release -> clear -> home, including the executor's per-tick
+    interpolated stream between them — keeps the hand AABB >= 2 cm clear
+    of the box just placed on the tray. The r6 smoke placed the box
+    correctly, then the home swing swept it off the tray."""
+    grasp, approach, place_z = _grasp_for_slot_med(slot_xy, med)
+    plan = _cached_plan({}, slot_xy, med)
+    assert plan.ok, plan.error
+    release_idx = next(i for i, s in enumerate(plan.stages) if s.name == "release")
+    box_lo, box_hi = _placed_box_aabb(med)
+
+    def gap(q7):
+        h_lo, h_hi = _hand_aabb(q7)
+        return _aabb_gap(h_lo, h_hi, box_lo, box_hi)
+
+    def xy_clear(q7):
+        h_lo, h_hi = _hand_aabb(q7)
+        return (
+            h_hi[0] < box_lo[0] or h_lo[0] > box_hi[0] or h_hi[1] < box_lo[1] or h_lo[1] > box_hi[1]
+        )
+
+    # THREE-ZONE semantics (the palm is WIDER than the box: at the release
+    # hover the open fingers physically ring the just-placed box, so a
+    # negative gap there is inherent to a correct place, not a sweep):
+    # - ring zone (hand's xy projection still over the box): the gap may
+    #   not DEEPEN beyond the release pose by more than 5 mm;
+    # - corridor zone (projection just left the box, gap still < 2 cm):
+    #   by construction the exit-instant gap is ~0, so the corridor only
+    #   requires gap >= 0 (never re-overlap) while the hand retreats;
+    # - tail zone (gap first reached 2 cm, i.e. the hand is genuinely
+    #   clear): it must never fall back below 2 cm through the rest of
+    #   clear + the whole home swing.
+    current = np.asarray(plan.stages[release_idx].path[-1], dtype=np.float32)
+    g0 = gap(current)
+    worst_ring = g0
+    corridor_min = np.inf
+    tail_min = np.inf
+    reached_2cm = False
+    where = None
+    for stage in plan.stages[release_idx + 1 :]:
+        for q in stage.path:
+            target_q = np.asarray(q, dtype=np.float32)
+            while not np.allclose(current, target_q, atol=1e-6):
+                current = interpolate_step(current, target_q, 1.0, 0.01)
+                g = gap(current)
+                if not xy_clear(current):
+                    if g < worst_ring - 0.005:
+                        where = ("ring-deepened", stage.name, g)
+                    worst_ring = min(worst_ring, g)
+                elif not reached_2cm:
+                    corridor_min = min(corridor_min, g)
+                    if g >= 0.02:
+                        reached_2cm = True
+                else:
+                    tail_min = min(tail_min, g)
+    assert where is None, (slot_xy, med, where)
+    assert corridor_min >= 0.0, (slot_xy, med, "re-overlapped in corridor", corridor_min)
+    assert reached_2cm, (slot_xy, med, "never reached 2 cm clearance after release")
+    assert tail_min >= 0.02, (slot_xy, med, "fell back under 2 cm after clearing", tail_min)

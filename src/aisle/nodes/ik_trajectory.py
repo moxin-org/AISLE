@@ -1336,6 +1336,48 @@ class StagedPlan:
         # the T08 shear concern applied to a SEATED box, and the box now
         # hovers PLACE_DROP_GAP above the tray instead)
         release_path = (lower_path[-1],) if lower_path is not None else None
+        # G1-F7 LATERAL retreat (see the clear stage note below): the old
+        # clear returned to q_transfer (TCP z 1.00, BELOW the placed box's
+        # top), sweeping the fingers through the seated box on the home
+        # swing (r6 smoke: box placed then knocked off; withdrawal test
+        # measured -0.0514 m at clear). A PURE VERTICAL retreat is
+        # geometrically falsified: the palm AABB is wider than the box, so
+        # while the hand sits over the box the gap stays negative, and the
+        # arm has no IK solutions above z ~1.12 at the tray column. Retreat
+        # LATERALLY instead — +y (toward the arm) out of the box's xy
+        # projection while rising 4 cm — a ladder whose first solvable
+        # candidate wins (probe-measured: +y 0.15/z+0.04 solves in 4
+        # waypoints, leaves the projection at +0.0004 m and ends +0.0925 m
+        # clear, never deepening the ringing overlap).
+        clear_path = [q_transfer]
+        if embodiment == "g1_right":
+            release_q = lower_path[-1]
+            release_tcp = fk_tcp(release_q, embodiment)
+            for dy, dz in ((0.15, 0.04), (0.12, 0.04), (0.15, 0.00), (0.12, 0.00)):
+                candidate = ik_continuation(
+                    release_tcp.copy(),
+                    np.array([release_tcp[0], release_tcp[1] + dy, release_tcp[2] + dz]),
+                    place_rot,
+                    release_q,
+                    embodiment=embodiment,
+                    pos_tol_scale=1.5,
+                )
+                if candidate is not None:
+                    clear_path = candidate
+                    break
+        # G1-F7 home routing (see the home stage note): so101/franka keep
+        # the gate-proven single hop, bit-identical.
+        if embodiment == "g1_right":
+            _q_retreat = np.asarray(clear_path[-1])
+            _rot = fk_ee_pose(_q_retreat, embodiment)[1]
+            _q_mid = ik_solve(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment)
+            home_waypoints = (
+                (np.asarray(_q_mid, dtype=np.float64), home)
+                if _q_mid is not None
+                else (rise_path[-1], home)
+            )
+        else:
+            home_waypoints = (home,)
         self.stages = [
             Stage("rise", tuple(rise_path), 0.0, 0.1),
             Stage("staging", tuple(staging_path), 0.0, 0.1),
@@ -1361,11 +1403,35 @@ class StagedPlan:
             Stage("lower", tuple(lower_path), grasp_cmd, 1.0, vel=0.35, track_tol=0.03),
             # settle covers the full 1 s finger-open ramp plus box drop
             Stage("release", tuple(release_path), 0.0, 1.5, vel=0.35, track_tol=0.03),
+            # G1-F7: the clear stage used to return to q_transfer (TCP z at
+            # the transfer height, BELOW the just-placed box's top — tallest
+            # med tops at tray_top+0.11), sweeping the fingers through the
+            # seated box on the way home (r6 smoke: box placed correctly,
+            # then knocked off; withdrawal test measured -0.0514 m at clear).
+            # Retreat VERTICALLY first: IK-continue straight up to a TCP
+            # height clear of the tallest med (release TCP ~ box center, so
+            # +0.10 covers half-height 0.055 + margin) before the home swing.
+            Stage("clear", tuple(clear_path), 0.0, 0.1),
             # rise clear of the tray walls before the home swing: the raw
             # release->home sweep dragged the fingers through the tray and
             # jammed the arm (T08 live run)
-            Stage("clear", (q_transfer,), 0.0, 0.1),
-            Stage("home", (home,), 0.0, 0.0),
+            # G1-F7: the RAW joint interpolation clear->home arcs BACK over
+            # the just-placed box (withdrawal test: gap fell to +0.0062 m
+            # mid-swing — the palm bows to -y past the tray column). Chord
+            # waypoints via ik_continuation stall on this span (probes 8/9),
+            # longer lateral retreats do not help (probe 7), pure-vertical
+            # is geometrically falsified. The winner (probes 10/12): a
+            # single IK-SOLVED high central waypoint — TCP [0.30, -0.06,
+            # 1.16], rotation kept at the retreat's live orientation, HOME
+            # seed — splitting the bowing hop into two short ones: measured
+            # min gap +0.024 m (cetirizine, the worst med) on retreat->mid
+            # and +0.18 m on mid->home. z 1.18+ is ik_solve-unreachable.
+            Stage(
+                "home",
+                tuple(home_waypoints),
+                0.0,
+                0.0,
+            ),
         ]
         # continuity invariant over every consecutive waypoint pair of the
         # SHELF-PROXIMATE stages (rise..retract, incl. within-path steps
