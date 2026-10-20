@@ -13,6 +13,7 @@ run).
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -948,6 +949,18 @@ class StagedPlan:
         lift_height = float(profile.get("trajectory_lift_m", LIFT_H))
         retract_vel = float(profile.get("trajectory_retract_vel_scale", 0.5))
         transfer_vel = float(profile.get("trajectory_transfer_vel_scale", 0.35))
+        # G1-F5 planning wall budget (profile ik_plan_budget_s): legit
+        # plans measure 4.7-5.8s; ONE unreachable cold solve burns 37.5s
+        # and the staged chain multiplies it (ep0 of the 20261019-234952
+        # smoke burned 9 minutes of lockstep wall with no crash). Checked
+        # at every stage-boundary failure; on expiry the plan fails LOUD
+        # with the budget named instead of freezing the lockstep turn.
+        budget_s = (
+            float(profile.get("ik_plan_budget_s", math.inf))
+            if embodiment == "g1_right"
+            else math.inf
+        )
+        deadline = time.monotonic() + budget_s
         pre_pos = grasp_pos - approach_axis * approach_m
         up = np.array([0.0, 0.0, lift_height])
         self.stages: list[Stage] = []
@@ -1041,14 +1054,22 @@ class StagedPlan:
             q_rise = ik_solve(rise_pos, approach_rot, home, embodiment)
             rise_path = [q_rise] if q_rise is not None else None
         if not rise_path:
-            self.error = f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
+            )
             return
         q_rise = rise_path[-1]
         staging_path = ik_continuation(
             rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment, pos_tol_scale=1.2
         )
         if staging_path is None:
-            self.error = f"IK failed for waypoint 'staging' at {np.round(staging_pos, 3).tolist()}"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else f"IK failed for waypoint 'staging' at {np.round(staging_pos, 3).tolist()}"
+            )
             return
         q_staging = staging_path[-1]
         self.flip_pair: tuple | None = None
@@ -1134,14 +1155,22 @@ class StagedPlan:
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
             )
         if pregrasp_path is None:
-            self.error = f"IK failed for waypoint 'pregrasp' at {np.round(pre_pos, 3).tolist()}"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else f"IK failed for waypoint 'pregrasp' at {np.round(pre_pos, 3).tolist()}"
+            )
             return
         q_pre = pregrasp_path[-1]
         # the insertion (advance/lift/retract) and placement descents are
         # continuation PATHS the executor follows waypoint by waypoint
         advance_path = ik_continuation(pre_pos, grasp_pos, grasp_rot, q_pre, embodiment=embodiment)
         if advance_path is None:
-            self.error = "IK failed for stage 'advance'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'advance'"
+            )
             return
         lift_path = (
             ik_continuation(
@@ -1155,7 +1184,11 @@ class StagedPlan:
             else None
         )
         if lift_path is None:
-            self.error = "IK failed for stage 'lift'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'lift'"
+            )
             return
         retract_end = pre_pos + up
         if embodiment == "g1_right":
@@ -1181,7 +1214,11 @@ class StagedPlan:
             else None
         )
         if retract_path is None:
-            self.error = "IK failed for stage 'retract'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'retract'"
+            )
             return
         # transfer as a CARTESIAN continuation, not a bare joint waypoint:
         # a joint-space swing leaves the TCP orientation unconstrained
@@ -1255,7 +1292,11 @@ class StagedPlan:
                         break
                 transfer_path = (list(transfer_path) + tray_roll) if tray_roll else None
         if transfer_path is None:
-            self.error = "IK failed for stage 'transfer'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'transfer'"
+            )
             return
         q_transfer = transfer_path[-1] if transfer_path is not None else None
         lower_path = None
@@ -1282,7 +1323,11 @@ class StagedPlan:
                     place_rot = parity
                     break
         if lower_path is None:
-            self.error = "IK failed for stage 'lower'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:.0f}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'lower'"
+            )
             return
         # release opens the fingers STATIONARY at the hover pose: the old
         # open-while-rising release lifted the still-gripped box during

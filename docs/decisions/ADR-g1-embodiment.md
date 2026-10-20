@@ -240,3 +240,29 @@ run. The one-time cost is paid deliberately instead:
   M0-6 gate run). sim_warmup therefore renders one frame per camera on
   the channels the bridge publishes (overhead rgb+depth+seg, wrist rgb);
   scene-build warmth alone does not cover render compilation.
+
+## G1-F5: execution-duration budget and first-launch planning bound
+
+Execution duration (ep1, smoke 20261019-234952): the 13-stage plan did
+not finish inside the tier's 60 s episode. Measured with the real
+StageStreamer cadence over the whole slot lattice under a sagging
+actuator (qpos = cmd - 0.08 rad, the MJCF gravity droop the integral
+comment documents): worst 32.4 s at the 0.5 velocity scale, 28.3 s at
+0.8, 27.0 s at 1.0; transfer alone was 10.7 s at 0.5 vs 5.6 s at 1.0.
+The free-space stages (retract/transfer) now run at 0.8 rad/s — 40% of
+the guard's 2.0 rad/s qdot envelope — and the systematic test
+(test_g1_scene_plan.py::test_every_slot_execution_fits_the_episode_
+budget) asserts every slot's modeled duration fits the tier budget read
+from tier_budgets minus a 20 s stabilization margin. Shelf-proximate
+insertion stages keep their slower scales; the episode budget and the
+guard limits are untouched.
+
+First-launch planning bound (ep0, same smoke): planning burned 9 minutes
+of lockstep wall clock with no crash and no verdict. Root cause: ONE
+unreachable cold ik_solve walks the full 32-seed x 2-rotation ladder
+(measured 37.5 s wall), and the staged chain multiplies that across
+stages and parity retries with no global bound. StagedPlan now runs
+under the profile's ik_plan_budget_s (30 s — legitimate plans measure
+4.7-5.8 s, so ~5x headroom); every stage-boundary failure reports the
+budget by name when the deadline has passed, and the unreachable-pose
+test pins a loud plan.error inside 90 s wall (measured ~40 s).
