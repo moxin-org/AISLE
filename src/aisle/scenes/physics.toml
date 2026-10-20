@@ -377,10 +377,29 @@ gripper_grasp_cmd = 0.90
 gripper_pregrasp_cmd = 0.0
 # Held-DOF PD (pelvis fixed: only limb weight, no balance burden); the PD
 # target is always held_home_qpos. kp 200 left a 0.0432 rad static droop
-# (τ_g/kp with the waist/hip gravity torque ≈ 8.6 N·m); 800 holds it
-# under 0.012 rad. The bridge never commands these DOFs. 待 G1-F 调.
+# (τ_g/kp with the waist/hip gravity torque ≈ 8.6 N·m); 800 holds it under
+# 0.012 rad. The bridge never commands these DOFs. 待 G1-F 调.
 held_kp = 800.0
 held_kv = 40.0
+# G1-C4 arm PD: the 7 wire arm joints previously rode Genesis's URDF
+# default kp=100 (nexus_physics.toml) — the measured ~0.075 m gravity
+# droop per 0.1 m commanded lift (the G1-F6 tracking-failure root cause:
+# tracking fails -> staged bails -> plan completes early -> replan
+# reopens the gripper). Sizing from the MEASURED static gravity torques
+# (per-joint err x kp, holding the heaviest box in home/shelf/tray, the
+# /tmp probe round of 2026-10-20; wire order puts wrist_ROLL before
+# wrist_PITCH):
+#   shoulder pitch ~11.8 N·m | roll ~21.8 | yaw ~15.0 | elbow ~5.5
+#   wrist roll ~4.2 | pitch ~0.7 | yaw ~0.9
+# kp = tau_g / 0.005 rad (2x margin under the 0.01 rad budget), rounded:
+#   [2500, 4500, 3000, 1200, 900, 250, 250]
+# kv = 2*sqrt(kp*J_eff) at ζ ≈ 1.0-1.5 (J_eff ~0.3 shoulder .. ~0.005
+# wrist), rounded: [50, 70, 55, 35, 12, 8, 8]; no overshoot ring at
+# dt=0.01 in the 200-step holds (Genesis integrates actuator damping
+# implicitly — verified stable empirically in the same test).
+# SO-101/Franka carry no arm_kp keys -> zero behavior change there.
+arm_kp = [2500.0, 4500.0, 3000.0, 1200.0, 900.0, 250.0, 250.0]
+arm_kv = [50.0, 70.0, 55.0, 35.0, 12.0, 8.0, 8.0]
 # TCP frame: Genesis collapses the massless fixed right_dex1_base_link
 # (right_base_joint, pure translation [0.0415, 0, 0]) — same as SO-101's
 # gripper_frame_link. Compose onto the surviving right_wrist_yaw_link:

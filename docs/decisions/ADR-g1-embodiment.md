@@ -213,6 +213,25 @@ tests/unit/test_g1_grasp_consistency.py for every med and for so101:
 
 Still a sim aid only — NOT evidence of real-robot grasp capability.
 
+## G1-C4: arm PD gains — the tracking-failure root cause
+
+G1-F6 traced the gripper-reopen loop to TRACKING failure: the 7 wire arm
+joints rode Genesis's URDF default kp=100 (nexus_physics.toml) — the
+profile carried gripper and held-DOF gains but none for the arm —
+producing the ~0.075 m gravity droop per 0.1 m commanded lift. SO-101's
+light arm made the default adequate; the G1's 3.55 kg arm + 0.73 kg
+Dex1 did not.
+
+physics.toml now carries arm_kp/arm_kv, sized from MEASURED static
+gravity torques (err x kp with the heaviest box pinned to the hand in
+home/shelf/tray holds): shoulder pitch ~11.8 N·m, roll ~21.8, yaw
+~15.0, elbow ~5.5, wrist roll ~4.2, pitch ~0.7, yaw ~0.9. kp = tau /
+0.005 rad (2x under the 0.01 rad budget): [2500, 4500, 3000, 1200, 900,
+250, 250]; kv = 2*sqrt(kp*J_eff) at zeta ~ 1.0-1.5: [50, 70, 55, 35,
+12, 8, 8] — no overshoot ring at dt=0.01 in the 200-step holds. The
+loader applies them to EXACTLY the wire arm DOFs; profiles without the
+keys (franka/so101) are bit-identical.
+
 ## G1-H: cold-build budget — warmup, not budget inflation
 
 Genesis caches CoACD convex decompositions and compiled kernels per

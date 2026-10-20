@@ -923,6 +923,15 @@ def build_scene(
         robot.set_dofs_kv(
             np.asarray(profile["gripper_kv"], dtype=np.float32), dofs_idx_local=finger_dofs
         )
+    # Arm-DoF PD (G1-C4): profiles that carry arm_kp/arm_kv set them on the
+    # WIRE arm joints (g1_right rode Genesis's kp=100 default — the
+    # tracking-failure root cause behind the F6 gripper-reopen loop).
+    # Profiles without the keys (franka/so101) keep bit-identical gains.
+    if "arm_kp" in profile and wire_dof_indices is not None:
+        n_arm = len(profile["arm_kp"])
+        arm_dofs = list(wire_dof_indices[:n_arm])
+        robot.set_dofs_kp(np.asarray(profile["arm_kp"], dtype=np.float32), dofs_idx_local=arm_dofs)
+        robot.set_dofs_kv(np.asarray(profile["arm_kv"], dtype=np.float32), dofs_idx_local=arm_dofs)
     # Held-DOF PD (g1_right): the 24 non-wire joints stay at held home —
     # gravity must not droop them (SCN-4). The PD target is always the
     # held home, set once here; the bridge never commands these DOFs.
