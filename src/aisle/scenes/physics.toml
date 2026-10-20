@@ -359,7 +359,12 @@ gripper_finger_clear_m = 0.008
 kinematic_carry_latch = true
 carry_latch_close = 0.03
 carry_latch_release = 0.01
-carry_latch_max_distance_m = 0.15
+# Outer-loop review (G1-H-r4 merge): with close at 0.03 the latch fires as
+# the fingers START closing, so the capture radius is the only test that a
+# grasp is really at the box. 0.15 m would count a grasp several cm off as
+# carried and flatter the gate; a true grasp puts the TCP ~0.03 m from the
+# box center, so 0.05 m keeps real grasps and rejects near misses.
+carry_latch_max_distance_m = 0.05
 # G1-F2 close commands (normalized 0=open .. 1=closed over the 0.06 m
 # jaw): the narrowest med box axis is 0.030 m (cetirizine) — G1-H-r4
 # sets the grasp command as a SQUEEZE above every geometric contact

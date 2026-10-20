@@ -108,3 +108,13 @@ def test_plateaus_table_is_the_adr_table():
     }
     for med, approx in expected.items():
         assert contact_plateau("g1_right", med) == approx, med
+
+
+def test_g1_latch_capture_radius_only_admits_real_grasps():
+    """SCN-4 / ADR-18: with carry_latch_close below every contact plateau
+    the latch fires as the fingers start closing, so the capture radius is
+    the only check that the TCP is really at the box. It must stay tight
+    enough that a grasp several centimeters off is not counted as carried
+    (a true grasp puts the TCP ~0.03 m from the box center)."""
+    profile = PHYSICS["embodiment"]["g1_right"]
+    assert profile["carry_latch_max_distance_m"] <= 0.05
