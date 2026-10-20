@@ -560,6 +560,7 @@ def make_bridge_info(
     segmentation_ids: dict,
     sim_backend: str,
     sim_engine: str,
+    render_warmup_s: dict[str, float] | None = None,
 ) -> str:
     """BRG-6 + BRG-8: the startup contract announcement, as a JSON string.
 
@@ -609,6 +610,7 @@ def make_bridge_info(
             "sim_backend": sim_backend,
             "sim_engine": sim_engine,
             "calibration": calibration,
+            "render_warmup_s": render_warmup_s,
         }
     )
 
@@ -711,6 +713,37 @@ def render_frames(cameras, due, work):
             work.call("render", cameras["wrist"].render)[0], dtype=np.uint8
         )
     return frames
+
+
+def warmup_render(cameras, due: list[str], work) -> dict[str, float]:
+    """G1-C3 (CON-5): render ONE throwaway frame per ENABLED camera channel
+    before the first turn, pre-paying the per-process shader/kernel compile
+    (measured ~10.9 s/frame on the first window — the ep0 wall_clamp of the
+    r3/r5 smokes; a separate warmup process cannot cover it).
+
+    The result is DISCARDED: nothing is published, sim time does not
+    advance, no scene.step() runs, and no RNG/state is touched — the only
+    side effect is the renderer's own compile cache. Mirrors render_frames'
+    channel logic exactly (one overhead pass for rgb/depth/seg, wrist rgb),
+    so every channel the graph actually enables gets warmed.
+    """
+    import time
+
+    times: dict[str, float] = {}
+    need_rgb = "rgb_overhead" in due
+    need_seg = "seg_overhead" in due
+    need_depth = "depth_overhead" in due
+    if need_rgb or need_depth or need_seg:
+        t0 = time.perf_counter()
+        work.call(
+            "render", cameras["overhead"].render, rgb=True, depth=need_depth, segmentation=need_seg
+        )
+        times["overhead_s"] = round(time.perf_counter() - t0, 3)
+    if "rgb_wrist" in due:
+        t0 = time.perf_counter()
+        work.call("render", cameras["wrist"].render)
+        times["wrist_s"] = round(time.perf_counter() - t0, 3)
+    return times
 
 
 def timing_sidecar_path(env: dict) -> Path | None:
@@ -1087,6 +1120,37 @@ def main(
                 }
             node.send_output(topic, value, metadata=metadata)
 
+        is_mobile = cfg.embodiment == "mobile"
+        topic_rates = rung_topic_rates(cfg.perception, is_mobile)
+        if cfg.lockstep:
+            # A measured graph's declared output set is the executable contract.
+            # Do not render/publish optional sensor ports the graph omitted; their
+            # absence is represented by omission from the bridge's complete
+            # watermark output set, not by an attempted undeclared dora send.
+            topic_rates = {
+                topic: rate for topic, rate in topic_rates.items() if topic in bridge_outputs
+            }
+        base_pose = [float(v) for v in profile.get("base_start", [0.0, 0.0, 0.0])]
+        base_cmd = [0.0, 0.0]
+        if is_store:
+            scan_obstacles = store_scan_obstacles(load_planogram())
+        else:
+            scan_obstacles = desk_scan_obstacles(physics, cfg.embodiment) if is_mobile else []
+
+        # G1-C3: pre-pay the per-process render compile BEFORE the first
+        # turn / first reset_done — the r3/r5 smokes lost ep0 to a ~10.9
+        # s first-frame compile inside the 9m30s wall budget. A separate
+        # warmup process (tools/sim_warmup.py) cannot cover this: the
+        # compile cache is per-process. Runs once, on the channels the
+        # graph actually enables (topic_rates is final here: the lockstep
+        # filter above already removed undeclared optional ports).
+        warmup_times = warmup_render(handle.cams, list(topic_rates), work)
+        print(
+            f"render warmup: {warmup_times} (overhead/wrist channels pre-compiled,"
+            " first-frame cost paid at startup)",
+            file=sys.stderr,
+        )
+
         emit_bridge(
             "bridge_info",
             pa.array(
@@ -1104,6 +1168,7 @@ def main(
                         sim_backend=cfg.sim_backend
                         or select_sim_backend(cfg.sim_engine, "sim", platform.system()),
                         sim_engine=cfg.sim_engine,
+                        render_warmup_s=warmup_times,
                     )
                 ]
             ),
@@ -1134,23 +1199,6 @@ def main(
         # SPEC 210 (T11, ADR-13): the mobile embodiment adds the kinematic base
         # topics. base_pose is integrated from base_cmd each tick and the arm's
         # root is re-based; base_scan is a planar raycast against the scene.
-        is_mobile = cfg.embodiment == "mobile"
-        topic_rates = rung_topic_rates(cfg.perception, is_mobile)
-        if cfg.lockstep:
-            # A measured graph's declared output set is the executable contract.
-            # Do not render/publish optional sensor ports the graph omitted; their
-            # absence is represented by omission from the bridge's complete
-            # watermark output set, not by an attempted undeclared dora send.
-            topic_rates = {
-                topic: rate for topic, rate in topic_rates.items() if topic in bridge_outputs
-            }
-        base_pose = [float(v) for v in profile.get("base_start", [0.0, 0.0, 0.0])]
-        base_cmd = [0.0, 0.0]
-        if is_store:
-            scan_obstacles = store_scan_obstacles(load_planogram())
-        else:
-            scan_obstacles = desk_scan_obstacles(physics, cfg.embodiment) if is_mobile else []
-
         scheduler = RateScheduler(topic_rates, dt)
         commands = CommandQueue(cfg.n_envs)
         dropped_counts: dict[str, dict[int, int]] = {"joint": {}, "gripper": {}, "base": {}}
