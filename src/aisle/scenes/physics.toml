@@ -431,12 +431,27 @@ ik_max_solver_iters = 200
 # stays within 6.1 deg (rot 0.106 -> rot[2,2] >= 0.994).
 ik_pos_tol_m = 0.025
 ik_rot_tol_rad = 0.15
+# G1-F5 (ep0, smoke 20261019-234952): one UNREACHABLE cold ik_solve walks
+# the full 32-seed x 2-rotation ladder (measured 37.5s wall) and the staged
+# chain multiplies it across stages and parity retries — first-launch
+# planning burned 9 minutes of lockstep wall clock with no crash. This is
+# the planning wall budget: legitimate plans measure 4.7-5.8s per med
+# (F3 probe), so 30s is ~5x headroom; on expiry the plan fails LOUD
+# (plan.error names the budget) instead of freezing the turn.
+ik_plan_budget_s = 30.0
 ik_full_range_starts = true
 trajectory_staging_z = 1.00
 trajectory_lift_m = 0.05
 trajectory_transfer_z = 1.00
-trajectory_retract_vel_scale = 0.5
-trajectory_transfer_vel_scale = 0.5
+# G1-F5 (ep1, smoke 20261019-234952): the 60s episode timed out with the
+# plan unfinished. Measured sag-0.08 duration model over the whole slot
+# lattice: worst 32.4s at scale 0.5, 28.3s at 0.8, 27.0s at 1.0. 0.8 takes
+# the free-space stages to 0.8 rad/s — still 40 percent of the guard's
+# 2.0 rad/s qdot envelope — and buys 4s of margin for contact variance
+# the model cannot see (ep1's bails); the shelf-proximate insertion
+# stages keep their slower defaults.
+trajectory_retract_vel_scale = 0.8
+trajectory_transfer_vel_scale = 0.8
 trajectory_transfer_route = []
 
 [ik]
