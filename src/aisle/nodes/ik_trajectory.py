@@ -1353,7 +1353,12 @@ class StagedPlan:
         if embodiment == "g1_right":
             release_q = lower_path[-1]
             release_tcp = fk_tcp(release_q, embodiment)
-            for dy, dz in ((0.15, 0.04), (0.12, 0.04), (0.15, 0.00), (0.12, 0.00)):
+            # dz +0.08 (not +0.04): the live arm tracks ~0.027 m BELOW
+            # the commanded z at the tray column (G1-F2's measured DLS
+            # plateau) — the f7 smoke's ep2 retreat at z+0.04 planned
+            # +0.024 m clearance but physically overlapped the seated box
+            # (-0.056 m measured) because the shortfall ate the margin.
+            for dy, dz in ((0.15, 0.08), (0.12, 0.08), (0.15, 0.04), (0.12, 0.04)):
                 candidate = ik_continuation(
                     release_tcp.copy(),
                     np.array([release_tcp[0], release_tcp[1] + dy, release_tcp[2] + dz]),
