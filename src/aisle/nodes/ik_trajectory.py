@@ -1269,43 +1269,53 @@ class StagedPlan:
                 self.flip_pair = (drop_path[-1], q_pre)
             pregrasp_path = drop_path + [q_pre] if q_pre is not None else None
         elif embodiment == "g1_right":
-            # G1-F2: descend the transit frame, then roll the wrist to the
-            # planner's grasp yaw IN PLACE at the pregrasp — the roll is an
-            # orientation continuation from a converged solution (see
-            # _g1_roll_at), and the advance below starts from the rolled
-            # configuration with the orientation already matched.
-            transit_path = _dl_cont(
-                staging_pos,
-                pre_pos,
-                approach_rot,
-                q_staging,
-                embodiment=embodiment,
-                # carriage scale: this descent ends at the HOVER, not the
+            # G1-F2/G1-F9: roll the wrist AT STAGING HEIGHT, then descend
+            # with the settled parity. The original order (descend, roll
+            # in place at the hover) swept the open fingers through the
+            # neighbouring slot's boxes during the roll — at the hover the
+            # fingertips sit BELOW the neighbour tops and the rotating
+            # finger pair clips them (outer smoke relaunch-1: cetirizine
+            # displaced 3.3cm, metformin 1.0cm -> oracle collision;
+            # measured worst -2.7mm x/y/z corner overlap on omeprazole).
+            # At the 1.02 staging height (inside the F2-measured IK
+            # conditioning band, ceiling 1.04) the same roll keeps the
+            # fingers >= 31.7mm from every non-target box (worst med),
+            # and the descent to the hover is a single continuation
+            # waypoint in the already-rolled frame.
+            pregrasp_path = None
+            # the Dex1 fingers are symmetric, so the 180-degree tool-z
+            # spin of the planner frame is the SAME physical grasp —
+            # try both parities, the one whose roll converges wins and
+            # the later stages (advance/lift/retract) follow it
+            for parity in (grasp_rot, grasp_rot @ _RZ_PI):
+                roll = _dl_roll(q_staging, staging_pos, approach_rot, parity)
+                if not roll:
+                    continue
+                # carriage scale: the descent ends at the HOVER, not the
                 # grasp — the advance below re-converges at full profile
                 # tolerance on the exact grasp pose (measured: the far
                 # column's warm-start advance only converges from the
                 # slightly looser hover chain)
-                pos_tol_scale=1.2,
-            )
-            pregrasp_path = None
-            if transit_path is not None:
-                # the Dex1 fingers are symmetric, so the 180-degree tool-z
-                # spin of the planner frame is the SAME physical grasp —
-                # try both parities, the one whose roll converges wins and
-                # the later stages (advance/lift/retract) follow it
-                for parity in (grasp_rot, grasp_rot @ _RZ_PI):
-                    roll = _dl_roll(transit_path[-1], pre_pos, approach_rot, parity)
-                    if roll:
-                        pregrasp_path = list(transit_path) + roll
-                        grasp_rot = parity
-                        # place in the SAME rolled parity frame — palm-down
-                        # with the box yaw turned 180 deg is the same
-                        # physical release, and it deletes the tray-side
-                        # roll entirely (measured: the parity-frame
-                        # transfer continuation converges where the
-                        # neutral-frame one does not)
-                        place_rot = parity
-                        break
+                desc = _dl_cont(
+                    staging_pos,
+                    pre_pos,
+                    parity,
+                    roll[-1],
+                    embodiment=embodiment,
+                    pos_tol_scale=1.2,
+                )
+                if desc is None:
+                    continue
+                pregrasp_path = list(roll) + list(desc)
+                grasp_rot = parity
+                # place in the SAME rolled parity frame — palm-down
+                # with the box yaw turned 180 deg is the same
+                # physical release, and it deletes the tray-side
+                # roll entirely (measured: the parity-frame
+                # transfer continuation converges where the
+                # neutral-frame one does not)
+                place_rot = parity
+                break
         else:
             pregrasp_path = _dl_cont(
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
@@ -1532,11 +1542,152 @@ class StagedPlan:
             _q_retreat = np.asarray(clear_path[-1])
             _rot = fk_ee_pose(_q_retreat, embodiment)[1]
             _q_mid = _dl_solve(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment)
-            home_waypoints = (
-                (np.asarray(_q_mid, dtype=np.float64), home)
-                if _q_mid is not None
-                else (rise_path[-1], home)
-            )
+            if _q_mid is None:
+                home_waypoints = (rise_path[-1], home)
+            else:
+                # G1-F9 (addendum 11:50): the clear->mid joint hop itself
+                # swept the upper arm through the SEATED box on the tray
+                # (lane1: box placed correctly, then swept off during
+                # withdrawal; the two configs sit in DIFFERENT elbow
+                # branches, delta 2.7 rad, and any single-hop interpolation
+                # dips the upper arm onto the box top). Fix: retreat the
+                # hover diagonally out over the tray's far edge (-y,
+                # continuation), then a NULL-SPACE ELBOW TUCK — perturb the
+                # shoulder pitch -0.4 rad and re-converge WARM to the SAME
+                # TCP, so the 7-DOF redundancy absorbs the perturbation,
+                # the elbow rises, the TCP never leaves the workspace, and
+                # the branch-flip hop below clears the box. Measured (true
+                # mesh-vertex distance, all five meds): seated-box worst
+                # 19.8mm, workspace clean; the plain chain measured 3.2mm
+                # true (the 0.08 rad tracking sag would eat it).
+                _q_clear = np.asarray(clear_path[-1], dtype=np.float32)
+                _clear_pos, _clear_rot = fk_ee_pose(_q_clear, embodiment)
+                _retreat = _dl_cont(
+                    _clear_pos,
+                    # z 1.11 (not 1.10): the lower retreat skimmed the tray
+                    # column — hand-tail gap 10.6mm vs the F7 2cm gate; 1.11
+                    # measures nonhand 16.4mm / hand-tail 28.6mm across 15
+                    # slot x med samples
+                    np.array([float(_clear_pos[0]), -0.24, 1.11]),
+                    _clear_rot,
+                    _q_clear,
+                    embodiment=embodiment,
+                    pos_tol_scale=1.5,
+                )
+                _retreat_path = (
+                    [np.asarray(q, dtype=np.float64) for q in _retreat]
+                    if _retreat is not None
+                    else [np.asarray(_q_clear, dtype=np.float64)]
+                )
+                _q_r = _retreat_path[-1]
+                _b_lo, _b_hi = _arm_bounds(embodiment)
+                _seed = _q_r.copy()
+                _seed[0] = float(_seed[0]) - 0.4
+                _seed = np.clip(_seed, _b_lo, _b_hi)
+                # the tuck re-converges to the RETREAT-END live pose
+                # (rotation included): converging to the clear-hover
+                # rotation instead measured 1.5mm true gap on the hop
+                # below (cetirizine) vs 19.8mm with the live rotation —
+                # the two orientations sit in different wrist branches.
+                _q_tuck = _dl_once(
+                    fk_ee_pose(np.asarray(_q_r, dtype=np.float32), embodiment)[0],
+                    fk_ee_pose(np.asarray(_q_r, dtype=np.float32), embodiment)[1],
+                    _seed,
+                    embodiment=embodiment,
+                )
+                _raise_waypoints = tuple(_retreat_path) + (
+                    np.asarray(_q_tuck, dtype=np.float64) if _q_tuck is not None else _q_r,
+                )
+                # G1-F9: the mid->home joint hop swept the fingers/elbow
+                # through the (0.24, 0.0) column (smoke relaunch-1: a
+                # non-target box displaced 3.3cm -> oracle collision;
+                # measured -49mm). A second IK-solved waypoint on the
+                # home-adjacent column (TCP [0.39, -0.08, 1.08], live
+                # orientation, HOME seed — measured both hops >= 22.9mm
+                # vs every non-target box) splits the bowing swing; the
+                # straight above-home high驿站 is IK-unreachable (z 1.16
+                # probed FAIL), so the diagonal step-down it is. IK
+                # failure falls back to the F7 two-waypoint form.
+                _q_step = _dl_solve(
+                    np.array([0.39, -0.08, 1.08]), _rot, home[:7], embodiment=embodiment
+                )
+                # G1-F9: the F7 mid驿站 is DROPPED — under the
+                # retreat+tuck prefix its branch-flip hop (tuck -> mid,
+                # delta ~2.7 rad) only re-dipped the hand toward the
+                # seated box (measured home[3] tail 7.6mm on metformin vs
+                # the 2cm gate; ibuprofen 10.6mm). The direct tuck -> step
+                # -> home chain measures >= 50.6mm hand-tail and >= 24.7mm
+                # true non-hand gap across all 25 slot x med cases. _q_mid
+                # is still SOLVED for its warm-seed role above, just not
+                # visited.
+                home_waypoints = (_q_step, home) if _q_step is not None else (home,)
+                home_waypoints = _raise_waypoints + home_waypoints
+                # Outer-loop G1-F9 fix: the tuck raises the elbow, and the
+                # straight joint-space hop tuck -> step then bows the TCP up
+                # to z ~1.40 (measured, every slot x med) against the 1.30
+                # workspace ceiling the guard enforces, so every plan was
+                # clamped in the home stage. Contain each hop the same way
+                # the rise waypoint is screened: simulate the executor's
+                # joint-space march and, where the TCP would leave the
+                # ceiling band, split the hop at an IK waypoint on the
+                # Cartesian midpoint (height capped under the ceiling, live
+                # orientation, joint-midpoint seed). Depth-limited and
+                # deadline-bound; an uncontainable hop is left as-is and
+                # the guard test reports it.
+                _ceiling = float(np.asarray(limits.workspace_max)[2]) - 0.02
+
+                def _hop_ok(q_a: np.ndarray, q_b: np.ndarray, corridor: bool) -> bool:
+                    # Executor march q_a -> q_b (0.01 rad/tick). Always
+                    # under the ceiling band; a SPLIT sub-hop must also
+                    # stay inside its endpoints' TCP box + 3 cm, so an
+                    # inserted waypoint can never introduce a new swing
+                    # (e.g. back over the just-placed box).
+                    cur = np.asarray(q_a, dtype=np.float32)[:7].copy()
+                    tgt = np.asarray(q_b, dtype=np.float32)[:7]
+                    ends = np.stack(
+                        [fk_ee_pose(cur, embodiment)[0], fk_ee_pose(tgt, embodiment)[0]]
+                    )
+                    box_lo, box_hi = ends.min(axis=0) - 0.03, ends.max(axis=0) + 0.03
+                    while not np.allclose(cur, tgt, atol=1e-6):
+                        cur = (cur + np.clip(tgt - cur, -0.01, 0.01)).astype(np.float32)
+                        tcp = np.asarray(fk_ee_pose(cur, embodiment)[0])
+                        if tcp[2] > _ceiling:
+                            return False
+                        if corridor and not (np.all(box_lo <= tcp) and np.all(tcp <= box_hi)):
+                            return False
+                    return True
+
+                def _contain_hop(
+                    q_a: np.ndarray, q_b: np.ndarray, depth: int, corridor: bool
+                ) -> list:
+                    if depth == 0 or _hop_ok(q_a, q_b, corridor):
+                        return [q_b]
+                    if deadline is not None and time.monotonic() > deadline:
+                        return [q_b]
+                    pos_a, rot_a = fk_ee_pose(np.asarray(q_a, dtype=np.float32)[:7], embodiment)
+                    pos_b = fk_ee_pose(np.asarray(q_b, dtype=np.float32)[:7], embodiment)[0]
+                    mid = 0.5 * (np.asarray(pos_a) + np.asarray(pos_b))
+                    mid[2] = min(float(mid[2]), _ceiling - 0.04)
+                    seed = 0.5 * (
+                        np.asarray(q_a, dtype=np.float64)[:7]
+                        + np.asarray(q_b, dtype=np.float64)[:7]
+                    )
+                    q_m = _dl_once(mid, rot_a, seed.astype(np.float32), embodiment)
+                    if q_m is None:
+                        return [q_b]
+                    q_m = np.asarray(q_m, dtype=np.float64)
+                    return _contain_hop(q_a, q_m, depth - 1, True) + _contain_hop(
+                        q_m, q_b, depth - 1, True
+                    )
+
+                _contained: list = []
+                _prev = np.asarray(clear_path[-1], dtype=np.float64)
+                for _wp in home_waypoints:
+                    _contained.extend(
+                        _contain_hop(_prev, np.asarray(_wp, dtype=np.float64), 3, False)
+                    )
+                    _prev = np.asarray(_wp, dtype=np.float64)
+                home_waypoints = tuple(_contained)
         else:
             home_waypoints = (home,)
         self.stages = [
