@@ -374,6 +374,19 @@ carry_latch_max_distance_m = 0.05
 # around nothing (the planner opens fully to pregrasp_cmd 0 before any
 # approach, keeping the close motion always box-mediated).
 gripper_grasp_cmd = 0.90
+# G1-F10 (outer smoke f5ceb2d, ep0/ep2 dropped): top-down grasp depth
+# below the box top. The shared GRIP_ENGAGEMENT 0.035 is a Franka palm
+# number; the Dex1 palm bottom (wrist_yaw + Dex1 base meshes, ONE merged
+# collision link in Genesis) sits only 0.027 m above the G1 TCP, so 0.035
+# seated the palm ON the box top through carry and release (in-process
+# replay: right_wrist_yaw_link in contact from release on) and the lateral
+# clear dragged the box off the tray by palm friction. A vertical lift off
+# the box is kinematically unavailable at the tray column (shoulder roll
+# and wrist yaw sit at their limits there; a tilt-locked lift does not
+# converge). 0.015 leaves ~0.012 m of palm clearance and keeps the
+# tallest med's TCP-to-center distance (cetirizine 0.040 m) inside the
+# 0.05 m latch capture radius.
+grip_engagement_m = 0.015
 gripper_pregrasp_cmd = 0.0
 # Held-DOF PD (pelvis fixed: only limb weight, no balance burden); the PD
 # target is always held_home_qpos. kp 200 left a 0.0432 rad static droop
@@ -445,7 +458,14 @@ placement_slots_xy = [
 placement_global_jitter_m = 0.001
 # Delivery tray on a waist-height stand, fully outside the shelf
 # footprint (x front of 0.20, y behind -0.26), inside the reach sphere.
-tray_pos = [0.13, -0.35, 0.95]
+# G1-F10: lowered 0.95 -> 0.85. With the shallow Dex1 grasp
+# (grip_engagement_m) the box hangs 2 cm lower, and the release TCP at
+# the old height (~1.085 m) was past the tray column's reach (lower
+# stage IK failed). At 0.85 every release TCP (0.985-0.995 m) sits below
+# the 1.00 m transfer hover, the lower stage is a true descent, and the
+# tallest hanging box (cetirizine, bottom 0.905 m) clears the tray top
+# 0.88 m at the hover.
+tray_pos = [0.13, -0.35, 0.85]
 tray_size = [0.12, 0.16, 0.06]
 # IK / trajectory at so101 scale, conservative (7-DOF arm, top-down
 # intended, full orientation). 待 G1-F 调.

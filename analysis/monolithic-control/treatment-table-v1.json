@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:f644c08f1a7dcc8a2329e9048284581190f61c95c2c429897af4875fdb40ad54",
+  "immutable_id": "sha256:fbfb3d394fe4d379792d46fbdb9144361fe49f0754975ff9571eed54812c35b2",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -8,7 +8,7 @@
       "justification": "this is the treatment: bundled typed-dataflow engineering surface versus one ordinary module",
       "monolithic": "experts/monolithic/expert_t1.py#sha256:e917cc9b8dd1a323d633e5d96a9af5f485dff2b594e5b2c75ebb8c853a81f25e",
       "surface": "agent deliverable",
-      "typed": "graphs/expert_t1.yaml#sha256:fcdaca89b95fe6abc8c37a5c42b81f428eaeda1ebae6309931f05218284c9546"
+      "typed": "graphs/expert_t1.yaml#sha256:c5f767e78daba101482925f3059cdc83d25d5b757682b312ea65a9d760f65c9a"
     },
     {
       "analysis": "recorded as treatment property; check/run attempt and error events compared descriptively",
@@ -44,7 +44,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/monolith/primitives.py#sha256:b408cf09cb4a2dc76a43bee63f0b61a46e247361cad307ec71f182e3d797a06d",
       "surface": "robot primitives (pose, grasp, trajectory, executor)",
-      "typed": "src/aisle/nodes/segmented_pose.py#sha256:9aab374c0b20fcd4070fd1028232749c869683da1bf06a6f3ab26fdad184f55a"
+      "typed": "src/aisle/nodes/segmented_pose.py#sha256:e2f135ddc33361d229c1b260d6d453114500845d298a7c679206961e51df7f66"
     },
     {
       "analysis": "held fixed; exactness checked by harness monolith interface",

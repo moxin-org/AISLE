@@ -58,7 +58,7 @@ def _grasp_for_slot_med(slot_xy: tuple[float, float], med: str):
     return plan_grasp(
         pose,
         MEDS[med]["size"],
-        grip=GRIP_ENGAGEMENT,
+        grip=float(PROFILE.get("grip_engagement_m", GRIP_ENGAGEMENT)),
         shelf_front_x=LAYOUT["shelf"]["pos"][0] - LAYOUT["shelf"]["level_size"][0] / 2,
         tray_top_z=TRAY_TOP,
         neighbours=neighbours,
@@ -311,6 +311,63 @@ def test_post_release_withdrawal_clears_the_placed_box_by_2cm(slot_xy, med):
     assert corridor_min >= 0.0, (slot_xy, med, "re-overlapped in corridor", corridor_min)
     assert reached_2cm, (slot_xy, med, "never reached 2 cm clearance after release")
     assert tail_min >= 0.02, (slot_xy, med, "fell back under 2 cm after clearing", tail_min)
+
+
+def _palm_aabb(q7: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """World AABB of the PALM: wrist_yaw + Dex1 base meshes (Genesis
+    merges the fixed right_base_joint, so they are ONE collision link —
+    the `right_wrist_yaw_link` the smoke replay saw on the box)."""
+    q = np.concatenate([np.zeros(3), np.asarray(q7, dtype=float)[:7]])
+    pos, rot = _CHAIN.forward(q)
+    wrist = np.eye(4)
+    wrist[:3, :3] = rot
+    wrist[:3, 3] = pos + np.array([0.0, 0.0, _PELVIS_Z])
+    lo = np.full(3, np.inf)
+    hi = np.full(3, -np.inf)
+    for verts, local in _HAND_VERTS[:2]:
+        R = wrist @ local
+        world = verts @ R[:3, :3].T + R[:3, 3]
+        lo = np.minimum(lo, world.min(axis=0))
+        hi = np.maximum(hi, world.max(axis=0))
+    return lo, hi
+
+
+@pytest.mark.parametrize("med", list(MEDS))
+@pytest.mark.parametrize("slot_xy", [tuple(map(float, s)) for s in PROFILE["placement_slots_xy"]])
+def test_palm_stays_clear_of_the_placed_box_top_after_release(slot_xy, med):
+    """SCN-4, G1-F10 (outer smoke f5ceb2d, ep0 + ep2 dropped): the palm
+    sat ON the placed box's top at release (grasp depth 0.035 > the Dex1
+    palm's 0.027 m above the TCP), so the lateral clear dragged the box off
+    the tray by palm friction (in-process replay: right_wrist_yaw_link in
+    contact from release on). From the release pose through the whole
+    executor stream after it, whenever the palm's xy footprint overlaps
+    the box the palm bottom stays >= 5 mm above the box top (the planned
+    0.012 m minus the measured ~0.01 m lower-stage z shortfall at the
+    tray column, which the plan's own release pose already includes)."""
+    plan = _cached_plan({}, slot_xy, med)
+    assert plan.ok, plan.error
+    release_idx = next(i for i, s in enumerate(plan.stages) if s.name == "release")
+    box_lo, box_hi = _placed_box_aabb(med)
+
+    def palm_margin(q7):
+        p_lo, p_hi = _palm_aabb(q7)
+        overlaps_xy = (
+            p_lo[0] < box_hi[0]
+            and p_hi[0] > box_lo[0]
+            and p_lo[1] < box_hi[1]
+            and p_hi[1] > box_lo[1]
+        )
+        return float(p_lo[2] - box_hi[2]) if overlaps_xy else np.inf
+
+    current = np.asarray(plan.stages[release_idx].path[-1], dtype=np.float32)
+    worst = palm_margin(current)
+    for stage in plan.stages[release_idx + 1 :]:
+        for q in stage.path:
+            target_q = np.asarray(q, dtype=np.float32)
+            while not np.allclose(current, target_q, atol=1e-6):
+                current = interpolate_step(current, target_q, 1.0, 0.01)
+                worst = min(worst, palm_margin(current))
+    assert worst >= 0.005, (slot_xy, med, worst)
 
 
 def test_plan_budget_respects_the_turn_watchdog():

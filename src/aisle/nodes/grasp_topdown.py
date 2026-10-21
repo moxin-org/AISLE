@@ -353,6 +353,7 @@ def main() -> None:
             grasp, approach, place_z = plan_grasp(
                 pose,
                 meds[med]["size"],
+                grip=float(profile.get("grip_engagement_m", GRIP_ENGAGEMENT)),
                 front=front,
                 shelf_front_x=shelf_front_x,
                 tray_top_z=tray_top_z,

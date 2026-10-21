@@ -151,6 +151,12 @@ TRANSFER_TCP_Z = 0.30
 HAND_MOUNT_YAW = -math.pi / 4
 
 _RZ_PI = np.diag([-1.0, -1.0, 1.0])  # local z spin: box-symmetric grasp flip
+#: G1-F10: measured good-branch config at the home-adjacent step waypoint
+#: (TCP [0.39, -0.08, 1.08]); a fixed seed so the step solve never lands on
+#: the shoulder-yaw-flipped branch whose hop into home sweeps the shelf.
+_G1_STEP_BRANCH_SEED = np.array(
+    [-2.006, -0.223, -0.559, 1.773, -1.846, 0.225, 1.614], dtype=np.float32
+)
 #: G1-F2: the shared topdown_quat bakes in the Franka hand-mount yaw
 #: (HAND_MOUNT_YAW); the G1 TCP (rpy [0, pi/2, 0]) has NO mount offset, so
 #: the G1 branch un-yaws planner quats by +pi/4 — net Rz(yaw) @ Rx(pi),
@@ -1598,6 +1604,7 @@ class StagedPlan:
                 _raise_waypoints = tuple(_retreat_path) + (
                     np.asarray(_q_tuck, dtype=np.float64) if _q_tuck is not None else _q_r,
                 )
+
                 # G1-F9: the mid->home joint hop swept the fingers/elbow
                 # through the (0.24, 0.0) column (smoke relaunch-1: a
                 # non-target box displaced 3.3cm -> oracle collision;
@@ -1608,9 +1615,45 @@ class StagedPlan:
                 # straight above-home high驿站 is IK-unreachable (z 1.16
                 # probed FAIL), so the diagonal step-down it is. IK
                 # failure falls back to the F7 two-waypoint form.
-                _q_step = _dl_solve(
-                    np.array([0.39, -0.08, 1.08]), _rot, home[:7], embodiment=embodiment
-                )
+                # G1-F10: the step solve can land on a second branch
+                # (omeprazole after the tray drop: shoulder yaw +1.67 vs
+                # -0.56 elsewhere) whose step -> home joint hop swings the
+                # fingers down to z 0.92 through the (0.28, 0.08) shelf
+                # column (-50 mm). Solve from both the HOME and the TUCK
+                # seed and keep the solution whose executor march into
+                # home sags least below its lower end (ties -> HOME seed,
+                # the F9-measured branch). The third seed is that measured
+                # good-branch step config (metformin, slot (0.28, -0.24),
+                # f5ceb2d + tray 0.85) for cases where both live seeds
+                # converge on the far branch. Deterministic: a fixed seed
+                # order, no randomness.
+                def _home_hop_sag(q_s: np.ndarray) -> float:
+                    cur = np.asarray(q_s, dtype=np.float32)[:7].copy()
+                    tgt = np.asarray(home, dtype=np.float32)[:7]
+                    floor = min(
+                        float(fk_ee_pose(cur, embodiment)[0][2]),
+                        float(fk_ee_pose(tgt, embodiment)[0][2]),
+                    )
+                    low = floor
+                    while not np.allclose(cur, tgt, atol=1e-6):
+                        cur = (cur + np.clip(tgt - cur, -0.01, 0.01)).astype(np.float32)
+                        low = min(low, float(fk_ee_pose(cur, embodiment)[0][2]))
+                    return floor - low
+
+                _q_step = None
+                _best_sag = np.inf
+                for _step_seed in (home[:7], _raise_waypoints[-1], _G1_STEP_BRANCH_SEED):
+                    _cand = _dl_solve(
+                        np.array([0.39, -0.08, 1.08]),
+                        _rot,
+                        np.asarray(_step_seed, dtype=np.float32)[:7],
+                        embodiment=embodiment,
+                    )
+                    if _cand is None:
+                        continue
+                    _sag = _home_hop_sag(_cand)
+                    if _sag < _best_sag - 1e-6:
+                        _q_step, _best_sag = _cand, _sag
                 # G1-F9: the F7 mid驿站 is DROPPED — under the
                 # retreat+tuck prefix its branch-flip hop (tuck -> mid,
                 # delta ~2.7 rad) only re-dipped the hand toward the
