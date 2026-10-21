@@ -232,6 +232,50 @@ home/shelf/tray holds): shoulder pitch ~11.8 N·m, roll ~21.8, yaw
 loader applies them to EXACTLY the wire arm DOFs; profiles without the
 keys (franka/so101) are bit-identical.
 
+## G1-C5: the render warmup runs BEFORE the dora Node()
+
+The outer-loop pinned smoke (outer-smoke-g1, dora 48e96b5) caught the
+C3 warmup's placement bug: with `warmup_render` AFTER `node = Node()`,
+the 11.2 s first-render compile blocked the event loop, >1100 10 ms tick
+events piled into the zenoh channel, and the bridge DROPPED the first
+reset ("event channel full; dropping zenoh input") — episode 0 sat at
+"holding at sim step 0 until the first reset" until the 9.5 min wall
+budget died. The fix: hoist the warmup to BEFORE `Node()` — before the
+subscription exists, nothing can pile up. The channel set is derived
+locally from env + cfg (rung_topic_rates + the lockstep
+AISLE_TURN_OUTPUTS filter); nothing between the scene build and the
+warmup needs the node. The result stays DISCARDED (CON-5 zero state
+impact — the C3 bit-identity sim test still pins it), and
+tests/unit/test_g1_warmup_order.py pins the source-level ordering.
+
+## G1-C5: the latch-offset hypothesis REFUTED (9 cm place offset)
+
+The outer loop hypothesized the latch captured an un-centered box
+offset at the 0.03 grip crossing (fingers just starting to close), and
+the kinematic carry dragged it to the tray, doubled by the F3 tool-z
+flip. Forensics on the pinned relaunch-1 traces (cetirizine, the 9 cm
+episode; grip/joint/oracle traces joined on sim_time) REFUTE it:
+
+- at the latch capture tick (grip first >= 0.03 near the hand, oracle
+  row 818): box (0.279, −0.079, 0.885) vs TCP (0.281, −0.080, 0.912) —
+  lateral capture offset 0.002 m (the dominant component is vertical,
+  the TCP hovering above the box center);
+- at the release tick (grip falls < 0.01 with the box high, row 1158):
+  box (0.151, −0.344, 1.034) vs TCP (0.151, −0.341, 1.060) — the
+  carried offset grew to only 0.003 m (drift 0.001 m over the whole
+  transit; the latch carried faithfully), and the RELEASED box sits
+  0.022 m from the tray center (0.13, −0.35), essentially ON it;
+- the 9 cm error appears only AFTER the release: the box's final rest
+  is (0.221, −0.325, 0.035) — 0.094 m from the tray center, on the
+  floor — i.e. the box was placed correctly and then swept off during
+  the post-release withdrawal, the same failure family G1-F7's
+  withdrawal clearance fixes (this run predates 0d38613's dz +0.08
+  tracking-plateau margin).
+
+No latch change was made (the capture/release offsets are millimetres;
+there is nothing to center). The carry latch remains a simulation aid
+only, NOT evidence of real-robot grasp capability.
+
 ## G1-H: cold-build budget — warmup, not budget inflation
 
 Genesis caches CoACD convex decompositions and compiled kernels per

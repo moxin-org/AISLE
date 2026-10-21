@@ -1078,6 +1078,32 @@ def main(
         )
         require_usable_segmentation_ids(segmentation_ids, cfg.perception)
 
+        # G1-C5: the G1-C3 render warmup MUST run before the dora Node()
+        # is created — Node() opens the subscription, and the outer-loop
+        # pinned smoke (outer-smoke-g1, dora 48e96b5) proved what happens
+        # otherwise: the 11.2 s compile blocked the event loop, >1100
+        # 10 ms tick events piled into the zenoh channel, and the bridge
+        # DROPPED the first reset ("event channel full") — episode 0 sat
+        # at "holding at sim step 0 until the first reset" until the wall
+        # budget died. Pre-Node there is no subscription yet, so nothing
+        # can pile up; the scene/work exist, and the channel set derives
+        # from env + cfg only (AISLE_TURN_OUTPUTS, perception rung,
+        # lockstep, embodiment) — none of it needs the node. Result is
+        # still DISCARDED (CON-5: no state touched; the warmup-leaves-
+        # observations-bit-identical sim test still pins that).
+        _warmup_channels = rung_topic_rates(cfg.perception, cfg.embodiment == "mobile")
+        if cfg.lockstep:
+            _declared = {
+                name for name in os.environ.get("AISLE_TURN_OUTPUTS", "").split(",") if name
+            }
+            _warmup_channels = {t: r for t, r in _warmup_channels.items() if t in _declared}
+        warmup_times = warmup_render(handle.cams, list(_warmup_channels), work)
+        print(
+            f"render warmup (pre-Node): {warmup_times} (overhead/wrist channels"
+            " pre-compiled; first-frame cost paid before any subscription exists)",
+            file=sys.stderr,
+        )
+
         node = Node()
         sim_time_ns = 0
         turn_id = 0
@@ -1136,20 +1162,6 @@ def main(
             scan_obstacles = store_scan_obstacles(load_planogram())
         else:
             scan_obstacles = desk_scan_obstacles(physics, cfg.embodiment) if is_mobile else []
-
-        # G1-C3: pre-pay the per-process render compile BEFORE the first
-        # turn / first reset_done — the r3/r5 smokes lost ep0 to a ~10.9
-        # s first-frame compile inside the 9m30s wall budget. A separate
-        # warmup process (tools/sim_warmup.py) cannot cover this: the
-        # compile cache is per-process. Runs once, on the channels the
-        # graph actually enables (topic_rates is final here: the lockstep
-        # filter above already removed undeclared optional ports).
-        warmup_times = warmup_render(handle.cams, list(topic_rates), work)
-        print(
-            f"render warmup: {warmup_times} (overhead/wrist channels pre-compiled,"
-            " first-frame cost paid at startup)",
-            file=sys.stderr,
-        )
 
         emit_bridge(
             "bridge_info",
