@@ -489,7 +489,12 @@ ik_rot_tol_rad = 0.15
 # ~5.4s, and expiry still fails LOUD with the budget named.
 ik_plan_budget_s = 5.5
 ik_full_range_starts = true
-trajectory_staging_z = 1.00
+# G1-F9: raised 1.00 -> 1.02 so the wrist roll happens with fingertips
+# above the neighbouring slot's tallest box top (0.94): at 1.00 the roll
+# clipped the neighbour boxes (measured -2.7mm); at 1.02 the whole
+# roll+descent chain keeps >= 31.7mm (worst med). Still inside the
+# F2-measured IK conditioning band (ceiling ~1.04).
+trajectory_staging_z = 1.02
 trajectory_lift_m = 0.05
 trajectory_transfer_z = 1.00
 # G1-F5 (ep1, smoke 20261019-234952): the 60s episode timed out with the
