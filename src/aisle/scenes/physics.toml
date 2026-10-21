@@ -517,6 +517,19 @@ ik_full_range_starts = true
 trajectory_staging_z = 1.02
 trajectory_lift_m = 0.05
 trajectory_transfer_z = 1.00
+# G1-F10: the transfer backs out to this x (at the slot's own y) before
+# crossing to the tray, so the carried box never passes over a shelf box
+# (front edge x >= 0.205 = slot x 0.24 - worst half-x 0.035; carried
+# half-diagonal <= 0.042; 0.01 margin). The straight chord clipped a
+# neighbour in smoke 0acb406 and the transfer cannot rise (1.04 IK FAIL).
+trajectory_transfer_front_x = 0.13
+# ...but only when the straight slot->tray chord passes within this of
+# another slot centre (measured chords: (0.28, -0.08) 0.004, (0.28, 0.08)
+# 0.011, (0.24, 0.0) 0.048, (0.24, -0.16) 0.075 -> detour (the last one's
+# carried box measured 1.6 mm from the (0.28, -0.24) box when direct);
+# (0.28, -0.24) 0.089 -> direct, leading away from every other column —
+# its -x back-out grazed the (0.24, -0.16) column with the fingers).
+trajectory_transfer_chord_clear_m = 0.08
 # G1-F5 (ep1, smoke 20261019-234952): the 60s episode timed out with the
 # plan unfinished. Measured sag-0.08 duration model over the whole slot
 # lattice: worst 32.4s at scale 0.5, 28.3s at 0.8, 27.0s at 1.0. 0.8 takes

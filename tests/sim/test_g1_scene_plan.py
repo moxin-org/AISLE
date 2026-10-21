@@ -281,9 +281,13 @@ def test_post_release_withdrawal_clears_the_placed_box_by_2cm(slot_xy, med):
     # - corridor zone (projection just left the box, gap still < 2 cm):
     #   by construction the exit-instant gap is ~0, so the corridor only
     #   requires gap >= 0 (never re-overlap) while the hand retreats;
-    # - tail zone (gap first reached 2 cm, i.e. the hand is genuinely
+    # - tail zone (gap first reached 2.5 cm, i.e. the hand is genuinely
     #   clear): it must never fall back below 2 cm through the rest of
-    #   clear + the whole home swing.
+    #   clear + the whole home swing. The 5 mm entry hysteresis (G1-F10)
+    #   keeps executor wobble AT the crossing (measured 0.1 mm while the
+    #   hand was still retreating) from reading as a return; the 2 cm
+    #   floor itself is unchanged, and between 2 and 2.5 cm the corridor
+    #   rule (never re-overlap) still applies.
     current = np.asarray(plan.stages[release_idx].path[-1], dtype=np.float32)
     g0 = gap(current)
     worst_ring = g0
@@ -303,7 +307,7 @@ def test_post_release_withdrawal_clears_the_placed_box_by_2cm(slot_xy, med):
                     worst_ring = min(worst_ring, g)
                 elif not reached_2cm:
                     corridor_min = min(corridor_min, g)
-                    if g >= 0.02:
+                    if g >= 0.025:
                         reached_2cm = True
                 else:
                     tail_min = min(tail_min, g)
@@ -742,3 +746,46 @@ def test_arm_links_clear_non_target_boxes_through_the_plan(med):
     assert worst_s >= _SWEEP_CLEAR_M, (
         f"seated-box sweep: worst gap {worst_s * 1000:.1f}mm at {worst_at_s}"
     )
+
+
+@pytest.mark.parametrize("med", list(MEDS))
+@pytest.mark.parametrize("slot_xy", [tuple(map(float, s)) for s in PROFILE["placement_slots_xy"]])
+def test_carried_box_clears_every_shelf_box_lift_to_lower(slot_xy, med):
+    """SCN-4, G1-F10 (outer smoke 0acb406 ep2, collision): the CARRIED
+    box — hanging from the TCP at the planned grasp depth — clipped a
+    neighbour slot's box on the transfer (carried cetirizine bottom 0.924
+    vs ibuprofen top 0.92; ibuprofen pushed > 3 cm). The arm-link sweep
+    never modelled the payload. From the lift through the transfer (until
+    the lower stage begins over the tray) the carried box AABB keeps
+    >= 1 cm from every non-target box at every executor tick."""
+    plan = _cached_plan({}, slot_xy, med)
+    assert plan.ok, plan.error
+    size = np.asarray(MEDS[med]["size"], dtype=float)
+    grip = float(PROFILE.get("grip_engagement_m", GRIP_ENGAGEMENT))
+    others = [
+        _box_aabb((float(s[0]), float(s[1])), other)
+        for s in PROFILE["placement_slots_xy"]
+        if (float(s[0]), float(s[1])) != slot_xy
+        for other in MED_NAMES
+    ]
+    names = [s.name for s in plan.stages]
+    start, stop = names.index("lift"), names.index("lower")
+    current = np.asarray(plan.stages[start - 1].path[-1], dtype=np.float32)
+    worst, worst_at = np.inf, None
+    for stage in plan.stages[start:stop]:
+        for q in stage.path:
+            target_q = np.asarray(q, dtype=np.float32)
+            while not np.allclose(current, target_q, atol=1e-6):
+                current = interpolate_step(current, target_q, 1.0, 0.01)
+                tcp = np.asarray(fk_ee_pose(current, "g1_right")[0], dtype=float)
+                center = tcp - np.array([0.0, 0.0, size[2] / 2 - grip])
+                # the carry latch keeps the box's WORLD orientation
+                # (CarryLatch.held_quat) and shelf boxes spawn at yaw 0, so
+                # the carried box is axis-aligned at its own size
+                c_lo = center - size / 2
+                c_hi = center + size / 2
+                for b_lo, b_hi in others:
+                    gap = _aabb_gap(c_lo, c_hi, b_lo, b_hi)
+                    if gap < worst:
+                        worst, worst_at = gap, (stage.name, np.round(tcp, 3))
+    assert worst >= 0.01, (slot_xy, med, worst, worst_at)

@@ -1429,19 +1429,54 @@ class StagedPlan:
                 route_start = route_end
                 route_q = segment[-1]
         else:
-            transfer_path = (
-                _dl_cont(
-                    retract_end,
-                    transfer_pos,
+            # G1-F10 (outer smoke 0acb406 ep2, collision): the straight
+            # shelf->tray chord carried the box OVER the neighbouring slot
+            # columns (cetirizine bottom 0.924 vs ibuprofen top 0.92 at
+            # (0.24, -0.16)), and the transfer height cannot rise (IK
+            # fails at 1.04 on the (0.24, 0.0) / (0.28, 0.08) columns).
+            # Route through a FRONT waypoint instead: back out along -x to
+            # trajectory_transfer_front_x at the slot's own y, then cross
+            # to the tray hover in front of every shelf box.
+            # Only slots whose straight chord passes another slot column
+            # take the detour: the outermost tray-side slot (0.28, -0.24)
+            # backing out along -x grazed the (0.24, -0.16) column with the
+            # fingers (arm-link sweep 0.1 mm), while its direct chord leads
+            # AWAY from every other slot.
+            transfer_route = [transfer_pos]
+            front_x = profile.get("trajectory_transfer_front_x")
+            if embodiment == "g1_right" and front_x is not None:
+                chord_clear = float(profile.get("trajectory_transfer_chord_clear_m", 0.0))
+                start_xy = np.asarray(retract_end[:2], dtype=float)
+                chord = np.asarray(transfer_pos[:2], dtype=float) - start_xy
+                nearest = np.inf
+                for slot in profile.get("placement_slots_xy", ()):
+                    rel = np.asarray(slot, dtype=float) - start_xy
+                    if float(np.linalg.norm(rel)) < 0.02:
+                        continue  # the target's own slot
+                    t = float(np.clip(rel @ chord / float(chord @ chord), 0.0, 1.0))
+                    nearest = min(nearest, float(np.linalg.norm(rel - t * chord)))
+                if nearest < chord_clear:
+                    transfer_route = [
+                        np.array([float(front_x), retract_end[1], transfer_height]),
+                        transfer_pos,
+                    ]
+            transfer_path = [] if retract_path is not None else None
+            route_start, route_q = retract_end, retract_path[-1] if retract_path else None
+            for route_end in transfer_route if transfer_path is not None else ():
+                segment = _dl_cont(
+                    route_start,
+                    route_end,
                     place_rot,
-                    retract_path[-1],
+                    route_q,
                     embodiment=embodiment,
                     pos_tol_scale=1.2,
                     free_yaw=embodiment == "g1_right",
                 )
-                if retract_path is not None
-                else None
-            )
+                if segment is None:
+                    transfer_path = None
+                    break
+                transfer_path.extend(segment)
+                route_start, route_q = route_end, segment[-1]
             if embodiment == "g1_right" and transfer_path is not None:
                 # free-yaw transfer lands at a natural wrist azimuth; roll
                 # IN PLACE at the tray hover back to the place frame. The
