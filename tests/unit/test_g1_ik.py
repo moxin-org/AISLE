@@ -40,7 +40,7 @@ HOME = np.asarray(LIMITS.fallback_qpos, dtype=np.float32)
 TRAY_TOP = PROFILE["tray_pos"][2] + PROFILE["tray_size"][2] / 2
 
 
-def _grasp_pose(placements, med_name: str, grip: float = GRIP_ENGAGEMENT):
+def _grasp_pose(placements, med_name: str, grip: float | None = None):
     target = next(p for p in placements if p.name == med_name)
     pose = np.array([target.x, target.y, target.z, 0.0, 0.0, 0.0, 1.0], dtype=np.float32)
     neighbours = [
@@ -51,7 +51,7 @@ def _grasp_pose(placements, med_name: str, grip: float = GRIP_ENGAGEMENT):
     return plan_grasp(
         pose,
         MEDS[med_name]["size"],
-        grip=grip,
+        grip=float(PROFILE.get("grip_engagement_m", GRIP_ENGAGEMENT)) if grip is None else grip,
         shelf_front_x=LAYOUT["shelf"]["pos"][0] - LAYOUT["shelf"]["level_size"][0] / 2,
         tray_top_z=TRAY_TOP,
         neighbours=neighbours,

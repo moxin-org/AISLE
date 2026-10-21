@@ -374,6 +374,19 @@ carry_latch_max_distance_m = 0.05
 # around nothing (the planner opens fully to pregrasp_cmd 0 before any
 # approach, keeping the close motion always box-mediated).
 gripper_grasp_cmd = 0.90
+# G1-F10 (outer smoke f5ceb2d, ep0/ep2 dropped): top-down grasp depth
+# below the box top. The shared GRIP_ENGAGEMENT 0.035 is a Franka palm
+# number; the Dex1 palm bottom (wrist_yaw + Dex1 base meshes, ONE merged
+# collision link in Genesis) sits only 0.027 m above the G1 TCP, so 0.035
+# seated the palm ON the box top through carry and release (in-process
+# replay: right_wrist_yaw_link in contact from release on) and the lateral
+# clear dragged the box off the tray by palm friction. A vertical lift off
+# the box is kinematically unavailable at the tray column (shoulder roll
+# and wrist yaw sit at their limits there; a tilt-locked lift does not
+# converge). 0.015 leaves ~0.012 m of palm clearance and keeps the
+# tallest med's TCP-to-center distance (cetirizine 0.040 m) inside the
+# 0.05 m latch capture radius.
+grip_engagement_m = 0.015
 gripper_pregrasp_cmd = 0.0
 # Held-DOF PD (pelvis fixed: only limb weight, no balance burden); the PD
 # target is always held_home_qpos. kp 200 left a 0.0432 rad static droop
@@ -445,7 +458,14 @@ placement_slots_xy = [
 placement_global_jitter_m = 0.001
 # Delivery tray on a waist-height stand, fully outside the shelf
 # footprint (x front of 0.20, y behind -0.26), inside the reach sphere.
-tray_pos = [0.13, -0.35, 0.95]
+# G1-F10: lowered 0.95 -> 0.85. With the shallow Dex1 grasp
+# (grip_engagement_m) the box hangs 2 cm lower, and the release TCP at
+# the old height (~1.085 m) was past the tray column's reach (lower
+# stage IK failed). At 0.85 every release TCP (0.985-0.995 m) sits below
+# the 1.00 m transfer hover, the lower stage is a true descent, and the
+# tallest hanging box (cetirizine, bottom 0.905 m) clears the tray top
+# 0.88 m at the hover.
+tray_pos = [0.13, -0.35, 0.85]
 tray_size = [0.12, 0.16, 0.06]
 # IK / trajectory at so101 scale, conservative (7-DOF arm, top-down
 # intended, full orientation). 待 G1-F 调.
@@ -497,6 +517,19 @@ ik_full_range_starts = true
 trajectory_staging_z = 1.02
 trajectory_lift_m = 0.05
 trajectory_transfer_z = 1.00
+# G1-F10: the transfer backs out to this x (at the slot's own y) before
+# crossing to the tray, so the carried box never passes over a shelf box
+# (front edge x >= 0.205 = slot x 0.24 - worst half-x 0.035; carried
+# half-diagonal <= 0.042; 0.01 margin). The straight chord clipped a
+# neighbour in smoke 0acb406 and the transfer cannot rise (1.04 IK FAIL).
+trajectory_transfer_front_x = 0.13
+# ...but only when the straight slot->tray chord passes within this of
+# another slot centre (measured chords: (0.28, -0.08) 0.004, (0.28, 0.08)
+# 0.011, (0.24, 0.0) 0.048, (0.24, -0.16) 0.075 -> detour (the last one's
+# carried box measured 1.6 mm from the (0.28, -0.24) box when direct);
+# (0.28, -0.24) 0.089 -> direct, leading away from every other column —
+# its -x back-out grazed the (0.24, -0.16) column with the fingers).
+trajectory_transfer_chord_clear_m = 0.08
 # G1-F5 (ep1, smoke 20261019-234952): the 60s episode timed out with the
 # plan unfinished. Measured sag-0.08 duration model over the whole slot
 # lattice: worst 32.4s at scale 0.5, 28.3s at 0.8, 27.0s at 1.0. 0.8 takes

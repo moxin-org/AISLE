@@ -151,6 +151,12 @@ TRANSFER_TCP_Z = 0.30
 HAND_MOUNT_YAW = -math.pi / 4
 
 _RZ_PI = np.diag([-1.0, -1.0, 1.0])  # local z spin: box-symmetric grasp flip
+#: G1-F10: measured good-branch config at the home-adjacent step waypoint
+#: (TCP [0.39, -0.08, 1.08]); a fixed seed so the step solve never lands on
+#: the shoulder-yaw-flipped branch whose hop into home sweeps the shelf.
+_G1_STEP_BRANCH_SEED = np.array(
+    [-2.006, -0.223, -0.559, 1.773, -1.846, 0.225, 1.614], dtype=np.float32
+)
 #: G1-F2: the shared topdown_quat bakes in the Franka hand-mount yaw
 #: (HAND_MOUNT_YAW); the G1 TCP (rpy [0, pi/2, 0]) has NO mount offset, so
 #: the G1 branch un-yaws planner quats by +pi/4 — net Rz(yaw) @ Rx(pi),
@@ -1423,19 +1429,54 @@ class StagedPlan:
                 route_start = route_end
                 route_q = segment[-1]
         else:
-            transfer_path = (
-                _dl_cont(
-                    retract_end,
-                    transfer_pos,
+            # G1-F10 (outer smoke 0acb406 ep2, collision): the straight
+            # shelf->tray chord carried the box OVER the neighbouring slot
+            # columns (cetirizine bottom 0.924 vs ibuprofen top 0.92 at
+            # (0.24, -0.16)), and the transfer height cannot rise (IK
+            # fails at 1.04 on the (0.24, 0.0) / (0.28, 0.08) columns).
+            # Route through a FRONT waypoint instead: back out along -x to
+            # trajectory_transfer_front_x at the slot's own y, then cross
+            # to the tray hover in front of every shelf box.
+            # Only slots whose straight chord passes another slot column
+            # take the detour: the outermost tray-side slot (0.28, -0.24)
+            # backing out along -x grazed the (0.24, -0.16) column with the
+            # fingers (arm-link sweep 0.1 mm), while its direct chord leads
+            # AWAY from every other slot.
+            transfer_route = [transfer_pos]
+            front_x = profile.get("trajectory_transfer_front_x")
+            if embodiment == "g1_right" and front_x is not None:
+                chord_clear = float(profile.get("trajectory_transfer_chord_clear_m", 0.0))
+                start_xy = np.asarray(retract_end[:2], dtype=float)
+                chord = np.asarray(transfer_pos[:2], dtype=float) - start_xy
+                nearest = np.inf
+                for slot in profile.get("placement_slots_xy", ()):
+                    rel = np.asarray(slot, dtype=float) - start_xy
+                    if float(np.linalg.norm(rel)) < 0.02:
+                        continue  # the target's own slot
+                    t = float(np.clip(rel @ chord / float(chord @ chord), 0.0, 1.0))
+                    nearest = min(nearest, float(np.linalg.norm(rel - t * chord)))
+                if nearest < chord_clear:
+                    transfer_route = [
+                        np.array([float(front_x), retract_end[1], transfer_height]),
+                        transfer_pos,
+                    ]
+            transfer_path = [] if retract_path is not None else None
+            route_start, route_q = retract_end, retract_path[-1] if retract_path else None
+            for route_end in transfer_route if transfer_path is not None else ():
+                segment = _dl_cont(
+                    route_start,
+                    route_end,
                     place_rot,
-                    retract_path[-1],
+                    route_q,
                     embodiment=embodiment,
                     pos_tol_scale=1.2,
                     free_yaw=embodiment == "g1_right",
                 )
-                if retract_path is not None
-                else None
-            )
+                if segment is None:
+                    transfer_path = None
+                    break
+                transfer_path.extend(segment)
+                route_start, route_q = route_end, segment[-1]
             if embodiment == "g1_right" and transfer_path is not None:
                 # free-yaw transfer lands at a natural wrist azimuth; roll
                 # IN PLACE at the tray hover back to the place frame. The
@@ -1598,6 +1639,7 @@ class StagedPlan:
                 _raise_waypoints = tuple(_retreat_path) + (
                     np.asarray(_q_tuck, dtype=np.float64) if _q_tuck is not None else _q_r,
                 )
+
                 # G1-F9: the mid->home joint hop swept the fingers/elbow
                 # through the (0.24, 0.0) column (smoke relaunch-1: a
                 # non-target box displaced 3.3cm -> oracle collision;
@@ -1608,9 +1650,45 @@ class StagedPlan:
                 # straight above-home high驿站 is IK-unreachable (z 1.16
                 # probed FAIL), so the diagonal step-down it is. IK
                 # failure falls back to the F7 two-waypoint form.
-                _q_step = _dl_solve(
-                    np.array([0.39, -0.08, 1.08]), _rot, home[:7], embodiment=embodiment
-                )
+                # G1-F10: the step solve can land on a second branch
+                # (omeprazole after the tray drop: shoulder yaw +1.67 vs
+                # -0.56 elsewhere) whose step -> home joint hop swings the
+                # fingers down to z 0.92 through the (0.28, 0.08) shelf
+                # column (-50 mm). Solve from both the HOME and the TUCK
+                # seed and keep the solution whose executor march into
+                # home sags least below its lower end (ties -> HOME seed,
+                # the F9-measured branch). The third seed is that measured
+                # good-branch step config (metformin, slot (0.28, -0.24),
+                # f5ceb2d + tray 0.85) for cases where both live seeds
+                # converge on the far branch. Deterministic: a fixed seed
+                # order, no randomness.
+                def _home_hop_sag(q_s: np.ndarray) -> float:
+                    cur = np.asarray(q_s, dtype=np.float32)[:7].copy()
+                    tgt = np.asarray(home, dtype=np.float32)[:7]
+                    floor = min(
+                        float(fk_ee_pose(cur, embodiment)[0][2]),
+                        float(fk_ee_pose(tgt, embodiment)[0][2]),
+                    )
+                    low = floor
+                    while not np.allclose(cur, tgt, atol=1e-6):
+                        cur = (cur + np.clip(tgt - cur, -0.01, 0.01)).astype(np.float32)
+                        low = min(low, float(fk_ee_pose(cur, embodiment)[0][2]))
+                    return floor - low
+
+                _q_step = None
+                _best_sag = np.inf
+                for _step_seed in (home[:7], _raise_waypoints[-1], _G1_STEP_BRANCH_SEED):
+                    _cand = _dl_solve(
+                        np.array([0.39, -0.08, 1.08]),
+                        _rot,
+                        np.asarray(_step_seed, dtype=np.float32)[:7],
+                        embodiment=embodiment,
+                    )
+                    if _cand is None:
+                        continue
+                    _sag = _home_hop_sag(_cand)
+                    if _sag < _best_sag - 1e-6:
+                        _q_step, _best_sag = _cand, _sag
                 # G1-F9: the F7 mid驿站 is DROPPED — under the
                 # retreat+tuck prefix its branch-flip hop (tuck -> mid,
                 # delta ~2.7 rad) only re-dipped the hand toward the
