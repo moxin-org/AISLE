@@ -413,6 +413,19 @@ held_kv = 40.0
 # SO-101/Franka carry no arm_kp keys -> zero behavior change there.
 arm_kp = [2500.0, 4500.0, 3000.0, 1200.0, 900.0, 250.0, 250.0]
 arm_kv = [50.0, 70.0, 55.0, 35.0, 12.0, 8.0, 8.0]
+# G1-F11 (50-seed gate e6363bb, pass1 0.76): every failure targeted the
+# cross-midline slot (0.28, 0.08), where IK put shoulder roll at +0.198.
+# Genesis hold probe: right_shoulder_roll_link meets torso_link from
+# ~0.0 rad and stops at +0.039 (advance err -0.159, the logged 'bailed at
+# joint 1 err ~0.15'). PLANNING-only upper bound with a 0.05 rad margin;
+# the guard's env/limits.toml envelope is unchanged.
+ik_shoulder_roll_max_rad = -0.05
+# G1-F11 (operator ruling 2026-10-23: speed up, keep the 150 s per-episode
+# wall budget): executor joint-velocity cap. 1.0 (the shared default) ran
+# 120-210 s of wall per episode; 1.5 is 75% of the 2.0 rad/s guard
+# envelope (qdot_max), leaving headroom for the executor's integral
+# correction. AISLE_MAX_JOINT_VEL still overrides.
+executor_max_joint_vel_rad_s = 1.5
 # TCP frame: Genesis collapses the massless fixed right_dex1_base_link
 # (right_base_joint, pure translation [0.0415, 0, 0]) — same as SO-101's
 # gripper_frame_link. Compose onto the surviving right_wrist_yaw_link:
@@ -448,12 +461,20 @@ min_separation = 0.02
 # replaced by the same-side [0.28, -0.24]. Cross-column y stagger 0.08+
 # still exceeds the worst half-width pair + min_separation (0.0625);
 # board widened to y 0.56 for the new slot's margins. 待 G1-F 调.
+# G1-F11 (operator ruling 2026-10-22): the cross-midline slot
+# [0.28, 0.08] is unreachable top-down without the right shoulder roll
+# link entering the torso (Genesis contact from ~0.0 rad; the 50-seed gate
+# lost all 12 of its episodes there). Measured reachable band under the
+# ik_shoulder_roll_max_rad bound: x 0.24-0.28, y -0.24..+0.02 (y -0.26 and
+# x >= 0.32 fail pregrasp IK). Five slots re-latticed inside it at the
+# 0.065 y pitch (>= the 0.0625 worst half-width pair + min_separation),
+# x staggered 0.28 / 0.24.
 placement_slots_xy = [
-  [0.24, -0.16],
-  [0.24, 0.00],
   [0.28, -0.24],
-  [0.28, -0.08],
-  [0.28, 0.08],
+  [0.24, -0.175],
+  [0.28, -0.11],
+  [0.24, -0.045],
+  [0.28, 0.02],
 ]
 placement_global_jitter_m = 0.001
 # Delivery tray on a waist-height stand, fully outside the shelf
@@ -524,12 +545,12 @@ trajectory_transfer_z = 1.00
 # neighbour in smoke 0acb406 and the transfer cannot rise (1.04 IK FAIL).
 trajectory_transfer_front_x = 0.13
 # ...but only when the straight slot->tray chord passes within this of
-# another slot centre (measured chords: (0.28, -0.08) 0.004, (0.28, 0.08)
-# 0.011, (0.24, 0.0) 0.048, (0.24, -0.16) 0.075 -> detour (the last one's
-# carried box measured 1.6 mm from the (0.28, -0.24) box when direct);
-# (0.28, -0.24) 0.089 -> direct, leading away from every other column —
-# its -x back-out grazed the (0.24, -0.16) column with the fingers).
-trajectory_transfer_chord_clear_m = 0.08
+# another slot centre. G1-F11 lattice chords: (0.28, -0.11) 0.001,
+# (0.28, 0.02) 0.013, (0.24, -0.045) 0.044, (0.24, -0.175) 0.068 ->
+# detour; (0.28, -0.24) 0.076 -> direct (its chord leads away from every
+# other slot, while its -x back-out passed the fingers 2 mm from the
+# (0.24, -0.175) box).
+trajectory_transfer_chord_clear_m = 0.07
 # G1-F5 (ep1, smoke 20261019-234952): the 60s episode timed out with the
 # plan unfinished. Measured sag-0.08 duration model over the whole slot
 # lattice: worst 32.4s at scale 0.5, 28.3s at 0.8, 27.0s at 1.0. 0.8 takes
