@@ -365,12 +365,24 @@ def _require_supported_embodiment(embodiment: str, fn: str) -> None:
         raise ValueError(f"{fn}: unsupported embodiment {embodiment!r}")
 
 
+@lru_cache(maxsize=8)
 def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
     limits = load_limits(embodiment)
-    return (
-        np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64),
-        np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64),
-    )
+    lower = np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64)
+    upper = np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64)
+    if embodiment == "g1_right":
+        # G1-F11: planning-only shoulder-roll bound — past ~0.0 rad the
+        # right shoulder roll link hits the torso in Genesis (the guard's
+        # envelope stays the official limit).
+        from aisle.scenes.pharmacy import load_physics  # local: mirrors _g1_seeds
+
+        bound = load_physics()["embodiment"]["g1_right"].get("ik_shoulder_roll_max_rad")
+        if bound is not None:
+            upper = upper.copy()
+            upper[1] = min(float(upper[1]), float(bound))
+    lower.setflags(write=False)
+    upper.setflags(write=False)
+    return lower, upper
 
 
 def fk_tcp(q_arm: np.ndarray, embodiment: str = "franka") -> np.ndarray:
@@ -1033,6 +1045,17 @@ def ik_solve(
     return None
 
 
+def executor_max_vel(environ, profile: dict) -> float:
+    """Executor joint-velocity cap (rad/s): AISLE_MAX_JOINT_VEL when set,
+    else the embodiment profile's executor_max_joint_vel_rad_s, else the
+    historical 1.0 (franka/so101 carry no key -> unchanged). G1-F11: the
+    g1_right episode ran 120-210 s of wall against the 150 s per-episode
+    budget at 1.0; its guard envelope is 2.0 rad/s per joint."""
+    if "AISLE_MAX_JOINT_VEL" in environ:
+        return float(environ["AISLE_MAX_JOINT_VEL"])
+    return float(profile.get("executor_max_joint_vel_rad_s", 1.0))
+
+
 def interpolate_step(
     current: np.ndarray, target: np.ndarray, max_vel: float, dt: float
 ) -> np.ndarray:
@@ -1456,8 +1479,19 @@ class StagedPlan:
                     t = float(np.clip(rel @ chord / float(chord @ chord), 0.0, 1.0))
                     nearest = min(nearest, float(np.linalg.norm(rel - t * chord)))
                 if nearest < chord_clear:
+                    # G1-F11: back out at the retract height (staging
+                    # plane, 1.02) — descending to the 1.00 transfer plane
+                    # WHILE passing the neighbouring columns put the
+                    # fingers 8-9 mm over their box tops on the re-latticed
+                    # 0.065 m pitch; descend only once in front of the shelf.
                     transfer_route = [
-                        np.array([float(front_x), retract_end[1], transfer_height]),
+                        np.array(
+                            [
+                                float(front_x),
+                                retract_end[1],
+                                max(float(transfer_height), float(retract_end[2])),
+                            ]
+                        ),
                         transfer_pos,
                     ]
             transfer_path = [] if retract_path is not None else None
@@ -1565,10 +1599,20 @@ class StagedPlan:
             # plateau) — the f7 smoke's ep2 retreat at z+0.04 planned
             # +0.024 m clearance but physically overlapped the seated box
             # (-0.056 m measured) because the shortfall ate the margin.
-            for dy, dz in ((0.15, 0.08), (0.12, 0.08), (0.15, 0.04), (0.12, 0.04)):
+            # G1-F11: the first rung also backs off 2 cm in -x — the
+            # re-latticed (0.24, -0.175) slot sits beside the clear's end,
+            # and the 1.5x position tolerance let the end drift +x to
+            # 11 mm from its box (omeprazole from (0.28, -0.11))
+            for dx, dy, dz in (
+                (-0.02, 0.15, 0.08),
+                (0.0, 0.15, 0.08),
+                (0.0, 0.12, 0.08),
+                (0.0, 0.15, 0.04),
+                (0.0, 0.12, 0.04),
+            ):
                 candidate = _dl_cont(
                     release_tcp.copy(),
-                    np.array([release_tcp[0], release_tcp[1] + dy, release_tcp[2] + dz]),
+                    np.array([release_tcp[0] + dx, release_tcp[1] + dy, release_tcp[2] + dz]),
                     place_rot,
                     release_q,
                     embodiment=embodiment,
@@ -1582,7 +1626,15 @@ class StagedPlan:
         if embodiment == "g1_right":
             _q_retreat = np.asarray(clear_path[-1])
             _rot = fk_ee_pose(_q_retreat, embodiment)[1]
-            _q_mid = _dl_solve(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment)
+            # G1-F11 (planning budget): _q_mid is only a reachability gate
+            # (never visited, below) — try one warm DLS from home first and
+            # pay the cold ladder only when it misses, so the gate's
+            # semantics (cold-ladder unreachable -> F7 fallback) stand.
+            _q_mid = _dl_once(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment)
+            if _q_mid is None:
+                _q_mid = _dl_solve(
+                    np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment
+                )
             if _q_mid is None:
                 home_waypoints = (rise_path[-1], home)
             else:
@@ -1662,44 +1714,46 @@ class StagedPlan:
                 # f5ceb2d + tray 0.85) for cases where both live seeds
                 # converge on the far branch. Deterministic: a fixed seed
                 # order, no randomness.
-                def _home_hop_sag(q_s: np.ndarray) -> float:
-                    cur = np.asarray(q_s, dtype=np.float32)[:7].copy()
-                    tgt = np.asarray(home, dtype=np.float32)[:7]
+                # G1-F11: sag alone is the wrong score — on the re-latticed
+                # shelf the chosen step's hop into home swung the palm
+                # SIDEWAYS over the (0.28, 0.02) slot and down to z 0.805
+                # (-46 mm into its box) while a less-sagging candidate
+                # existed. Score = (passes low over a shelf slot, sag):
+                # a hop whose TCP comes within 0.09 m of any slot centre
+                # below z 1.0 (box tops <= 0.94 + palm) ranks last. The
+                # measured good-branch seed is tried FIRST so a planning
+                # deadline that expires mid-ladder still leaves it.
+                _slots_xy = np.asarray(profile.get("placement_slots_xy", ()), dtype=float)
+
+                def _home_hop_score(q_s: np.ndarray, q_from=None) -> tuple[int, float]:
+                    # hop q_s -> home by default; q_from -> q_s for any chain hop
+                    cur = np.asarray(q_s if q_from is None else q_from, dtype=np.float32)[:7].copy()
+                    tgt = np.asarray(home if q_from is None else q_s, dtype=np.float32)[:7]
                     floor = min(
                         float(fk_ee_pose(cur, embodiment)[0][2]),
                         float(fk_ee_pose(tgt, embodiment)[0][2]),
                     )
-                    low = floor
+                    low, over_slot = floor, 0
                     while not np.allclose(cur, tgt, atol=1e-6):
                         cur = (cur + np.clip(tgt - cur, -0.01, 0.01)).astype(np.float32)
-                        low = min(low, float(fk_ee_pose(cur, embodiment)[0][2]))
-                    return floor - low
+                        p = np.asarray(fk_ee_pose(cur, embodiment)[0])
+                        low = min(low, float(p[2]))
+                        if (
+                            _slots_xy.size
+                            and p[2] < 1.0
+                            and float(np.min(np.linalg.norm(_slots_xy - p[:2], axis=1))) < 0.09
+                        ):
+                            over_slot = 1
+                    return over_slot, floor - low
 
-                _q_step = None
-                _best_sag = np.inf
-                for _step_seed in (home[:7], _raise_waypoints[-1], _G1_STEP_BRANCH_SEED):
-                    _cand = _dl_solve(
-                        np.array([0.39, -0.08, 1.08]),
-                        _rot,
-                        np.asarray(_step_seed, dtype=np.float32)[:7],
-                        embodiment=embodiment,
-                    )
-                    if _cand is None:
-                        continue
-                    _sag = _home_hop_sag(_cand)
-                    if _sag < _best_sag - 1e-6:
-                        _q_step, _best_sag = _cand, _sag
-                # G1-F9: the F7 mid驿站 is DROPPED — under the
-                # retreat+tuck prefix its branch-flip hop (tuck -> mid,
-                # delta ~2.7 rad) only re-dipped the hand toward the
-                # seated box (measured home[3] tail 7.6mm on metformin vs
-                # the 2cm gate; ibuprofen 10.6mm). The direct tuck -> step
-                # -> home chain measures >= 50.6mm hand-tail and >= 24.7mm
-                # true non-hand gap across all 25 slot x med cases. _q_mid
-                # is still SOLVED for its warm-seed role above, just not
-                # visited.
-                home_waypoints = (_q_step, home) if _q_step is not None else (home,)
-                home_waypoints = _raise_waypoints + home_waypoints
+                # A HOME-orientation step (home seed) is the second rung:
+                # all three live-rotation seeds converged on the same
+                # far-branch solution there (ibuprofen/metformin), while a
+                # step already at home's rotation makes step -> home a short
+                # same-branch move; the rotation change moves to the
+                # tuck -> step hop, which the containment pass below
+                # screens. Early exit on the first hop that stays off the
+                # shelf slots (planning-budget friendly).
                 # Outer-loop G1-F9 fix: the tuck raises the elbow, and the
                 # straight joint-space hop tuck -> step then bows the TCP up
                 # to z ~1.40 (measured, every slot x med) against the 1.30
@@ -1731,6 +1785,15 @@ class StagedPlan:
                         tcp = np.asarray(fk_ee_pose(cur, embodiment)[0])
                         if tcp[2] > _ceiling:
                             return False
+                        # G1-F11: never sweep low over a shelf slot (a
+                        # sideways bow took the fingers 27 mm into the
+                        # (0.28, 0.02) box on the way home)
+                        if (
+                            _slots_xy.size
+                            and tcp[2] < 1.0
+                            and float(np.min(np.linalg.norm(_slots_xy - tcp[:2], axis=1))) < 0.09
+                        ):
+                            return False
                         if corridor and not (np.all(box_lo <= tcp) and np.all(tcp <= box_hi)):
                             return False
                     return True
@@ -1743,7 +1806,14 @@ class StagedPlan:
                     if deadline is not None and time.monotonic() > deadline:
                         return [q_b]
                     pos_a, rot_a = fk_ee_pose(np.asarray(q_a, dtype=np.float32)[:7], embodiment)
-                    pos_b = fk_ee_pose(np.asarray(q_b, dtype=np.float32)[:7], embodiment)[0]
+                    pos_b, rot_b = fk_ee_pose(np.asarray(q_b, dtype=np.float32)[:7], embodiment)
+                    # G1-F11: SLERPED midpoint orientation — holding rot_a
+                    # piled the whole rotation into the last sub-hop into a
+                    # differently-oriented step (a 5 cm Cartesian hop with a
+                    # large joint delta bowed the fingers into a shelf box)
+                    rot_a = quat_to_rotation(
+                        _slerp(rotation_to_quat(rot_a), rotation_to_quat(rot_b), 0.5)
+                    )
                     mid = 0.5 * (np.asarray(pos_a) + np.asarray(pos_b))
                     mid[2] = min(float(mid[2]), _ceiling - 0.04)
                     seed = 0.5 * (
@@ -1758,14 +1828,80 @@ class StagedPlan:
                         q_m, q_b, depth - 1, True
                     )
 
-                _contained: list = []
-                _prev = np.asarray(clear_path[-1], dtype=np.float64)
-                for _wp in home_waypoints:
-                    _contained.extend(
-                        _contain_hop(_prev, np.asarray(_wp, dtype=np.float64), 3, False)
+                def _assemble(q_step) -> tuple[tuple, bool]:
+                    """Contained home chain for a step candidate, and whether
+                    every resulting hop stays under the ceiling band AND off
+                    the shelf slots (a containment midpoint once routed the
+                    fingers through the (0.28, 0.02) box, -27 mm)."""
+                    waypoints = _raise_waypoints + (
+                        (q_step, home) if q_step is not None else (home,)
                     )
-                    _prev = np.asarray(_wp, dtype=np.float64)
-                home_waypoints = tuple(_contained)
+                    contained: list = []
+                    prev = np.asarray(clear_path[-1], dtype=np.float64)
+                    for wp in waypoints:
+                        contained.extend(
+                            _contain_hop(prev, np.asarray(wp, dtype=np.float64), 3, False)
+                        )
+                        prev = np.asarray(wp, dtype=np.float64)
+                    hops = [np.asarray(clear_path[-1], dtype=np.float64)] + [
+                        np.asarray(q, dtype=np.float64) for q in contained
+                    ]
+                    ok = all(
+                        _hop_ok(x, y, False) and _home_hop_score(y, x)[0] == 0
+                        for x, y in zip(hops, hops[1:], strict=False)
+                    )
+                    return tuple(contained), ok
+
+                _home_rot = fk_ee_pose(np.asarray(home, dtype=np.float32)[:7], embodiment)[1]
+                _q_step = None
+                _accepted_chain = None
+                _best_score = (2, np.inf)
+                # Warm single-DLS rungs first (cheap), the cold ladder only if
+                # no warm candidate yields an accepted chain (planning budget:
+                # three cold solves here pushed plans to 5.9 s of 5.5 s).
+                _rungs = (
+                    (_rot, _G1_STEP_BRANCH_SEED),
+                    (_home_rot, home[:7]),
+                    (_rot, home[:7]),
+                    (_rot, _raise_waypoints[-1]),
+                )
+                for _solver in ("warm", "cold"):
+                    if _accepted_chain is not None:
+                        break
+                    for _step_rot, _step_seed in _rungs:
+                        _seed_q = np.asarray(_step_seed, dtype=np.float32)[:7]
+                        _cand = (
+                            _dl_once(np.array([0.39, -0.08, 1.08]), _step_rot, _seed_q, embodiment)
+                            if _solver == "warm"
+                            else _dl_solve(
+                                np.array([0.39, -0.08, 1.08]),
+                                _step_rot,
+                                _seed_q,
+                                embodiment=embodiment,
+                            )
+                        )
+                        if _cand is None:
+                            continue
+                        _score = _home_hop_score(_cand)
+                        if _score < _best_score:
+                            _q_step, _best_score = _cand, _score
+                        if _score[0] == 0:
+                            _chain, _chain_ok = _assemble(_cand)
+                            if _chain_ok:
+                                _q_step, _accepted_chain = _cand, _chain
+                                break
+                # G1-F9: the F7 mid驿站 is DROPPED — under the
+                # retreat+tuck prefix its branch-flip hop (tuck -> mid,
+                # delta ~2.7 rad) only re-dipped the hand toward the
+                # seated box (measured home[3] tail 7.6mm on metformin vs
+                # the 2cm gate; ibuprofen 10.6mm). The direct tuck -> step
+                # -> home chain measures >= 50.6mm hand-tail and >= 24.7mm
+                # true non-hand gap across all 25 slot x med cases. _q_mid
+                # is still SOLVED for its warm-seed role above, just not
+                # visited.
+                home_waypoints = (
+                    _accepted_chain if _accepted_chain is not None else _assemble(_q_step)[0]
+                )
         else:
             home_waypoints = (home,)
         self.stages = [
@@ -2038,7 +2174,7 @@ def main() -> None:
     tray_pos = layout["tray"]["pos"]
     tray_xy = (float(tray_pos[0]), float(tray_pos[1]))
     home = np.asarray(physics["embodiment"][embodiment]["home_qpos"], dtype=np.float32)
-    max_vel = float(os.environ.get("AISLE_MAX_JOINT_VEL", "1.0"))
+    max_vel = executor_max_vel(os.environ, physics["embodiment"][embodiment])
     dt = 0.01  # joint_state contract cadence (TC-4)
     mount = wrist_mount_transform(physics["cameras"], physics["embodiment"][embodiment]).astype(
         np.float64

@@ -205,3 +205,20 @@ def test_g1_manifests_open_and_only_bridge_manifests_still_mismatch():
     }
     assert mismatched <= bridge, sorted(mismatched - bridge)
     assert "ik-trajectory" not in mismatched and "grasp-planner-topdown" not in mismatched
+
+
+def test_executor_speed_reads_the_g1_profile_unless_env_overrides():
+    """G1-F11 (per-episode wall budget): the executor's joint-velocity cap
+    comes from AISLE_MAX_JOINT_VEL when set, else the embodiment profile's
+    executor_max_joint_vel_rad_s, else the historical 1.0 — so franka and
+    so101 (no key) keep 1.0, and g1_right stays under its 2.0 rad/s guard
+    envelope (qdot_max)."""
+    from aisle.nodes.budget_guard import load_limits
+    from aisle.nodes.ik_trajectory import executor_max_vel
+
+    g1 = PHYSICS["embodiment"]["g1_right"]
+    assert executor_max_vel({}, g1) == pytest.approx(float(g1["executor_max_joint_vel_rad_s"]))
+    assert executor_max_vel({}, g1) < max(load_limits("g1_right").qdot_max[:7])
+    assert executor_max_vel({"AISLE_MAX_JOINT_VEL": "0.7"}, g1) == pytest.approx(0.7)
+    for other in ("franka", "so101"):
+        assert executor_max_vel({}, PHYSICS["embodiment"][other]) == pytest.approx(1.0)

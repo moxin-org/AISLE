@@ -532,6 +532,13 @@ _PRE_APPROACH = {"rise", "staging", "pregrasp", "preclose"}
 #: open fingers ring the box at the release hover by construction).
 _POST_RELEASE = {"release", "clear", "home"}
 _SWEEP_CLEAR_M = 0.015
+#: ADR-g1-shelf-lattice (operator ruling 2026-10-23): on the re-latticed
+#: 0.065 m slot pitch the grasp/carry window cannot keep 15 mm from a
+#: worst-case neighbour (measured 9.2-15 mm against the widest med at every
+#: slot); 10 physical smoke episodes moved non-target boxes <= 0.4 mm. Those
+#: stages keep 8 mm; every other stage keeps the F9 15 mm.
+_GRASP_CARRY_CLEAR_M = 0.008
+_GRASP_CARRY_STAGES = frozenset({"advance", "close", "lift", "transfer"})
 
 
 def _arm_boxes(q: np.ndarray):
@@ -681,15 +688,18 @@ def _vertex_gap(verts: np.ndarray, blo: np.ndarray, bhi: np.ndarray) -> float:
 
 
 @pytest.mark.parametrize("med", MED_NAMES)
-def test_arm_links_clear_non_target_boxes_through_the_plan(med):
+@pytest.mark.parametrize("slot_xy", [tuple(map(float, s)) for s in PROFILE["placement_slots_xy"]])
+def test_arm_links_clear_non_target_boxes_through_the_plan(slot_xy, med):
     """G1-F9 (outer smoke relaunch-1): the target box reached the tray
     correctly but the FOREARM/elbow swept non-target boxes on the shelf
     (cetirizine displaced 3.3cm, metformin 1.0cm -> oracle collision). The
     existing lattice checks only the hand AABB at HOME; this walks the
     EXECUTOR-INTERPOLATED stream of the whole plan and asserts every arm
-    link keeps >= 1.5cm from every NON-target box, and from the target
+    link keeps >= 1.5cm (0.8cm in the grasp/carry window, ADR-g1-shelf-lattice)
+    from every NON-target box, and from the target
     box outside the approach->lift window."""
-    slot_xy = (0.28, -0.24)  # the smoke's offending far slot
+    # G1-F11: every slot (was the smoke's offending (0.28, -0.24) only);
+    # the re-latticed shelf put a slot beside the home approach
     plan = _cached_plan(_PLAN_CACHE, slot_xy, med)
     # the shelf boxes are STATIC — build their AABBs once
     static_boxes = [
@@ -703,6 +713,26 @@ def test_arm_links_clear_non_target_boxes_through_the_plan(med):
     # separately below — other meds on the target slot are phantom boxes
     # that never exist in a scene
     non_target = [b for b in static_boxes if b[0] != slot_xy]
+    # G1-F11 (smoke 2ee2cb9 seed 5, dropped): the shelf STRUCTURE is an
+    # obstacle too — the home -> rise wrist flip jammed on the upper-level
+    # rear rail (wrist yaw stuck 0.71 rad, every grasp stage bailed, the
+    # misplaced hand then shoved the target off the shelf edge). Every
+    # level board joins the sweep (rear-aligned, LAYOUT geometry).
+    shelf = LAYOUT["shelf"]
+    sx, sy, sz = (float(v) for v in shelf["pos"])
+    rear_x = sx + float(shelf["level_size"][0]) / 2
+    half_y = float(shelf["level_size"][1]) / 2
+    half_t = float(shelf["board_thickness"]) / 2
+    for height, depth in zip(shelf["level_heights"], shelf["level_depths"], strict=True):
+        z = sz + float(height)
+        non_target.append(
+            (
+                "shelf",
+                f"board@{float(height):.2f}",
+                np.array([rear_x - float(depth), -half_y, z - half_t]),
+                np.array([rear_x, half_y, z + half_t]),
+            )
+        )
     target = next(b for b in static_boxes if b[0] == slot_xy and b[1] == med)
     worst = np.inf
     worst_at = None
@@ -713,15 +743,22 @@ def test_arm_links_clear_non_target_boxes_through_the_plan(med):
             while not np.allclose(current, target_q, atol=1e-6):
                 current = interpolate_step(current, target_q, 1.0, 0.01)
                 for lname, lo, hi in _arm_boxes(current):
+                    need = (
+                        _GRASP_CARRY_CLEAR_M
+                        if stage.name in _GRASP_CARRY_STAGES
+                        else _SWEEP_CLEAR_M
+                    )
                     for oslot, omed, blo, bhi in non_target:
                         gap = _aabb_gap(lo, hi, blo, bhi)
-                        if gap < worst:
-                            worst, worst_at = gap, (stage.name, lname, oslot, omed)
+                        if gap - need < worst:
+                            worst, worst_at = gap - need, (stage.name, lname, oslot, omed, gap)
                     if stage.name in _PRE_APPROACH:
                         gap = _aabb_gap(lo, hi, target[2], target[3])
-                        if gap < worst:
-                            worst, worst_at = gap, (stage.name, lname, "TARGET", med)
-    assert worst >= _SWEEP_CLEAR_M, f"worst gap {worst * 1000:.1f}mm at {worst_at}"
+                        if gap - need < worst:
+                            worst, worst_at = gap - need, (stage.name, lname, "TARGET", med, gap)
+    # worst = smallest (gap - stage requirement): 15 mm, or 8 mm in the
+    # grasp/carry window (ADR-g1-shelf-lattice)
+    assert worst >= 0.0, f"worst margin {worst * 1000:.1f}mm at {worst_at}"
     # addendum check: non-hand links vs the SEATED box, post-release
     seated_lo, seated_hi = _placed_box_aabb(med)
     current = HOME[:7].copy()
@@ -789,3 +826,19 @@ def test_carried_box_clears_every_shelf_box_lift_to_lower(slot_xy, med):
                     if gap < worst:
                         worst, worst_at = gap, (stage.name, np.round(tcp, 3))
     assert worst >= 0.01, (slot_xy, med, worst, worst_at)
+
+
+@pytest.mark.parametrize("med", list(MEDS))
+@pytest.mark.parametrize("slot_xy", [tuple(map(float, s)) for s in PROFILE["placement_slots_xy"]])
+def test_plan_keeps_shoulder_roll_off_the_torso(slot_xy, med):
+    """SCN-4, G1-F11 (50-seed gate e6363bb, pass1 0.76): all 12 failures
+    were slot (0.28, 0.08), every one with 'advance/close bailed at joint
+    1 err ~0.15'. Genesis hold probe: right_shoulder_roll_link contacts
+    torso_link from shoulder roll ~0.0 rad and stops at +0.039, while the
+    plan asked +0.198. Every waypoint of every stage keeps shoulder roll
+    at or below the profile's planning bound ik_shoulder_roll_max_rad."""
+    plan = _cached_plan({}, slot_xy, med)
+    assert plan.ok, plan.error
+    bound = float(PROFILE["ik_shoulder_roll_max_rad"])
+    worst = max(float(np.asarray(q)[1]) for stage in plan.stages for q in stage.path)
+    assert worst <= bound + 1e-6, (slot_xy, med, worst, bound)
