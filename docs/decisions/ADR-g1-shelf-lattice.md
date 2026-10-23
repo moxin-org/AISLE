@@ -44,6 +44,16 @@ shoulder into the torso to reach it.
    requires 8 mm in those four stages and keeps 15 mm everywhere else; the
    oracle's collision threshold (3 cm displacement) is unchanged.
 
+4. **Upper rail raised out of reach.** The so101-style upper rear rail
+   (level height 0.34, z 1.10, 10 mm deep) held no slot but sat inside the
+   G1 home hand's envelope; the home -> rise wrist flip swept 58–67 mm
+   through it for every slot × med, and smoke `2ee2cb9` seed 5 jammed on it
+   (wrist yaw stuck 0.71 rad, every grasp stage bailed, the misplaced hand
+   pushed the target off the shelf edge — `dropped`). Removing the level
+   would break SCN-3's staggered two-level requirement, so the rail moves
+   to level height 0.60 (z 1.36, above the 1.30 workspace ceiling). The
+   arm-link sweep now includes every shelf board as an obstacle.
+
 Supporting planner changes made for the new lattice (all G1-only):
 transfer detours through a front waypoint only when the straight chord
 passes within `trajectory_transfer_chord_clear_m` (0.07) of another slot,

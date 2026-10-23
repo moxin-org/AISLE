@@ -445,10 +445,16 @@ ee_frame_offset_rpy = [0.0, 1.5707963, 0.0]
 reach_m = 1.30
 placement_radius_m = 0.45
 # Waist-height shelf in front of the right shoulder (y biased to the
-# robot's right, -y): two levels, the upper a 10 mm rear rail like so101
-# (geometry-only; the reach pre-filter excludes it).
+# robot's right, -y): two levels per SCN-3 (staggered, rear-aligned, the
+# upper a 10 mm rail like so101). G1-F11: the upper rail RAISED 0.34 ->
+# 0.60 (z 1.10 -> 1.36, above the 1.30 workspace ceiling). At 1.10 it held
+# no slot yet sat inside the G1 home hand's envelope: the home -> rise
+# wrist flip swept 58-67 mm through it (every slot x med), and smoke
+# 2ee2cb9 seed 5 jammed on it (wrist yaw stuck 0.71 rad, every grasp
+# stage bailed, the misplaced hand pushed the target off the shelf edge
+# -> dropped).
 shelf_pos = [0.30, 0.0, 0.76]
-shelf_level_heights = [0.06, 0.34]
+shelf_level_heights = [0.06, 0.60]
 shelf_level_depths = [0.24, 0.01]
 # y width 0.56 (outer-loop #6 ruling): the same-side replacement slot
 # [0.28, -0.24] needs the wider board (y in [-0.28, 0.28] with margins).

@@ -713,6 +713,26 @@ def test_arm_links_clear_non_target_boxes_through_the_plan(slot_xy, med):
     # separately below — other meds on the target slot are phantom boxes
     # that never exist in a scene
     non_target = [b for b in static_boxes if b[0] != slot_xy]
+    # G1-F11 (smoke 2ee2cb9 seed 5, dropped): the shelf STRUCTURE is an
+    # obstacle too — the home -> rise wrist flip jammed on the upper-level
+    # rear rail (wrist yaw stuck 0.71 rad, every grasp stage bailed, the
+    # misplaced hand then shoved the target off the shelf edge). Every
+    # level board joins the sweep (rear-aligned, LAYOUT geometry).
+    shelf = LAYOUT["shelf"]
+    sx, sy, sz = (float(v) for v in shelf["pos"])
+    rear_x = sx + float(shelf["level_size"][0]) / 2
+    half_y = float(shelf["level_size"][1]) / 2
+    half_t = float(shelf["board_thickness"]) / 2
+    for height, depth in zip(shelf["level_heights"], shelf["level_depths"], strict=True):
+        z = sz + float(height)
+        non_target.append(
+            (
+                "shelf",
+                f"board@{float(height):.2f}",
+                np.array([rear_x - float(depth), -half_y, z - half_t]),
+                np.array([rear_x, half_y, z + half_t]),
+            )
+        )
     target = next(b for b in static_boxes if b[0] == slot_xy and b[1] == med)
     worst = np.inf
     worst_at = None

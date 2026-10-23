@@ -46,7 +46,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 44 |
 | CLI command entries | 39 |
-| ADR files | 90 |
+| ADR files | 91 |
 
 ## Graphs
 
@@ -289,6 +289,7 @@ inference.
 | [docs/decisions/ADR-dora-source-pin.md](../decisions/ADR-dora-source-pin.md) | ADR-dora-source-pin — Support a source-pinned Dora CLI | ACCEPTED — maintainer-authorized source installation; candidate adoption remains gated. |
 | [docs/decisions/ADR-g1-driver.md](../decisions/ADR-g1-driver.md) | ADR-g1-driver — G1 hardware driver (`g1-driver`) | PROPOSED (G1-D/G1-D-r1, outer-loop entries #2/#3; draft amendment lane, not for main) |
 | [docs/decisions/ADR-g1-embodiment.md](../decisions/ADR-g1-embodiment.md) | ADR-g1-embodiment — Unitree G1 support, scope A: `g1_right` wire, mode-15 machine, held-DOF mechanism | PROPOSED — draft for owner review under CON-14/CON-7. This work |
+| [docs/decisions/ADR-g1-shelf-lattice.md](../decisions/ADR-g1-shelf-lattice.md) | ADR-g1-shelf-lattice — G1 slot re-lattice, shoulder-roll planning bound, grasp/carry clearance | PROPOSED — operator rulings 2026-10-22 (re-lattice) and 2026-10-23 |
 | [docs/decisions/ADR-h1-protocol.md](../decisions/ADR-h1-protocol.md) | ADR-h1-protocol — H1 composition-experiment protocol (design doc §8.2.4) | accepted (CON-15: §8.2.4 defines what to record but not the |
 | [docs/decisions/ADR-h2-campaign-protocol.md](../decisions/ADR-h2-campaign-protocol.md) | ADR-h2-campaign-protocol — single-scenario research campaign runner (design doc §8.3 item 6) | accepted (CON-15: §8.3 names the campaign but not the mechanics; |
 | [docs/decisions/ADR-h3-campaign-protocol.md](../decisions/ADR-h3-campaign-protocol.md) | ADR-h3-campaign-protocol — H3 accumulation campaign, S1→S2→S3 (design doc §11.5, §8.4) | accepted 2026-07-27 (decisions D1–D6 resolved by human; D1 |
