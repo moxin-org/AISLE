@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:3e23d000fa6f041dcbbec4c9849d72c0f0f74caf6ed60fba7095c8ff5b256690",
+  "immutable_id": "sha256:60af0819ae362817038cb00d6ae961e83fef554049d2add361e4e3386ded1b16",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -8,7 +8,7 @@
       "justification": "this is the treatment: bundled typed-dataflow engineering surface versus one ordinary module",
       "monolithic": "experts/monolithic/expert_t1.py#sha256:e917cc9b8dd1a323d633e5d96a9af5f485dff2b594e5b2c75ebb8c853a81f25e",
       "surface": "agent deliverable",
-      "typed": "graphs/expert_t1.yaml#sha256:1720e793851ff408b8b6d60d5f4723358db395d7c69844b5d9d64501a1dcc2ef"
+      "typed": "graphs/expert_t1.yaml#sha256:5ee5cc645081cb0e2019b843a0da027b34077fd58202ce8193a53c8dfb305651"
     },
     {
       "analysis": "recorded as treatment property; check/run attempt and error events compared descriptively",
@@ -17,7 +17,7 @@
       "justification": "part of the bundled treatment; absence is a declared property, not missing data (MON-12)",
       "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "static validation and diagnostics",
-      "typed": "src/aisle/harness/validate.py#sha256:58e860b6b5cbfe66948cbfddae25c2de46e17001f2fce868689c4829d963a117"
+      "typed": "src/aisle/harness/validate.py#sha256:154cc96b42399752d87acb9a8ea81761b06469e9baac7f42bcc7820072339322"
     },
     {
       "analysis": "treatment property",
@@ -35,7 +35,7 @@
       "justification": "each arm documents its own representation; task, goals, budgets and evaluator text are shared",
       "monolithic": "docs/monolithic/primitive-api.md#sha256:acbb2e5f2618555d17301be643124e0eded242b195fc0661a7acfd3a811fab6b",
       "surface": "documentation given to the agent",
-      "typed": "harness/CLAUDE.research.md#sha256:4294608b814889307577e6ade7ed4f0dde5dba098f91a69ca441d070590a3daf"
+      "typed": "harness/CLAUDE.research.md#sha256:9c1fb1561bf6c20d6e43e6ffd46f8903203379f3fd6d91a14adddff7bbd988e1"
     },
     {
       "analysis": "held fixed; pinned by tests/unit/test_monolith_surface.py (same objects)",
@@ -44,7 +44,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/monolith/primitives.py#sha256:b408cf09cb4a2dc76a43bee63f0b61a46e247361cad307ec71f182e3d797a06d",
       "surface": "robot primitives (pose, grasp, trajectory, executor)",
-      "typed": "src/aisle/nodes/segmented_pose.py#sha256:fdaea68f2a5ba45f745e1f5ba185669daa6f874bd19a13d1a6f523e8eab392f4"
+      "typed": "src/aisle/nodes/segmented_pose.py#sha256:119eb169b59b27678d873298045073c904878842dfb0044e1297f564c923624b"
     },
     {
       "analysis": "held fixed; exactness checked by harness monolith interface",
@@ -71,7 +71,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "graphs/monolithic_t1.yaml#sha256:eaa2a37d76a1795f23702f87eb51bbb42a0432c2d10150a5e9ba544d6a1a53a7",
       "surface": "guard route and limits",
-      "typed": "src/aisle/nodes/budget_guard.py#sha256:0131a0f321f7e8f60c86b18870eeb2d1267a62508029c3c6c04e99b5c61f8e97"
+      "typed": "src/aisle/nodes/budget_guard.py#sha256:9423e941ad0f31a38d944009f4d1d595926207f55854842d372c0a62ce9b9428"
     },
     {
       "analysis": "held fixed; graphs differ only inside the agent region (tests/graph/test_monolithic_graph.py)",
@@ -80,7 +80,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/nodes/monolith_broker.py#sha256:872741da1be8cfa0c89a4ee77ee4fb8a457f130a48228d39ebb8e09a84ee3d46",
       "surface": "trusted controller (bridge, reset, verifier, rollout client, turn barrier)",
-      "typed": "src/aisle/nodes/dora_genesis.py#sha256:1d2bfb3aaecf60e664649ed2ee9b09deded448080b7efcdc9b655af4c70fb3aa"
+      "typed": "src/aisle/nodes/dora_genesis.py#sha256:bed470349b679d59f8329caefabe4356cf14b54f45be23b9326f8a302f463b58"
     },
     {
       "analysis": "excluded from task authority (MON-4); no analysis treatment",
@@ -123,7 +123,7 @@
       "classification": "intentionally-different",
       "id": "mon1-14",
       "justification": "the module runs in the broker's process, so an in-process denial layer is needed in addition to #353",
-      "monolithic": "src/aisle/monolith/confinement.py#sha256:cede488ddcbb5fabc59de80f17f486afe57da27b462fd5f03d60c6649c11b688",
+      "monolithic": "src/aisle/monolith/confinement.py#sha256:2cbf156330623150faf7ce10d6cb03dba928c579bafc72b12abcc78cc88e0330",
       "surface": "confinement",
       "typed": "specs/460-actuation-threat-model.md#sha256:3127ee11b74545a2fb4fbef11c3966527ce87fdbab18140975d41d9f40819ec0"
     }

@@ -179,6 +179,9 @@ def test_bridge_info_shape():
         "sim_backend": "metal",
         # ADR-67: the engine that realized the scene
         "sim_engine": "genesis",
+        # G1-C3: optional startup render-warmup attestation (per-channel
+        # seconds); None when the bridge info is built outside a run
+        "render_warmup_s": None,
     }
     assert info["platform"]
     assert info["calibration"]["calibration_version"] == 1

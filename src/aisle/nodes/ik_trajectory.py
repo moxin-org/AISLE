@@ -13,7 +13,9 @@ run).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
+from functools import lru_cache
 
 import numpy as np
 
@@ -149,6 +151,23 @@ TRANSFER_TCP_Z = 0.30
 HAND_MOUNT_YAW = -math.pi / 4
 
 _RZ_PI = np.diag([-1.0, -1.0, 1.0])  # local z spin: box-symmetric grasp flip
+#: G1-F10: measured good-branch config at the home-adjacent step waypoint
+#: (TCP [0.39, -0.08, 1.08]); a fixed seed so the step solve never lands on
+#: the shoulder-yaw-flipped branch whose hop into home sweeps the shelf.
+_G1_STEP_BRANCH_SEED = np.array(
+    [-2.006, -0.223, -0.559, 1.773, -1.846, 0.225, 1.614], dtype=np.float32
+)
+#: G1-F2: the shared topdown_quat bakes in the Franka hand-mount yaw
+#: (HAND_MOUNT_YAW); the G1 TCP (rpy [0, pi/2, 0]) has NO mount offset, so
+#: the G1 branch un-yaws planner quats by +pi/4 — net Rz(yaw) @ Rx(pi),
+#: palm down with the Dex1 finger straddle at the planner's intended yaw.
+_RZ_QUARTER = np.array(
+    [
+        [math.cos(math.pi / 4), -math.sin(math.pi / 4), 0.0],
+        [math.sin(math.pi / 4), math.cos(math.pi / 4), 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+)
 # canonical retry seeds (CON-5: a FIXED list, tried in order): DLS from the
 # home posture stalls in a local minimum for horizontal-wrist targets; a
 # wrist-forward posture reaches them in <150 iterations
@@ -185,16 +204,191 @@ def _so101_seeds() -> tuple[np.ndarray, ...]:
 _SO101_CANONICAL_SEEDS = _so101_seeds()
 
 
-def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
-    limits = load_limits(embodiment)
+def _g1_seeds() -> tuple[np.ndarray, ...]:
+    """Fixed low-discrepancy starts over the official G1 right-arm limits
+    (CON-5), HOME FIRST (the bent ready pose is inside the top-down basin),
+    then van der Corput starts = the profile's ik_max_starts. G1-F8: the
+    count is now actually READ from the profile (the range was hardcoded
+    to 31 while the docstring claimed the key); 16 starts keep the whole
+    lattice plannable (measured sweep: 25/25 at 16) while halving every
+    cold-ladder walk inside the turn budget."""
+    from aisle.scenes.pharmacy import load_physics  # local: mirrors the file's import style
+
+    limits = load_limits("g1_right")
+    n_starts = int(load_physics()["embodiment"]["g1_right"].get("ik_max_starts", 32))
+    lower = np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64)
+    upper = np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64)
+    primes = (2, 3, 5, 7, 11, 13, 17)
+    starts = [np.asarray(limits.fallback_qpos[: limits.n_arm_dof], dtype=np.float32)]
+    starts.extend(
+        (lower + (upper - lower) * np.array([_van_der_corput(i, p) for p in primes])).astype(
+            np.float32
+        )
+        for i in range(1, n_starts)
+    )
+    return tuple(starts)
+
+
+_G1_CANONICAL_SEEDS = _g1_seeds()
+
+
+@lru_cache(maxsize=1)
+def _g1_ik_tolerances() -> tuple[int, float, float]:
+    """G1-F2: solver budget and tolerances come from the frozen scene
+    profile's ik_* keys (physics.toml [embodiment.g1_right]), not from
+    this module — tuning lands in the profile where the scene lives."""
+    from aisle.scenes.pharmacy import load_physics
+
+    profile = load_physics()["embodiment"]["g1_right"]
     return (
-        np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64),
-        np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64),
+        int(profile["ik_max_solver_iters"]),
+        float(profile["ik_pos_tol_m"]),
+        float(profile["ik_rot_tol_rad"]),
     )
 
 
+_G1_ROLL_JUMP_MAX = 0.35  # rad per roll waypoint; far under CONTINUITY_MAX
+
+
+def _g1_roll_at(
+    q: np.ndarray,
+    pos: np.ndarray,
+    rot_from: np.ndarray,
+    rot_to: np.ndarray,
+    deadline: float | None = None,
+) -> list[np.ndarray]:
+    """In-place orientation continuation for the G1 wrist (G1-F2).
+
+    Measured basin facts: cold-start DLS in the planner-yaw frame stalls
+    0.28 rad out on the far slot column (all 64 seeds), while rolling the
+    orientation there from the converged transit-frame solution converges
+    to ~5e-3 rad. Two failure modes seen on the C1 lattice and handled
+    here: (a) a roll step can snap to a different IK branch (3.2 rad joint
+    jump) — such steps are bisected up to depth 4 and the parity rejected
+    if still jumpy; (b) holding orientation through the ladder lets the
+    TCP position drift ~2.5 cm — a position-only polish pulls it back
+    before a light full-pose settle. Returns [] on gate failure (the
+    caller tries the 180-degree tool-z parity next)."""
+    qa = rotation_to_quat(rot_from)  # xyzw
+    qb = rotation_to_quat(rot_to)
+    if float(qa @ qb) < 0.0:
+        qb = -qb
+    theta = math.acos(float(np.clip(qa @ qb, -1.0, 1.0)))
+
+    def rot_at(f: float) -> np.ndarray:
+        if theta < 1e-9:
+            return rot_to
+        wa = math.sin((1.0 - f) * theta) / math.sin(theta)
+        wb = math.sin(f * theta) / math.sin(theta)
+        return quat_to_rotation(wa * qa + wb * qb)
+
+    def step(qc: np.ndarray, f0: float, f1: float, depth: int):
+        if deadline is not None and time.monotonic() > deadline:
+            raise TimeoutError
+        iters_t, pos_t, rot_t = _g1_ik_tolerances()
+        qn = _dls(
+            qc,
+            pos,
+            rot_at(f1),
+            slice(0, 6),
+            60,
+            "g1_right",
+            tols=(2.0 * pos_t, rot_t),  # the roll's own hover gate
+            deadline=deadline,
+        )
+        if float(np.abs(qn - qc).max()) > _G1_ROLL_JUMP_MAX:
+            if depth >= 4:
+                return None  # a branch flip, not a step
+            mid = 0.5 * (f0 + f1)
+            first = step(qc, f0, mid, depth + 1)
+            if first is None:
+                return None
+            second = step(first[-1], mid, f1, depth + 1)
+            return None if second is None else first + second
+        return [qn]
+
+    q = np.asarray(q, dtype=np.float64)
+    configs: list[np.ndarray] = []
+    f_prev = 0.0
+    try:
+        for f in np.linspace(0.05, 1.0, 20):
+            chunk = step(q, f_prev, float(f), 0)
+            if chunk is None:
+                return []
+            configs.extend(chunk)
+            q = chunk[-1]
+            f_prev = float(f)
+        iters, pos_tol, rot_tol = _g1_ik_tolerances()
+        q = _dls(
+            q,
+            pos,
+            rot_to,
+            slice(0, 3),
+            iters,
+            "g1_right",
+            tols=(2.0 * pos_tol, rot_tol),
+            deadline=deadline,
+        )  # pull position home
+        q = _dls(
+            q,
+            pos,
+            rot_to,
+            slice(0, 6),
+            max(iters // 2, 40),
+            "g1_right",
+            tols=(2.0 * pos_tol, rot_tol),
+            deadline=deadline,
+        )
+    except TimeoutError:
+        return []
+    err = _pose_error(q, pos, rot_to, "g1_right")
+    # the roll target is the PREGRASP HOVER (pregrasp_height_m above the
+    # box): a couple of cm of position there is harmless because the
+    # advance continuation re-converges on the exact grasp pose under the
+    # profile tolerance — measured Pareto point on the far slot column is
+    # pos 0.023 / rot 0.106. Rotation keeps the FULL profile gate: a
+    # tilted palm at pre means a tilted insertion.
+    if np.linalg.norm(err[:3]) >= 2.0 * pos_tol or np.linalg.norm(err[3:]) >= rot_tol:
+        return []
+    configs.append(q.astype(np.float32))
+    return configs
+
+
+#: G1-E/F2: g1_right solves on the G1-F1 official-URDF chain; any other
+#: unknown embodiment MUST raise here instead of silently solving the
+#: Franka chain (HAR-1; the pre-G1-E fall-through was the bug).
+_SUPPORTED_EMBODIMENTS = ("franka", "mobile", "so101", "g1_right")
+
+
+def _require_supported_embodiment(embodiment: str, fn: str) -> None:
+    if embodiment not in _SUPPORTED_EMBODIMENTS:
+        raise ValueError(f"{fn}: unsupported embodiment {embodiment!r}")
+
+
+@lru_cache(maxsize=8)
+def _arm_bounds(embodiment: str) -> tuple[np.ndarray, np.ndarray]:
+    limits = load_limits(embodiment)
+    lower = np.asarray(limits.q_min[: limits.n_arm_dof], dtype=np.float64)
+    upper = np.asarray(limits.q_max[: limits.n_arm_dof], dtype=np.float64)
+    if embodiment == "g1_right":
+        # G1-F11: planning-only shoulder-roll bound — past ~0.0 rad the
+        # right shoulder roll link hits the torso in Genesis (the guard's
+        # envelope stays the official limit).
+        from aisle.scenes.pharmacy import load_physics  # local: mirrors _g1_seeds
+
+        bound = load_physics()["embodiment"]["g1_right"].get("ik_shoulder_roll_max_rad")
+        if bound is not None:
+            upper = upper.copy()
+            upper[1] = min(float(upper[1]), float(bound))
+    lower.setflags(write=False)
+    upper.setflags(write=False)
+    return lower, upper
+
+
 def fk_tcp(q_arm: np.ndarray, embodiment: str = "franka") -> np.ndarray:
-    if embodiment == "so101":
+    _require_supported_embodiment(embodiment, "fk_tcp")
+    if embodiment in ("so101", "g1_right"):
+        # both URDF chains carry their fixed TCP frame in the chain tip
         return fk_ee_pose(q_arm, embodiment)[0]
     pos, rotation = fk_flange(q_arm)
     return pos + rotation[:, 2] * TCP_OFFSET
@@ -515,6 +709,13 @@ def _rotation_error(current: np.ndarray, target: np.ndarray) -> np.ndarray:
 def _pose_error(
     q: np.ndarray, target_pos: np.ndarray, target_rot: np.ndarray, embodiment: str
 ) -> np.ndarray:
+    _require_supported_embodiment(embodiment, "_pose_error")
+    if embodiment == "g1_right":
+        # 7-DOF redundant arm: the FULL six-row pose error (position plus
+        # all three orientation rows) — no so101-style underactuation
+        # relief, no free yaw
+        tcp, rotation = fk_ee_pose(q, embodiment)
+        return np.concatenate([target_pos - tcp, _rotation_error(rotation, target_rot)])
     if embodiment == "so101":
         tcp, rotation = fk_ee_pose(q, embodiment)
         # SO-101's base pan couples world yaw to target azimuth. Its five
@@ -541,18 +742,29 @@ def _dls(
     rows: slice,
     iters: int,
     embodiment: str,
+    damping: float = 0.05,
+    tols: tuple[float, float] | None = None,
+    deadline: float | None = None,
 ) -> np.ndarray:
     """Damped-least-squares descent on the selected error rows (position
     rows only for the bootstrap, every profile constraint for the full solve). Clamped
     error (CLIK-style) plus a deterministic backtracking line search keep
-    the descent stable near joint limits, where the raw DLS oscillates."""
-    damping = 0.05
+    the descent stable near joint limits, where the raw DLS oscillates.
+    G1-F2: the damping is a parameter so the near-singular far-column
+    polish pass can drop it (default keeps every other embodiment
+    bit-for-bit)."""
     eps = 1e-5
     q_min, q_max = _arm_bounds(embodiment)
     err = _pose_error(q, target_pos, target_rot, embodiment)[rows]
     n = len(err)
     reg = damping**2 * np.eye(n)
     for _ in range(iters):
+        # G1-F8: the turn watchdog bounds the WHOLE plan, so a stalled
+        # descent must stop at the planning deadline (monotonic is ~50ns;
+        # 60k checks cost ~3ms). None/inf = unconstrained (other
+        # embodiments are bit-for-bit unchanged).
+        if deadline is not None and time.monotonic() > deadline:
+            break
         clamped = err.copy()
         pos_norm = np.linalg.norm(clamped[:3])
         if pos_norm > 0.08:
@@ -561,28 +773,115 @@ def _dls(
             rot_norm = np.linalg.norm(clamped[3:])
             if rot_norm > 0.4:
                 clamped[3:] *= 0.4 / rot_norm
-        jac = np.empty((n, len(q)))
-        for j in range(len(q)):
-            dq = q.copy()
-            dq[j] += eps
-            jac[:, j] = (err - _pose_error(dq, target_pos, target_rot, embodiment)[rows]) / eps
+        if embodiment == "g1_right" and deadline is not None:
+            # G1-F8: one batched FK pass for [q, q+eps*e_j ...] replaces
+            # len(q) serial chain walks per iteration (~60k forward calls
+            # per plan -> /7). Math identical to the loop below (verified
+            # <= 1e-12); so101/franka keep the serial path bit-for-bit.
+            from aisle.kinematics import g1_right_chain
+
+            nq = len(q)
+            qs = np.repeat(q[None, :], nq + 1, axis=0)
+            qs[1:] += np.eye(nq) * eps
+            tcp_b, rot_b = g1_right_chain().forward_batch(qs)
+            pert = np.empty((nq + 1, 6))
+            for r in range(nq + 1):
+                pert[r, :3] = target_pos - tcp_b[r]
+                pert[r, 3:] = _rotation_error(rot_b[r], target_rot)
+            jac = ((err[None, :] - pert[1:][:, rows]) / eps).T  # (rows, nq) like the serial path
+        else:
+            jac = np.empty((n, len(q)))
+            for j in range(len(q)):
+                dq = q.copy()
+                dq[j] += eps
+                jac[:, j] = (err - _pose_error(dq, target_pos, target_rot, embodiment)[rows]) / eps
         step = jac.T @ np.linalg.solve(jac @ jac.T + reg, clamped)
         base_norm = np.linalg.norm(err)
-        for _halving in range(4):
-            candidate = np.clip(q + step, q_min, q_max)
-            candidate_err = _pose_error(candidate, target_pos, target_rot, embodiment)[rows]
-            if np.linalg.norm(candidate_err) < base_norm:
+        if embodiment == "g1_right" and deadline is not None:
+            # G1-F8: the backtracking line search evaluated up to 4
+            # candidates SERIALLY per iteration (~20k forward calls per
+            # plan, 37 percent of solve wall) — batch all four halvings
+            # into one FK pass and accept the FIRST norm-improving step,
+            # exactly the original loop's deterministic choice (deepest
+            # halving when none improve).
+            from aisle.kinematics import g1_right_chain
+
+            steps = step[None, :] * (0.5 ** np.arange(4))[:, None]
+            cands = np.clip(q[None, :] + steps, q_min[None, :], q_max[None, :])
+            tcp_b, rot_b = g1_right_chain().forward_batch(cands)
+            cand_errs = np.empty((4, 6))
+            for r in range(4):
+                cand_errs[r, :3] = target_pos - tcp_b[r]
+                cand_errs[r, 3:] = _rotation_error(rot_b[r], target_rot)
+            improved = np.linalg.norm(cand_errs[:, rows], axis=1) < base_norm
+            k = int(np.argmax(improved)) if improved.any() else 3
+            q = cands[k]
+            err = cand_errs[k][rows]
+        else:
+            for _halving in range(4):
+                candidate = np.clip(q + step, q_min, q_max)
+                candidate_err = _pose_error(candidate, target_pos, target_rot, embodiment)[rows]
+                if np.linalg.norm(candidate_err) < base_norm:
+                    break
+                step = step / 2
+            q = candidate
+            err = candidate_err  # carry: next iteration reuses the accepted error
+        # G1-F8 early exit: once BOTH tolerances are met there is nothing
+        # left to buy — running the remaining budget (200-400 iterations
+        # per call x ~140 calls per plan) burned 3x the turn watchdog.
+        # None keeps every other embodiment bit-for-bit (they never pass
+        # tols).
+        if tols is not None:
+            n_rows = len(err)
+            pos_err = np.linalg.norm(err[: min(3, n_rows)])
+            rot_err = np.linalg.norm(err[3:]) if n_rows > 3 else 0.0
+            # exit at HALF the tolerance, not the tolerance itself: a
+            # just-inside-tolerance stop leaves the TCP up to 2.5 cm off
+            # target and ate the F7 2 cm withdrawal margin (measured:
+            # tail_min 0.0004 vs the 0.02 gate) — the full-budget descent
+            # used to converge deeper. Half keeps nearly all the saved
+            # iterations (the descent is near-linear this close).
+            if pos_err < 0.5 * tols[0] and rot_err < 0.5 * tols[1]:
                 break
-            step = step / 2
-        q = candidate
-        err = candidate_err  # carry: next iteration reuses the accepted error
     return q
 
 
 def _ik_once(
-    target_pos: np.ndarray, target_rot: np.ndarray, q0: np.ndarray, embodiment: str
+    target_pos: np.ndarray,
+    target_rot: np.ndarray,
+    q0: np.ndarray,
+    embodiment: str,
+    pos_tol_scale: float = 1.0,
+    rows: slice | None = None,
+    deadline: float | None = None,
 ) -> np.ndarray | None:
+    _require_supported_embodiment(embodiment, "_ik_once")
     q = np.asarray(q0, dtype=np.float64).copy()
+    q_start = q.copy()  # G1 polish restarts from the SEED, not the descent
+    if embodiment == "so101":
+        bootstrap_iters, full_iters, pos_tol, rot_tol = 80, 250, 0.015, 0.02
+    elif embodiment == "g1_right":
+        # G1-F2: budget and tolerances from the frozen profile (see
+        # _g1_ik_tolerances); bootstrap gets half the budget — the bent
+        # home pose is already near the top-down basin
+        full_iters, pos_tol, rot_tol = _g1_ik_tolerances()
+        bootstrap_iters = max(full_iters // 2, 40)
+    else:
+        bootstrap_iters, full_iters, pos_tol, rot_tol = 60, 150, 5e-4, 1e-3
+    if rows is None:
+        rows = slice(0, 5) if embodiment == "so101" else slice(0, 6)
+    # a free-yaw solve (rows stopping before the last rotation row) gates
+    # rotation on the RETAINED rows only — for a palm-down tool the freed
+    # z-row is pure yaw about gravity, which cannot tilt the held box
+    rot_gate = slice(3, 5) if rows.stop == 5 and rows.start == 0 else slice(3, 6)
+
+    def _within(qc: np.ndarray) -> bool:
+        err = _pose_error(qc, target_pos, target_rot, embodiment)
+        return (
+            np.linalg.norm(err[:3]) < pos_tol * pos_tol_scale
+            and np.linalg.norm(err[rot_gate]) < rot_tol
+        )
+
     for bootstrap in (False, True):
         if bootstrap:
             # position-only descent first: pulls the arm into the right
@@ -592,21 +891,48 @@ def _ik_once(
                 target_pos,
                 target_rot,
                 slice(0, 3),
-                80 if embodiment == "so101" else 60,
+                bootstrap_iters,
                 embodiment,
+                # G1-F8 early exit is g1_right-only: so101 and franka keep
+                # None so their measured-record IK stays bit-for-bit (the
+                # so101 12-15 s plan vs the 10 s turn watchdog is a
+                # separate main-branch finding, not changed here).
+                tols=(pos_tol * pos_tol_scale, rot_tol) if embodiment == "g1_right" else None,
+                deadline=deadline,
             )
         q = _dls(
             q,
             target_pos,
             target_rot,
-            slice(0, 5 if embodiment == "so101" else 6),
-            250 if embodiment == "so101" else 150,
+            rows,
+            full_iters,
             embodiment,
+            tols=(pos_tol * pos_tol_scale, rot_tol) if embodiment == "g1_right" else None,
+            deadline=deadline,
         )
-        err = _pose_error(q, target_pos, target_rot, embodiment)
-        pos_tol = 0.015 if embodiment == "so101" else 5e-4
-        rot_tol = 0.02 if embodiment == "so101" else 1e-3
-        if np.linalg.norm(err[:3]) < pos_tol and np.linalg.norm(err[3:]) < rot_tol:
+        if _within(q):
+            return q.astype(np.float32)
+    if embodiment == "g1_right":
+        # G1-F2, measured: the far slot column (x=0.24, ~95 percent of the
+        # vertical-forearm budget) stalls 0.4 mm past the position gate at
+        # damping 0.05 — a Pareto plateau, not a basin exit. One low-damping
+        # full-pose pass RESTARTED FROM THE SEED (not the stalled descent:
+        # the descent state sits on the plateau and re-stalls there) lands
+        # pos 0.0248 with rot under 0.02 — same branch, no flip. Damping
+        # below 0.01 DOES flip branches (measured 2.7 rad jump); the
+        # continuation continuity check stays the backstop regardless.
+        q = _dls(
+            q_start,
+            target_pos,
+            target_rot,
+            rows,
+            2 * full_iters,
+            embodiment,
+            damping=0.02,
+            tols=(pos_tol * pos_tol_scale, rot_tol),
+            deadline=deadline,
+        )
+        if _within(q):
             return q.astype(np.float32)
     return None
 
@@ -618,7 +944,19 @@ def ik_continuation(
     q_start: np.ndarray,
     step_m: float = 0.04,
     embodiment: str = "franka",
+    pos_tol_scale: float = 1.0,
+    free_yaw: bool = False,
+    deadline: float | None = None,
 ) -> list[np.ndarray] | None:
+    """`pos_tol_scale` widens ONLY the position gate for free-space
+    carriage stages (G1-F2: staging/transfer/lower/retract hover moves —
+    measured DLS plateau 0.0274 m at the tray hover vs the 0.025 profile
+    gate); shelf-insertion stages keep the full profile tolerance.
+    `free_yaw=True` (G1 transfer only) drops the rotation row about
+    gravity: pure yaw cannot tilt a held box (the T10 creep was wrist
+    TILT), and the wide shelf->tray azimuth swing otherwise stalls the
+    full-pose DLS mid-path (measured at [0.225, 0.087, 1.0]). The place
+    orientation is restored by an in-place roll at the tray hover."""
     """Solve a Cartesian straight-line move by numerical continuation and
     return EVERY substep config: the executor tracks the planned line
     through these waypoints (discarding them and joint-interpolating
@@ -627,11 +965,47 @@ def ik_continuation(
     solve can land wrist-flipped and sweep the arm through the shelf)."""
     from_pos = np.asarray(from_pos, dtype=np.float64)
     to_pos = np.asarray(to_pos, dtype=np.float64)
+    if float(np.linalg.norm(to_pos - from_pos)) == 0.0:
+        # a zero-length Cartesian move is a true no-op: re-solving the same
+        # pose drifts the arm within tolerance onto a nearby configuration
+        # (G1-F2 measured: the redundant re-solve on the zero-length G1
+        # staging continuation moved the branch entering the transit
+        # descent and broke the far-column advance). Stay put instead.
+        return [np.asarray(q_start, dtype=np.float32)]
     n = max(1, int(math.ceil(np.linalg.norm(to_pos - from_pos) / step_m)))
     q = q_start
     path: list[np.ndarray] = []
     for i in range(1, n + 1):
-        q = _ik_once(from_pos + (to_pos - from_pos) * (i / n), target_rot, q, embodiment)
+        waypoint = from_pos + (to_pos - from_pos) * (i / n)
+        prev = q  # the last GOOD config; q may become None below
+        yaw_free = free_yaw and embodiment == "g1_right"
+        if deadline is not None and time.monotonic() > deadline:
+            return None
+        q = _ik_once(
+            waypoint,
+            target_rot,
+            q,
+            embodiment,
+            pos_tol_scale,
+            rows=slice(0, 5) if yaw_free else None,
+            deadline=deadline,
+        )
+        if q is None and embodiment == "g1_right":
+            # G1-F2, measured: the warm-started descent stalls out of basin
+            # on the C1 far slot column (x=0.24, ~95 percent of the 0.394 m
+            # vertical-forearm budget — damping/step/iteration sweeps are
+            # all flat there), while the SAME waypoint converges cold from
+            # the seed ladder (the direct ik_solve tests prove the poses
+            # are in reach). Retry the waypoint cold, seeded first with the
+            # last good config; StagedPlan's CONTINUITY_MAX check still
+            # rejects any branch-flip result.
+            q = ik_solve(waypoint, target_rot, prev, embodiment=embodiment, deadline=deadline)
+            if q is not None and float(np.abs(q - prev).max()) > 0.5:
+                # a cold solve that lands half a radian (or more) away is a
+                # DIFFERENT IK branch — following it mid-path swings the arm
+                # unpredictably. Refuse; the caller reports the stage as
+                # unsolved rather than executing a sweep.
+                q = None
         if q is None:
             return None
         path.append(q)
@@ -643,19 +1017,43 @@ def ik_solve(
     target_rot: np.ndarray,
     q0: np.ndarray,
     embodiment: str = "franka",
+    deadline: float | None = None,
 ) -> np.ndarray | None:
     """DLS-IK for a TCP pose. Deterministic (CON-5): fixed seed pose, fixed
     iteration budget; a box is symmetric under a 180-degree spin about the
     approach axis, so the flipped grasp is tried in fixed order before
     reporting failure."""
+    _require_supported_embodiment(embodiment, "ik_solve")
     target_pos = np.asarray(target_pos, dtype=np.float64)
-    seeds = _SO101_CANONICAL_SEEDS if embodiment == "so101" else _CANONICAL_SEEDS
+    if embodiment == "so101":
+        seeds = _SO101_CANONICAL_SEEDS
+    elif embodiment == "g1_right":
+        seeds = _G1_CANONICAL_SEEDS
+    else:
+        seeds = _CANONICAL_SEEDS
     for rot in (target_rot, target_rot @ _RZ_PI):
         for seed in (q0, *seeds):
-            q = _ik_once(target_pos, rot, seed, embodiment)
+            # G1-F8: one cold ladder walks up to 64 solves (2 rotations x
+            # 32 seeds); without this check a single unreachable ladder
+            # burns straight through the turn watchdog before any
+            # stage-boundary budget check can fire.
+            if deadline is not None and time.monotonic() > deadline:
+                return None
+            q = _ik_once(target_pos, rot, seed, embodiment, deadline=deadline)
             if q is not None:
                 return q
     return None
+
+
+def executor_max_vel(environ, profile: dict) -> float:
+    """Executor joint-velocity cap (rad/s): AISLE_MAX_JOINT_VEL when set,
+    else the embodiment profile's executor_max_joint_vel_rad_s, else the
+    historical 1.0 (franka/so101 carry no key -> unchanged). G1-F11: the
+    g1_right episode ran 120-210 s of wall against the 150 s per-episode
+    budget at 1.0; its guard envelope is 2.0 rad/s per joint."""
+    if "AISLE_MAX_JOINT_VEL" in environ:
+        return float(environ["AISLE_MAX_JOINT_VEL"])
+    return float(profile.get("executor_max_joint_vel_rad_s", 1.0))
 
 
 def interpolate_step(
@@ -704,6 +1102,8 @@ class StagedPlan:
         grasp_pose = np.asarray(grasp_pose, dtype=np.float32).reshape(7)
         grasp_pos = grasp_pose[:3].astype(np.float64)
         grasp_rot = quat_to_rotation(grasp_pose[3:7])
+        if embodiment == "g1_right":
+            grasp_rot = _RZ_QUARTER @ grasp_rot  # strip the Franka mount yaw
         approach_axis = grasp_rot[:, 2]  # flange z: points from wrist to fingertips
         limits = load_limits(embodiment)
         home = np.asarray(q_seed, dtype=np.float32)[: limits.n_arm_dof]
@@ -715,12 +1115,47 @@ class StagedPlan:
         lift_height = float(profile.get("trajectory_lift_m", LIFT_H))
         retract_vel = float(profile.get("trajectory_retract_vel_scale", 0.5))
         transfer_vel = float(profile.get("trajectory_transfer_vel_scale", 0.35))
+        # G1-F5 planning wall budget (profile ik_plan_budget_s): legit
+        # plans measure 4.7-5.8s; ONE unreachable cold solve burns 37.5s
+        # and the staged chain multiplies it (ep0 of the 20261019-234952
+        # smoke burned 9 minutes of lockstep wall with no crash). Checked
+        # at every stage-boundary failure; on expiry the plan fails LOUD
+        # with the budget named instead of freezing the lockstep turn.
+        budget_s = (
+            float(profile.get("ik_plan_budget_s", math.inf))
+            if embodiment == "g1_right"
+            else math.inf
+        )
+        deadline = time.monotonic() + budget_s
+
+        # G1-F8: thread the deadline through EVERY solver call this plan
+        # makes (wrappers keep the call sites readable and guarantee no
+        # site is missed): a stalled stage then ends at the budget instead
+        # of burning through the turn watchdog.
+        def _dl_solve(*a, **k):
+            return ik_solve(*a, **{**k, "deadline": deadline})
+
+        def _dl_cont(*a, **k):
+            return ik_continuation(*a, **{**k, "deadline": deadline})
+
+        def _dl_roll(*a, **k):
+            return _g1_roll_at(*a, **{**k, "deadline": deadline})
+
+        def _dl_once(*a, **k):
+            return _ik_once(*a, **{**k, "deadline": deadline})
+
         pre_pos = grasp_pos - approach_axis * approach_m
         up = np.array([0.0, 0.0, lift_height])
         self.stages: list[Stage] = []
         self.error: str | None = None
 
-        place_rot = grasp_rot if embodiment == "so101" else topdown_rotation(0.0)
+        place_rot = (
+            grasp_rot
+            if embodiment == "so101"
+            else _RZ_QUARTER @ topdown_rotation(0.0)
+            if embodiment == "g1_right"
+            else topdown_rotation(0.0)
+        )
         transfer_pos = np.array([tray_xy[0], tray_xy[1], transfer_height])
         lower_pos = np.array([tray_xy[0], tray_xy[1], place_z])
         # approach entirely in free space: rise vertically over the home
@@ -728,25 +1163,98 @@ class StagedPlan:
         # sweep from home crossed the shelf volume and clipped boxes (T08)
         home_tcp = fk_tcp(home, embodiment)
         staging_z = max(staging_height, float(pre_pos[2]))
-        rise_pos = np.array([home_tcp[0], home_tcp[1], staging_z])
+        if embodiment == "g1_right":
+            # G1-F2: rise over the HOME column is unreachable palm-down —
+            # the vertical-forearm budget |shoulder->wrist| <= 0.394 m
+            # cannot span the 0.404 m horizontal offset of the home TCP
+            # (the home pose holds the arm forward, palm sideways). The G1
+            # rises straight to the TARGET column instead: the C1 slot
+            # lattice keeps every staging point well inside the reach
+            # sphere, and the home->staging joint move stays in the open
+            # band above the lower shelf level (boxes top ~0.87, path
+            # z >= 0.95).
+            rise_pos = np.array([pre_pos[0], pre_pos[1], staging_z])
+        else:
+            rise_pos = np.array([home_tcp[0], home_tcp[1], staging_z])
         staging_pos = np.array([pre_pos[0], pre_pos[1], staging_z])
         # a FRONT grasp holds its horizontal wrist only from the pregrasp
         # on; the high approach flies with the neutral top-down wrist (a
         # 0.5 m descent holding a horizontal wrist does not converge), and
         # the wrist flip happens in free air ahead of the shelf
         front_mode = abs(float(approach_axis[2])) < 0.5  # metadata carries the flag too
-        approach_rot = (
-            grasp_rot if embodiment == "so101" or not front_mode else topdown_rotation(0.0)
-        )
-        q_rise = ik_solve(rise_pos, approach_rot, home, embodiment)
-        if q_rise is None:
-            self.error = f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
+        if embodiment == "g1_right" and not front_mode:
+            # G1-F2: transit in the neutral palm-down frame (no mount yaw —
+            # _RZ_QUARTER strips the Franka offset topdown_rotation bakes
+            # in); the planner's grasp yaw rolls on at the pregrasp below.
+            # Cold-start DLS in the planner-yaw frame stalls out of basin
+            # on the far slot column (measured; see _g1_roll_at).
+            approach_rot = _RZ_QUARTER @ topdown_rotation(0.0)
+        else:
+            approach_rot = (
+                grasp_rot if embodiment == "so101" or not front_mode else topdown_rotation(0.0)
+            )
+        rise_path: list | None
+        if embodiment == "g1_right":
+            # G1-F3, measured: a single joint-space hop home -> rise can
+            # arc the TCP ABOVE the straight-line height (executor sweep
+            # peaked at z=1.341 against the 1.30 workspace ceiling; guard
+            # clamps it) while the SAME waypoint solved from a different
+            # seed stays flat (z=1.144). And the Cartesian line home-TCP
+            # -> rise stalls full-rows on the far same-side column (substep
+            # 1, home sits 1.98 rad off the neutral frame) though its
+            # free-yaw ladder walks — leaving a roll that misses its basin.
+            # So: solve the waypoint cold over the FIXED seed ladder (both
+            # tool-z parities — the Dex1 fingers are symmetric) and take
+            # the FIRST solution whose executor interpolation arc keeps
+            # the TCP inside the workspace AABB — the same bound the guard
+            # enforces, applied at planning time instead.
+            lo = np.asarray(limits.workspace_min, dtype=np.float64)
+            hi = np.asarray(limits.workspace_max, dtype=np.float64)
+
+            def _arc_stays_inside(q_end: np.ndarray) -> bool:
+                cur = np.asarray(home, dtype=np.float32)
+                target = np.asarray(q_end, dtype=np.float32)
+                while not np.allclose(cur, target, atol=1e-6):
+                    if deadline is not None and time.monotonic() > deadline:
+                        return False
+                    delta = np.clip(target - cur, -0.01, 0.01)
+                    cur = (cur + delta).astype(np.float32)
+                    tcp = fk_ee_pose(cur, embodiment)[0]
+                    if not (np.all(lo <= tcp) and np.all(tcp <= hi)):
+                        return False
+                return True
+
+            rise_path = None
+            for parity in (approach_rot, approach_rot @ _RZ_PI):
+                for seed in (home, *_G1_CANONICAL_SEEDS):
+                    q_cand = _dl_once(
+                        rise_pos, parity, np.asarray(seed, dtype=np.float32), "g1_right"
+                    )
+                    if q_cand is not None and _arc_stays_inside(q_cand):
+                        rise_path = [q_cand]
+                        break
+                if rise_path is not None:
+                    break
+        else:
+            q_rise = _dl_solve(rise_pos, approach_rot, home, embodiment)
+            rise_path = [q_rise] if q_rise is not None else None
+        if not rise_path:
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else f"IK failed for waypoint 'rise' at {np.round(rise_pos, 3).tolist()}"
+            )
             return
-        staging_path = ik_continuation(
-            rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment
+        q_rise = rise_path[-1]
+        staging_path = _dl_cont(
+            rise_pos, staging_pos, approach_rot, q_rise, embodiment=embodiment, pos_tol_scale=1.2
         )
         if staging_path is None:
-            self.error = f"IK failed for waypoint 'staging' at {np.round(staging_pos, 3).tolist()}"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else f"IK failed for waypoint 'staging' at {np.round(staging_pos, 3).tolist()}"
+            )
             return
         q_staging = staging_path[-1]
         self.flip_pair: tuple | None = None
@@ -755,7 +1263,7 @@ class StagedPlan:
             # approaches. Keep the feasible horizontal pitch throughout
             # the free-space move; its base-coupled yaw follows each TCP
             # waypoint inside the SO-101 IK constraint.
-            pregrasp_path = ik_continuation(
+            pregrasp_path = _dl_cont(
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
             )
         elif front_mode:
@@ -767,11 +1275,11 @@ class StagedPlan:
             # ahead of the shelf (the PR #10 review measured the raw jump
             # at 2.18 rad; unverified it could sweep anywhere)
             drop_pos = np.array([pre_pos[0], pre_pos[1], min(staging_z, pre_pos[2] + 0.15)])
-            drop_path = ik_continuation(
+            drop_path = _dl_cont(
                 staging_pos, drop_pos, approach_rot, q_staging, embodiment=embodiment
             )
             q_pre = (
-                ik_solve(pre_pos, grasp_rot, drop_path[-1], embodiment)
+                _dl_solve(pre_pos, grasp_rot, drop_path[-1], embodiment)
                 if drop_path is not None
                 else None
             )
@@ -789,22 +1297,78 @@ class StagedPlan:
                         return
                 self.flip_pair = (drop_path[-1], q_pre)
             pregrasp_path = drop_path + [q_pre] if q_pre is not None else None
+        elif embodiment == "g1_right":
+            # G1-F2/G1-F9: roll the wrist AT STAGING HEIGHT, then descend
+            # with the settled parity. The original order (descend, roll
+            # in place at the hover) swept the open fingers through the
+            # neighbouring slot's boxes during the roll — at the hover the
+            # fingertips sit BELOW the neighbour tops and the rotating
+            # finger pair clips them (outer smoke relaunch-1: cetirizine
+            # displaced 3.3cm, metformin 1.0cm -> oracle collision;
+            # measured worst -2.7mm x/y/z corner overlap on omeprazole).
+            # At the 1.02 staging height (inside the F2-measured IK
+            # conditioning band, ceiling 1.04) the same roll keeps the
+            # fingers >= 31.7mm from every non-target box (worst med),
+            # and the descent to the hover is a single continuation
+            # waypoint in the already-rolled frame.
+            pregrasp_path = None
+            # the Dex1 fingers are symmetric, so the 180-degree tool-z
+            # spin of the planner frame is the SAME physical grasp —
+            # try both parities, the one whose roll converges wins and
+            # the later stages (advance/lift/retract) follow it
+            for parity in (grasp_rot, grasp_rot @ _RZ_PI):
+                roll = _dl_roll(q_staging, staging_pos, approach_rot, parity)
+                if not roll:
+                    continue
+                # carriage scale: the descent ends at the HOVER, not the
+                # grasp — the advance below re-converges at full profile
+                # tolerance on the exact grasp pose (measured: the far
+                # column's warm-start advance only converges from the
+                # slightly looser hover chain)
+                desc = _dl_cont(
+                    staging_pos,
+                    pre_pos,
+                    parity,
+                    roll[-1],
+                    embodiment=embodiment,
+                    pos_tol_scale=1.2,
+                )
+                if desc is None:
+                    continue
+                pregrasp_path = list(roll) + list(desc)
+                grasp_rot = parity
+                # place in the SAME rolled parity frame — palm-down
+                # with the box yaw turned 180 deg is the same
+                # physical release, and it deletes the tray-side
+                # roll entirely (measured: the parity-frame
+                # transfer continuation converges where the
+                # neutral-frame one does not)
+                place_rot = parity
+                break
         else:
-            pregrasp_path = ik_continuation(
+            pregrasp_path = _dl_cont(
                 staging_pos, pre_pos, grasp_rot, q_staging, embodiment=embodiment
             )
         if pregrasp_path is None:
-            self.error = f"IK failed for waypoint 'pregrasp' at {np.round(pre_pos, 3).tolist()}"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else f"IK failed for waypoint 'pregrasp' at {np.round(pre_pos, 3).tolist()}"
+            )
             return
         q_pre = pregrasp_path[-1]
         # the insertion (advance/lift/retract) and placement descents are
         # continuation PATHS the executor follows waypoint by waypoint
-        advance_path = ik_continuation(pre_pos, grasp_pos, grasp_rot, q_pre, embodiment=embodiment)
+        advance_path = _dl_cont(pre_pos, grasp_pos, grasp_rot, q_pre, embodiment=embodiment)
         if advance_path is None:
-            self.error = "IK failed for stage 'advance'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'advance'"
+            )
             return
         lift_path = (
-            ik_continuation(
+            _dl_cont(
                 grasp_pos,
                 grasp_pos + up,
                 grasp_rot,
@@ -815,21 +1379,41 @@ class StagedPlan:
             else None
         )
         if lift_path is None:
-            self.error = "IK failed for stage 'lift'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'lift'"
+            )
             return
+        retract_end = pre_pos + up
+        if embodiment == "g1_right":
+            # G1-F2, measured: the far slot column's vertical-forearm
+            # conditioning band tops out at z ~1.04 (cold solve OK at
+            # 1.040, FAIL at 1.045), and pre+lift sits at 1.045 — past the
+            # edge. Retract to the STAGING PLANE instead: the height the
+            # arm already transits at, verified end-to-end (retract ->
+            # transfer -> lower all converge from there).
+            retract_end = np.array(
+                [pre_pos[0], pre_pos[1], min(float(retract_end[2]), float(staging_z))]
+            )
         retract_path = (
-            ik_continuation(
+            _dl_cont(
                 grasp_pos + up,
-                pre_pos + up,
+                retract_end,
                 grasp_rot,
                 lift_path[-1],
                 embodiment=embodiment,
+                pos_tol_scale=1.2,
             )
             if lift_path is not None
             else None
         )
         if retract_path is None:
-            self.error = "IK failed for stage 'retract'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'retract'"
+            )
             return
         # transfer as a CARTESIAN continuation, not a bare joint waypoint:
         # a joint-space swing leaves the TCP orientation unconstrained
@@ -854,7 +1438,7 @@ class StagedPlan:
             route_start = pre_pos + up
             route_q = retract_path[-1]
             for route_end in route:
-                segment = ik_continuation(
+                segment = _dl_cont(
                     route_start,
                     route_end,
                     place_rot,
@@ -868,34 +1452,123 @@ class StagedPlan:
                 route_start = route_end
                 route_q = segment[-1]
         else:
-            transfer_path = (
-                ik_continuation(
-                    pre_pos + up,
-                    transfer_pos,
+            # G1-F10 (outer smoke 0acb406 ep2, collision): the straight
+            # shelf->tray chord carried the box OVER the neighbouring slot
+            # columns (cetirizine bottom 0.924 vs ibuprofen top 0.92 at
+            # (0.24, -0.16)), and the transfer height cannot rise (IK
+            # fails at 1.04 on the (0.24, 0.0) / (0.28, 0.08) columns).
+            # Route through a FRONT waypoint instead: back out along -x to
+            # trajectory_transfer_front_x at the slot's own y, then cross
+            # to the tray hover in front of every shelf box.
+            # Only slots whose straight chord passes another slot column
+            # take the detour: the outermost tray-side slot (0.28, -0.24)
+            # backing out along -x grazed the (0.24, -0.16) column with the
+            # fingers (arm-link sweep 0.1 mm), while its direct chord leads
+            # AWAY from every other slot.
+            transfer_route = [transfer_pos]
+            front_x = profile.get("trajectory_transfer_front_x")
+            if embodiment == "g1_right" and front_x is not None:
+                chord_clear = float(profile.get("trajectory_transfer_chord_clear_m", 0.0))
+                start_xy = np.asarray(retract_end[:2], dtype=float)
+                chord = np.asarray(transfer_pos[:2], dtype=float) - start_xy
+                nearest = np.inf
+                for slot in profile.get("placement_slots_xy", ()):
+                    rel = np.asarray(slot, dtype=float) - start_xy
+                    if float(np.linalg.norm(rel)) < 0.02:
+                        continue  # the target's own slot
+                    t = float(np.clip(rel @ chord / float(chord @ chord), 0.0, 1.0))
+                    nearest = min(nearest, float(np.linalg.norm(rel - t * chord)))
+                if nearest < chord_clear:
+                    # G1-F11: back out at the retract height (staging
+                    # plane, 1.02) — descending to the 1.00 transfer plane
+                    # WHILE passing the neighbouring columns put the
+                    # fingers 8-9 mm over their box tops on the re-latticed
+                    # 0.065 m pitch; descend only once in front of the shelf.
+                    transfer_route = [
+                        np.array(
+                            [
+                                float(front_x),
+                                retract_end[1],
+                                max(float(transfer_height), float(retract_end[2])),
+                            ]
+                        ),
+                        transfer_pos,
+                    ]
+            transfer_path = [] if retract_path is not None else None
+            route_start, route_q = retract_end, retract_path[-1] if retract_path else None
+            for route_end in transfer_route if transfer_path is not None else ():
+                segment = _dl_cont(
+                    route_start,
+                    route_end,
                     place_rot,
-                    retract_path[-1],
+                    route_q,
                     embodiment=embodiment,
+                    pos_tol_scale=1.2,
+                    free_yaw=embodiment == "g1_right",
                 )
-                if retract_path is not None
-                else None
-            )
+                if segment is None:
+                    transfer_path = None
+                    break
+                transfer_path.extend(segment)
+                route_start, route_q = route_end, segment[-1]
+            if embodiment == "g1_right" and transfer_path is not None:
+                # free-yaw transfer lands at a natural wrist azimuth; roll
+                # IN PLACE at the tray hover back to the place frame. The
+                # roll is a pure gravity-axis spin for a palm-down tool —
+                # the box stays upright throughout (T10's creep was wrist
+                # tilt, not yaw). BOTH tool-z parities are tried (same
+                # pregrasp-roll pattern): the Dex1 fingers are symmetric,
+                # so a 180-degree spin of the place frame is the same
+                # physical release. Measured on the same-side far slot
+                # [0.28, -0.24]: the free-yaw descent lands 0.94 rad of
+                # yaw away, the direct roll misses its basin while the
+                # flipped-parity roll converges AND the lower stage
+                # follows it — without this retry the slot is unplannable.
+                realized = fk_ee_pose(transfer_path[-1], embodiment)[1]
+                tray_roll = None
+                for parity in (place_rot, place_rot @ _RZ_PI):
+                    tray_roll = _dl_roll(transfer_path[-1], transfer_pos, realized, parity)
+                    if tray_roll:
+                        place_rot = parity
+                        break
+                transfer_path = (list(transfer_path) + tray_roll) if tray_roll else None
         if transfer_path is None:
-            self.error = "IK failed for stage 'transfer'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'transfer'"
+            )
             return
         q_transfer = transfer_path[-1] if transfer_path is not None else None
-        lower_path = (
-            ik_continuation(
-                transfer_pos,
-                lower_pos,
-                place_rot,
-                q_transfer,
-                embodiment=embodiment,
-            )
-            if q_transfer is not None
-            else None
-        )
+        lower_path = None
+        if q_transfer is not None:
+            for parity in (
+                (place_rot,) if embodiment != "g1_right" else (place_rot, place_rot @ _RZ_PI)
+            ):
+                # G1-F3: the descent from the tray hover needs BOTH tool-z
+                # parities tried (same pattern as the tray roll): measured
+                # on the same-side far slot's tallest box — the descent
+                # misses its basin in the rolled parity and converges in
+                # the flipped one, which is the same palm-down release for
+                # the symmetric Dex1 fingers. The cold alternatives sit
+                # 3-4 rad away on other branches (verified unusable).
+                lower_path = _dl_cont(
+                    transfer_pos,
+                    lower_pos,
+                    parity,
+                    q_transfer,
+                    embodiment=embodiment,
+                    pos_tol_scale=1.2,
+                )
+                if lower_path is not None:
+                    place_rot = parity
+                    break
         if lower_path is None:
-            self.error = "IK failed for stage 'lower'"
+            self.error = (
+                f"planning wall budget exceeded ({budget_s:g}s, ik_plan_budget_s)"
+                if time.monotonic() > deadline
+                else "IK failed for stage 'lower'"
+            )
             return
         # release opens the fingers STATIONARY at the hover pose: the old
         # open-while-rising release lifted the still-gripped box during
@@ -904,8 +1577,335 @@ class StagedPlan:
         # the T08 shear concern applied to a SEATED box, and the box now
         # hovers PLACE_DROP_GAP above the tray instead)
         release_path = (lower_path[-1],) if lower_path is not None else None
+        # G1-F7 LATERAL retreat (see the clear stage note below): the old
+        # clear returned to q_transfer (TCP z 1.00, BELOW the placed box's
+        # top), sweeping the fingers through the seated box on the home
+        # swing (r6 smoke: box placed then knocked off; withdrawal test
+        # measured -0.0514 m at clear). A PURE VERTICAL retreat is
+        # geometrically falsified: the palm AABB is wider than the box, so
+        # while the hand sits over the box the gap stays negative, and the
+        # arm has no IK solutions above z ~1.12 at the tray column. Retreat
+        # LATERALLY instead — +y (toward the arm) out of the box's xy
+        # projection while rising 4 cm — a ladder whose first solvable
+        # candidate wins (probe-measured: +y 0.15/z+0.04 solves in 4
+        # waypoints, leaves the projection at +0.0004 m and ends +0.0925 m
+        # clear, never deepening the ringing overlap).
+        clear_path = [q_transfer]
+        if embodiment == "g1_right":
+            release_q = lower_path[-1]
+            release_tcp = fk_tcp(release_q, embodiment)
+            # dz +0.08 (not +0.04): the live arm tracks ~0.027 m BELOW
+            # the commanded z at the tray column (G1-F2's measured DLS
+            # plateau) — the f7 smoke's ep2 retreat at z+0.04 planned
+            # +0.024 m clearance but physically overlapped the seated box
+            # (-0.056 m measured) because the shortfall ate the margin.
+            # G1-F11: the first rung also backs off 2 cm in -x — the
+            # re-latticed (0.24, -0.175) slot sits beside the clear's end,
+            # and the 1.5x position tolerance let the end drift +x to
+            # 11 mm from its box (omeprazole from (0.28, -0.11))
+            for dx, dy, dz in (
+                (-0.02, 0.15, 0.08),
+                (0.0, 0.15, 0.08),
+                (0.0, 0.12, 0.08),
+                (0.0, 0.15, 0.04),
+                (0.0, 0.12, 0.04),
+            ):
+                candidate = _dl_cont(
+                    release_tcp.copy(),
+                    np.array([release_tcp[0] + dx, release_tcp[1] + dy, release_tcp[2] + dz]),
+                    place_rot,
+                    release_q,
+                    embodiment=embodiment,
+                    pos_tol_scale=1.5,
+                )
+                if candidate is not None:
+                    clear_path = candidate
+                    break
+        # G1-F7 home routing (see the home stage note): so101/franka keep
+        # the gate-proven single hop, bit-identical.
+        if embodiment == "g1_right":
+            _q_retreat = np.asarray(clear_path[-1])
+            _rot = fk_ee_pose(_q_retreat, embodiment)[1]
+            # G1-F11 (planning budget): _q_mid is only a reachability gate
+            # (never visited, below) — try one warm DLS from home first and
+            # pay the cold ladder only when it misses, so the gate's
+            # semantics (cold-ladder unreachable -> F7 fallback) stand.
+            _q_mid = _dl_once(np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment)
+            if _q_mid is None:
+                _q_mid = _dl_solve(
+                    np.array([0.30, -0.06, 1.16]), _rot, home[:7], embodiment=embodiment
+                )
+            if _q_mid is None:
+                home_waypoints = (rise_path[-1], home)
+            else:
+                # G1-F9 (addendum 11:50): the clear->mid joint hop itself
+                # swept the upper arm through the SEATED box on the tray
+                # (lane1: box placed correctly, then swept off during
+                # withdrawal; the two configs sit in DIFFERENT elbow
+                # branches, delta 2.7 rad, and any single-hop interpolation
+                # dips the upper arm onto the box top). Fix: retreat the
+                # hover diagonally out over the tray's far edge (-y,
+                # continuation), then a NULL-SPACE ELBOW TUCK — perturb the
+                # shoulder pitch -0.4 rad and re-converge WARM to the SAME
+                # TCP, so the 7-DOF redundancy absorbs the perturbation,
+                # the elbow rises, the TCP never leaves the workspace, and
+                # the branch-flip hop below clears the box. Measured (true
+                # mesh-vertex distance, all five meds): seated-box worst
+                # 19.8mm, workspace clean; the plain chain measured 3.2mm
+                # true (the 0.08 rad tracking sag would eat it).
+                _q_clear = np.asarray(clear_path[-1], dtype=np.float32)
+                _clear_pos, _clear_rot = fk_ee_pose(_q_clear, embodiment)
+                _retreat = _dl_cont(
+                    _clear_pos,
+                    # z 1.11 (not 1.10): the lower retreat skimmed the tray
+                    # column — hand-tail gap 10.6mm vs the F7 2cm gate; 1.11
+                    # measures nonhand 16.4mm / hand-tail 28.6mm across 15
+                    # slot x med samples
+                    np.array([float(_clear_pos[0]), -0.24, 1.11]),
+                    _clear_rot,
+                    _q_clear,
+                    embodiment=embodiment,
+                    pos_tol_scale=1.5,
+                )
+                _retreat_path = (
+                    [np.asarray(q, dtype=np.float64) for q in _retreat]
+                    if _retreat is not None
+                    else [np.asarray(_q_clear, dtype=np.float64)]
+                )
+                _q_r = _retreat_path[-1]
+                _b_lo, _b_hi = _arm_bounds(embodiment)
+                _seed = _q_r.copy()
+                _seed[0] = float(_seed[0]) - 0.4
+                _seed = np.clip(_seed, _b_lo, _b_hi)
+                # the tuck re-converges to the RETREAT-END live pose
+                # (rotation included): converging to the clear-hover
+                # rotation instead measured 1.5mm true gap on the hop
+                # below (cetirizine) vs 19.8mm with the live rotation —
+                # the two orientations sit in different wrist branches.
+                _q_tuck = _dl_once(
+                    fk_ee_pose(np.asarray(_q_r, dtype=np.float32), embodiment)[0],
+                    fk_ee_pose(np.asarray(_q_r, dtype=np.float32), embodiment)[1],
+                    _seed,
+                    embodiment=embodiment,
+                )
+                _raise_waypoints = tuple(_retreat_path) + (
+                    np.asarray(_q_tuck, dtype=np.float64) if _q_tuck is not None else _q_r,
+                )
+
+                # G1-F9: the mid->home joint hop swept the fingers/elbow
+                # through the (0.24, 0.0) column (smoke relaunch-1: a
+                # non-target box displaced 3.3cm -> oracle collision;
+                # measured -49mm). A second IK-solved waypoint on the
+                # home-adjacent column (TCP [0.39, -0.08, 1.08], live
+                # orientation, HOME seed — measured both hops >= 22.9mm
+                # vs every non-target box) splits the bowing swing; the
+                # straight above-home high驿站 is IK-unreachable (z 1.16
+                # probed FAIL), so the diagonal step-down it is. IK
+                # failure falls back to the F7 two-waypoint form.
+                # G1-F10: the step solve can land on a second branch
+                # (omeprazole after the tray drop: shoulder yaw +1.67 vs
+                # -0.56 elsewhere) whose step -> home joint hop swings the
+                # fingers down to z 0.92 through the (0.28, 0.08) shelf
+                # column (-50 mm). Solve from both the HOME and the TUCK
+                # seed and keep the solution whose executor march into
+                # home sags least below its lower end (ties -> HOME seed,
+                # the F9-measured branch). The third seed is that measured
+                # good-branch step config (metformin, slot (0.28, -0.24),
+                # f5ceb2d + tray 0.85) for cases where both live seeds
+                # converge on the far branch. Deterministic: a fixed seed
+                # order, no randomness.
+                # G1-F11: sag alone is the wrong score — on the re-latticed
+                # shelf the chosen step's hop into home swung the palm
+                # SIDEWAYS over the (0.28, 0.02) slot and down to z 0.805
+                # (-46 mm into its box) while a less-sagging candidate
+                # existed. Score = (passes low over a shelf slot, sag):
+                # a hop whose TCP comes within 0.09 m of any slot centre
+                # below z 1.0 (box tops <= 0.94 + palm) ranks last. The
+                # measured good-branch seed is tried FIRST so a planning
+                # deadline that expires mid-ladder still leaves it.
+                _slots_xy = np.asarray(profile.get("placement_slots_xy", ()), dtype=float)
+
+                def _home_hop_score(q_s: np.ndarray, q_from=None) -> tuple[int, float]:
+                    # hop q_s -> home by default; q_from -> q_s for any chain hop
+                    cur = np.asarray(q_s if q_from is None else q_from, dtype=np.float32)[:7].copy()
+                    tgt = np.asarray(home if q_from is None else q_s, dtype=np.float32)[:7]
+                    floor = min(
+                        float(fk_ee_pose(cur, embodiment)[0][2]),
+                        float(fk_ee_pose(tgt, embodiment)[0][2]),
+                    )
+                    low, over_slot = floor, 0
+                    while not np.allclose(cur, tgt, atol=1e-6):
+                        cur = (cur + np.clip(tgt - cur, -0.01, 0.01)).astype(np.float32)
+                        p = np.asarray(fk_ee_pose(cur, embodiment)[0])
+                        low = min(low, float(p[2]))
+                        if (
+                            _slots_xy.size
+                            and p[2] < 1.0
+                            and float(np.min(np.linalg.norm(_slots_xy - p[:2], axis=1))) < 0.09
+                        ):
+                            over_slot = 1
+                    return over_slot, floor - low
+
+                # A HOME-orientation step (home seed) is the second rung:
+                # all three live-rotation seeds converged on the same
+                # far-branch solution there (ibuprofen/metformin), while a
+                # step already at home's rotation makes step -> home a short
+                # same-branch move; the rotation change moves to the
+                # tuck -> step hop, which the containment pass below
+                # screens. Early exit on the first hop that stays off the
+                # shelf slots (planning-budget friendly).
+                # Outer-loop G1-F9 fix: the tuck raises the elbow, and the
+                # straight joint-space hop tuck -> step then bows the TCP up
+                # to z ~1.40 (measured, every slot x med) against the 1.30
+                # workspace ceiling the guard enforces, so every plan was
+                # clamped in the home stage. Contain each hop the same way
+                # the rise waypoint is screened: simulate the executor's
+                # joint-space march and, where the TCP would leave the
+                # ceiling band, split the hop at an IK waypoint on the
+                # Cartesian midpoint (height capped under the ceiling, live
+                # orientation, joint-midpoint seed). Depth-limited and
+                # deadline-bound; an uncontainable hop is left as-is and
+                # the guard test reports it.
+                _ceiling = float(np.asarray(limits.workspace_max)[2]) - 0.02
+
+                def _hop_ok(q_a: np.ndarray, q_b: np.ndarray, corridor: bool) -> bool:
+                    # Executor march q_a -> q_b (0.01 rad/tick). Always
+                    # under the ceiling band; a SPLIT sub-hop must also
+                    # stay inside its endpoints' TCP box + 3 cm, so an
+                    # inserted waypoint can never introduce a new swing
+                    # (e.g. back over the just-placed box).
+                    cur = np.asarray(q_a, dtype=np.float32)[:7].copy()
+                    tgt = np.asarray(q_b, dtype=np.float32)[:7]
+                    ends = np.stack(
+                        [fk_ee_pose(cur, embodiment)[0], fk_ee_pose(tgt, embodiment)[0]]
+                    )
+                    box_lo, box_hi = ends.min(axis=0) - 0.03, ends.max(axis=0) + 0.03
+                    while not np.allclose(cur, tgt, atol=1e-6):
+                        cur = (cur + np.clip(tgt - cur, -0.01, 0.01)).astype(np.float32)
+                        tcp = np.asarray(fk_ee_pose(cur, embodiment)[0])
+                        if tcp[2] > _ceiling:
+                            return False
+                        # G1-F11: never sweep low over a shelf slot (a
+                        # sideways bow took the fingers 27 mm into the
+                        # (0.28, 0.02) box on the way home)
+                        if (
+                            _slots_xy.size
+                            and tcp[2] < 1.0
+                            and float(np.min(np.linalg.norm(_slots_xy - tcp[:2], axis=1))) < 0.09
+                        ):
+                            return False
+                        if corridor and not (np.all(box_lo <= tcp) and np.all(tcp <= box_hi)):
+                            return False
+                    return True
+
+                def _contain_hop(
+                    q_a: np.ndarray, q_b: np.ndarray, depth: int, corridor: bool
+                ) -> list:
+                    if depth == 0 or _hop_ok(q_a, q_b, corridor):
+                        return [q_b]
+                    if deadline is not None and time.monotonic() > deadline:
+                        return [q_b]
+                    pos_a, rot_a = fk_ee_pose(np.asarray(q_a, dtype=np.float32)[:7], embodiment)
+                    pos_b, rot_b = fk_ee_pose(np.asarray(q_b, dtype=np.float32)[:7], embodiment)
+                    # G1-F11: SLERPED midpoint orientation — holding rot_a
+                    # piled the whole rotation into the last sub-hop into a
+                    # differently-oriented step (a 5 cm Cartesian hop with a
+                    # large joint delta bowed the fingers into a shelf box)
+                    rot_a = quat_to_rotation(
+                        _slerp(rotation_to_quat(rot_a), rotation_to_quat(rot_b), 0.5)
+                    )
+                    mid = 0.5 * (np.asarray(pos_a) + np.asarray(pos_b))
+                    mid[2] = min(float(mid[2]), _ceiling - 0.04)
+                    seed = 0.5 * (
+                        np.asarray(q_a, dtype=np.float64)[:7]
+                        + np.asarray(q_b, dtype=np.float64)[:7]
+                    )
+                    q_m = _dl_once(mid, rot_a, seed.astype(np.float32), embodiment)
+                    if q_m is None:
+                        return [q_b]
+                    q_m = np.asarray(q_m, dtype=np.float64)
+                    return _contain_hop(q_a, q_m, depth - 1, True) + _contain_hop(
+                        q_m, q_b, depth - 1, True
+                    )
+
+                def _assemble(q_step) -> tuple[tuple, bool]:
+                    """Contained home chain for a step candidate, and whether
+                    every resulting hop stays under the ceiling band AND off
+                    the shelf slots (a containment midpoint once routed the
+                    fingers through the (0.28, 0.02) box, -27 mm)."""
+                    waypoints = _raise_waypoints + (
+                        (q_step, home) if q_step is not None else (home,)
+                    )
+                    contained: list = []
+                    prev = np.asarray(clear_path[-1], dtype=np.float64)
+                    for wp in waypoints:
+                        contained.extend(
+                            _contain_hop(prev, np.asarray(wp, dtype=np.float64), 3, False)
+                        )
+                        prev = np.asarray(wp, dtype=np.float64)
+                    hops = [np.asarray(clear_path[-1], dtype=np.float64)] + [
+                        np.asarray(q, dtype=np.float64) for q in contained
+                    ]
+                    ok = all(
+                        _hop_ok(x, y, False) and _home_hop_score(y, x)[0] == 0
+                        for x, y in zip(hops, hops[1:], strict=False)
+                    )
+                    return tuple(contained), ok
+
+                _home_rot = fk_ee_pose(np.asarray(home, dtype=np.float32)[:7], embodiment)[1]
+                _q_step = None
+                _accepted_chain = None
+                _best_score = (2, np.inf)
+                # Warm single-DLS rungs first (cheap), the cold ladder only if
+                # no warm candidate yields an accepted chain (planning budget:
+                # three cold solves here pushed plans to 5.9 s of 5.5 s).
+                _rungs = (
+                    (_rot, _G1_STEP_BRANCH_SEED),
+                    (_home_rot, home[:7]),
+                    (_rot, home[:7]),
+                    (_rot, _raise_waypoints[-1]),
+                )
+                for _solver in ("warm", "cold"):
+                    if _accepted_chain is not None:
+                        break
+                    for _step_rot, _step_seed in _rungs:
+                        _seed_q = np.asarray(_step_seed, dtype=np.float32)[:7]
+                        _cand = (
+                            _dl_once(np.array([0.39, -0.08, 1.08]), _step_rot, _seed_q, embodiment)
+                            if _solver == "warm"
+                            else _dl_solve(
+                                np.array([0.39, -0.08, 1.08]),
+                                _step_rot,
+                                _seed_q,
+                                embodiment=embodiment,
+                            )
+                        )
+                        if _cand is None:
+                            continue
+                        _score = _home_hop_score(_cand)
+                        if _score < _best_score:
+                            _q_step, _best_score = _cand, _score
+                        if _score[0] == 0:
+                            _chain, _chain_ok = _assemble(_cand)
+                            if _chain_ok:
+                                _q_step, _accepted_chain = _cand, _chain
+                                break
+                # G1-F9: the F7 mid驿站 is DROPPED — under the
+                # retreat+tuck prefix its branch-flip hop (tuck -> mid,
+                # delta ~2.7 rad) only re-dipped the hand toward the
+                # seated box (measured home[3] tail 7.6mm on metformin vs
+                # the 2cm gate; ibuprofen 10.6mm). The direct tuck -> step
+                # -> home chain measures >= 50.6mm hand-tail and >= 24.7mm
+                # true non-hand gap across all 25 slot x med cases. _q_mid
+                # is still SOLVED for its warm-seed role above, just not
+                # visited.
+                home_waypoints = (
+                    _accepted_chain if _accepted_chain is not None else _assemble(_q_step)[0]
+                )
+        else:
+            home_waypoints = (home,)
         self.stages = [
-            Stage("rise", (q_rise,), 0.0, 0.1),
+            Stage("rise", tuple(rise_path), 0.0, 0.1),
             Stage("staging", tuple(staging_path), 0.0, 0.1),
             Stage("pregrasp", tuple(pregrasp_path), 0.0, 0.2),
             # Narrow the official 138 mm one-sided jaw in free space before
@@ -929,11 +1929,35 @@ class StagedPlan:
             Stage("lower", tuple(lower_path), grasp_cmd, 1.0, vel=0.35, track_tol=0.03),
             # settle covers the full 1 s finger-open ramp plus box drop
             Stage("release", tuple(release_path), 0.0, 1.5, vel=0.35, track_tol=0.03),
+            # G1-F7: the clear stage used to return to q_transfer (TCP z at
+            # the transfer height, BELOW the just-placed box's top — tallest
+            # med tops at tray_top+0.11), sweeping the fingers through the
+            # seated box on the way home (r6 smoke: box placed correctly,
+            # then knocked off; withdrawal test measured -0.0514 m at clear).
+            # Retreat VERTICALLY first: IK-continue straight up to a TCP
+            # height clear of the tallest med (release TCP ~ box center, so
+            # +0.10 covers half-height 0.055 + margin) before the home swing.
+            Stage("clear", tuple(clear_path), 0.0, 0.1),
             # rise clear of the tray walls before the home swing: the raw
             # release->home sweep dragged the fingers through the tray and
             # jammed the arm (T08 live run)
-            Stage("clear", (q_transfer,), 0.0, 0.1),
-            Stage("home", (home,), 0.0, 0.0),
+            # G1-F7: the RAW joint interpolation clear->home arcs BACK over
+            # the just-placed box (withdrawal test: gap fell to +0.0062 m
+            # mid-swing — the palm bows to -y past the tray column). Chord
+            # waypoints via ik_continuation stall on this span (probes 8/9),
+            # longer lateral retreats do not help (probe 7), pure-vertical
+            # is geometrically falsified. The winner (probes 10/12): a
+            # single IK-SOLVED high central waypoint — TCP [0.30, -0.06,
+            # 1.16], rotation kept at the retreat's live orientation, HOME
+            # seed — splitting the bowing hop into two short ones: measured
+            # min gap +0.024 m (cetirizine, the worst med) on retreat->mid
+            # and +0.18 m on mid->home. z 1.18+ is ik_solve-unreachable.
+            Stage(
+                "home",
+                tuple(home_waypoints),
+                0.0,
+                0.0,
+            ),
         ]
         # continuity invariant over every consecutive waypoint pair of the
         # SHELF-PROXIMATE stages (rise..retract, incl. within-path steps
@@ -953,6 +1977,44 @@ class StagedPlan:
     @property
     def ok(self) -> bool:
         return not self.error
+
+
+def _held_replan_stages(stages: list, grasp_cmd: float, held: bool = True) -> list:
+    """G1-F6 anti-triangle: rewrite every stage BEFORE close to hold
+    grasp_cmd when a replan starts with the box still latched.
+
+    Measured (lane1 smoke 20261020-011256): a plan that finishes via
+    stage bails leaves the fingers closed; the NEXT grasp_pose is then
+    accepted, and its free-space stages command gripper 0.0 — on g1 that
+    is the profile's own gripper_pregrasp_cmd — opening the still-
+    latched box in mid-air (the triangle's down-edge; the box fell back
+    onto its own slot). Holding grasp_cmd through the re-approach keeps
+    the latch engaged until the new plan's own close/release semantics
+    take over; `held=False` is the identity (nothing to preserve)."""
+    if not held:
+        return stages
+    rewritten = []
+    for stage in stages:
+        if stage.name == "close":
+            break
+        rewritten.append(replace(stage, gripper=grasp_cmd))
+    return rewritten + stages[len(rewritten) :]
+
+
+def plan_done_declared(turn_outputs: str) -> bool:
+    """HAR-3 vs ADR-30: is `plan_done` among the outputs THIS graph
+    declared for the node?
+
+    The declared set is AISLE_TURN_OUTPUTS — the same variable the typed
+    host exports from the graph config in BOTH modes (harness/typed_node_host
+    pins it from config["outputs"]; dora-genesis's bridge already guards
+    against it). Under lockstep aisle.turns rejects any undeclared send
+    with ProtocolError, and expert_t0 (the frozen T0 graph) does NOT
+    declare plan_done — so the retry-arming signal may only go out on
+    graphs that wired it (the 15 eval/shield/expert graphs)."""
+    return "plan_done" in {
+        name.strip() for name in str(turn_outputs or "").split(",") if name.strip()
+    }
 
 
 class StageStreamer:
@@ -1112,16 +2174,23 @@ def main() -> None:
     tray_pos = layout["tray"]["pos"]
     tray_xy = (float(tray_pos[0]), float(tray_pos[1]))
     home = np.asarray(physics["embodiment"][embodiment]["home_qpos"], dtype=np.float32)
-    max_vel = float(os.environ.get("AISLE_MAX_JOINT_VEL", "1.0"))
+    max_vel = executor_max_vel(os.environ, physics["embodiment"][embodiment])
     dt = 0.01  # joint_state contract cadence (TC-4)
     mount = wrist_mount_transform(physics["cameras"], physics["embodiment"][embodiment]).astype(
         np.float64
     )
 
     env_pin = env_pin_from_env(os.environ)
+    grasp_cmd_profile = float(
+        load_physics()["embodiment"][embodiment].get("gripper_grasp_cmd", 1.0)
+    )
     node = Node()
     send = make_sender(node, env_pin)
     streamer: StageStreamer | None = None
+    # G1-F6: the gripper value the LAST plan ended on — a bail-completed
+    # plan leaves the box latched, and the next grasp_pose must not open
+    # it in mid-air (see _held_replan_stages)
+    held_grip = 0.0
     # while a read move runs: {request_id, face, attempts: [(q, range_m)],
     # attempt_idx} — the executor walks the ladder until one attempt TRACKS
     pending_read: dict | None = None
@@ -1158,6 +2227,7 @@ def main() -> None:
         if not env_accepts(metadata, env_pin):
             continue  # fleet mode (BRG-5): another env's stream
         if event["id"] == "reset_done":
+            held_grip = 0.0  # episode boundary: nothing is carried
             # episode boundary: NEVER keep executing a stale plan — in the
             # first live run a stale stream fought the post-reset guard
             # reference until the wall timeout froze everything
@@ -1219,6 +2289,15 @@ def main() -> None:
                 print(f"grasp plan failed: {candidate.error}", file=sys.stderr)
                 continue
             stages = list(candidate.stages)
+            # G1-F6: if the previous plan ended holding a box (bail-
+            # completed mid-carry), the re-approach must NOT open the
+            # gripper — rise/pregrasp/preclose command 0.0 (g1's
+            # preclose IS 0.0 by profile), which mid-air-released the
+            # box in the 20261020-011256 smoke. Hold grasp_cmd until the
+            # new plan's own close/release.
+            if held_grip >= 0.5 * grasp_cmd_profile:
+                stages = _held_replan_stages(stages, grasp_cmd_profile)
+            held_grip = 0.0
             if parked_at_read:
                 # the arm is parked at a shelf-front read pose; going
                 # straight to pregrasp drags the fingers through the
@@ -1256,11 +2335,21 @@ def main() -> None:
             for line in logs:
                 print(line, file=sys.stderr)
             if streamer.done:
+                held_grip = float(streamer.current_grip)  # latch state carries
                 streamer = None  # finished: idle until the next episode
-                if pending_read is None:
+                if pending_read is None and plan_done_declared(
+                    os.environ.get("AISLE_TURN_OUTPUTS", "")
+                ):
                     # a GRASP plan completed (read parks reply on
                     # move_done): tell the state machine so it can arm
-                    # an in-context retry if no verdict lands (HAR-3)
+                    # an in-context retry if no verdict lands (HAR-3).
+                    # G1-F4 (lane1 smoke 20261019-224058): the send is
+                    # GATED on the graph declaring the output — under
+                    # lockstep aisle.turns raises ProtocolError for any
+                    # undeclared send (expert_t0 does NOT declare it; 15
+                    # eval/shield/expert graphs do and keep the signal).
+                    # Free-run reads the same variable the typed host
+                    # exports from the graph config in both modes.
                     send("plan_done", pa.array([json.dumps({"ok": True})]), metadata)
                 if pending_read is not None:
                     q_read, range_m, pitch, _ = pending_read["attempts"][

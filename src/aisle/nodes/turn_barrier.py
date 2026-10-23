@@ -30,6 +30,13 @@ def load_plan(environ) -> dict:
     return plan
 
 
+#: The DEFAULT ordinary-turn watchdog (ADR-30): planning that runs
+#: synchronously inside a turn must finish well inside this. Named so
+#: planners and tests read the constraint from source instead of
+#: hardcoding it (G1-F8); the AISLE_TURN_WATCHDOG_S override is unchanged.
+ORDINARY_TURN_WATCHDOG_S = 10.0
+
+
 def main() -> None:  # pragma: no cover - exercised by graph acceptance
     import pyarrow as pa
     from dora import Node
@@ -44,7 +51,7 @@ def main() -> None:  # pragma: no cover - exercised by graph acceptance
         # Includes host scheduler stalls and first-use model warmup while
         # remaining far below episode wall clamps.  It is liveness-only and
         # can never advance physics.
-        ordinary_s=float(os.environ.get("AISLE_TURN_WATCHDOG_S", "10")),
+        ordinary_s=float(os.environ.get("AISLE_TURN_WATCHDOG_S", str(ORDINARY_TURN_WATCHDOG_S))),
         verdict_s=float(os.environ.get("AISLE_VERDICT_TURN_WATCHDOG_S", "15")),
         clock=time.monotonic,
     )

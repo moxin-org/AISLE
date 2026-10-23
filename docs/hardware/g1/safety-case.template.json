@@ -1,0 +1,44 @@
+{
+  "_g1_note": "G1H-4: balance and fall safety belong to Unitree's motion controller, not to any AISLE node; the AISLE software_controller only ever owns the right arm through rt/arm_sdk with a gradual weight ramp and lease watchdog",
+  "anchoring": "hardware_pending",
+  "estop_operate_authority": "hardware_pending",
+  "estop_reset_authority": "hardware_pending",
+  "hazards": [
+    "pinch at the Dex1 fingers",
+    "arm swing on weight-ramp release",
+    "fall while balancing (balance authority stays with the motion controller)"
+  ],
+  "keep_out_zones": "hardware_pending",
+  "payload_limits": "hardware_pending",
+  "power_restore_authority": "hardware_pending",
+  "preflight_checklist": [
+    {
+      "item": "estop and remote-controller stop verified",
+      "status": "pending"
+    },
+    {
+      "item": "hoist or protective frame rigged, workspace clear and anchored",
+      "status": "pending"
+    },
+    {
+      "item": "calibration artifacts validated; mode_machine reads 15",
+      "status": "pending"
+    },
+    {
+      "item": "evidence sink writable",
+      "status": "pending"
+    },
+    {
+      "item": "roles present and named",
+      "status": "pending"
+    }
+  ],
+  "safety_operator": "hardware_pending",
+  "schema_version": "aisle.hardware.safety-case.v1",
+  "signatures": [],
+  "software_controller": "hardware_pending",
+  "speed_current_temperature_limits": "hardware_pending",
+  "start_stop_authority": "hardware_pending",
+  "torque_enable_authority": "hardware_pending",
+  "trial_conductor": "hardware_pending"
+}

@@ -10,7 +10,7 @@ outputs:
   turn: {schema: sim_turn_u64, latency_class: hard_rt}
   turn_commit: {schema: sim_turn_u64, latency_class: hard_rt}
 embodiment:
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: decision
 eval: null

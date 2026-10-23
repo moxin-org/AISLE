@@ -45,7 +45,7 @@ def test_physics_config():
     assert physics["sim"]["dt"] > 0
     for material in ("box", "shelf", "tray"):
         assert physics["materials"][material]["friction"] > 0
-    for embodiment in ("franka", "so101"):
+    for embodiment in ("franka", "so101", "g1_right"):
         profile = physics["embodiment"][embodiment]
         assert len(profile["shelf_level_heights"]) == 2  # M0 env-change: two levels
         assert profile["reach_m"] > 0
@@ -159,7 +159,7 @@ def placements_200(request):
 
     physics = load_p()
     out = {}
-    for embodiment in ("franka", "so101"):
+    for embodiment in ("franka", "so101", "g1_right"):
         layout = resolve_layout(physics, embodiment)
         out[embodiment] = (
             layout,
@@ -168,7 +168,7 @@ def placements_200(request):
     return out
 
 
-@pytest.mark.parametrize("embodiment", ["franka", "so101"])
+@pytest.mark.parametrize("embodiment", ["franka", "so101", "g1_right"])
 def test_placements_never_interpenetrate_or_exceed_reach(embodiment, placements_200):
     """SCN-3: across 200 seeds (including the seed-99 regression the review
     found), no two same-level boxes overlap on BOTH axes, and every
@@ -212,7 +212,7 @@ def test_so101_radial_front_placements_clear_observed_forearm_envelope(placement
             assert distance >= minimum, (seed, a.name, b.name, distance)
 
 
-@pytest.mark.parametrize("embodiment", ["franka", "so101"])
+@pytest.mark.parametrize("embodiment", ["franka", "so101", "g1_right"])
 def test_shelf_levels_clear_tallest_box(embodiment):
     """SCN-3: every embodiment's board-to-board clearance fits the tallest
     medicine plus board thickness and separation margin — a box standing on
@@ -226,6 +226,68 @@ def test_shelf_levels_clear_tallest_box(embodiment):
     for below, above in zip(heights, heights[1:], strict=False):
         clearance = (above - shelf["board_thickness"] / 2) - (below + shelf["board_thickness"] / 2)
         assert clearance >= tallest + shelf["min_separation"], (embodiment, below, above)
+
+
+def test_g1_right_profile_keys_lengths_and_urdf_consistency():
+    """TC-5, SCN-4: the g1_right profile keys the held-DOF contract — wire
+    9 + held 24 = 33 actuated URDF joints, partition disjoint, held list in
+    URDF document order, home lengths match, gripper stops from the URDF,
+    and the pelvis height comes from the FK sole probe."""
+    import xml.etree.ElementTree as ET
+
+    from aisle.embodiment import G1_RIGHT_ARM_JOINTS, G1_RIGHT_GRIPPER_JOINTS
+
+    physics = load_physics()
+    profile = physics["embodiment"]["g1_right"]
+    wire = tuple(profile["arm_joint_names"]) + tuple(profile["gripper_joint_names"])
+    assert wire == G1_RIGHT_ARM_JOINTS + G1_RIGHT_GRIPPER_JOINTS
+    held = profile["held_joint_names"]
+    assert len(profile["home_qpos"]) == 9
+    assert len(held) == 24 and len(profile["held_home_qpos"]) == 24
+    urdf = ET.parse(REPO_ROOT / "assets" / "g1" / "g1_29dof_mode_15_with_dex1_1.urdf")
+    doc_order = [
+        j.attrib["name"]
+        for j in urdf.getroot().findall("joint")
+        if j.attrib["type"] not in ("fixed", "floating")
+    ]
+    assert len(doc_order) == 33
+    assert held == [name for name in doc_order if name in set(held)]
+    assert set(wire) | set(held) == set(doc_order)
+    assert not (set(wire) & set(held))
+    # Dex1-1 stops (URDF limits [-0.02, 0.0245]; +q separates => open)
+    assert profile["gripper_open_qpos"] == pytest.approx(0.0245)
+    assert profile["gripper_close_qpos"] == pytest.approx(-0.02)
+    assert profile["gripper_dofs"] == 2
+    # FK sole probe: soles flat on the ground at zero-pose standing home
+    assert profile["pelvis_height_m"] == pytest.approx(0.7872)
+    assert all(q == 0.0 for q in profile["held_home_qpos"])
+    # held-DOF PD must exist and be positive (gravity droop, SCN-4)
+    assert profile["held_kp"] > 0 and profile["held_kv"] > 0
+
+
+def test_g1_urdf_options_pin_the_fk_pelvis_height():
+    """SCN-4: the G1 loads fixed at the FK-derived pelvis height with full
+    CoACD decomposition (addendum-2 ruling: threshold 0.0)."""
+    from aisle.scenes.pharmacy import g1_urdf_options
+
+    options = g1_urdf_options(load_physics()["embodiment"]["g1_right"])
+    assert options == {
+        "fixed": True,
+        "pos": (0.0, 0.0, 0.7872),
+        "convexify": True,
+        "decompose_robot_error_threshold": 0.0,
+    }
+
+
+def test_unknown_embodiment_load_rejected_without_sim():
+    """SCN-4: robot_morph raises for an unknown embodiment BEFORE importing
+    genesis — a typo cannot silently build the SO-101 model (the hole this
+    closes), and unit tests stay sim-free (CON-12)."""
+    from aisle.scenes.pharmacy import load_physics as load_p
+    from aisle.scenes.pharmacy import robot_morph
+
+    with pytest.raises(ValueError, match="unknown embodiment 'humanoid'"):
+        robot_morph("humanoid", load_p())
 
 
 def test_unknown_embodiment_rejected():

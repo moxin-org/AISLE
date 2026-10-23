@@ -23,7 +23,7 @@ stayed outside it).
 | Directory | Role | Frozen paths it holds (CON-7) |
 |---|---|---|
 | `analysis/` | committed experiment findings and reports | — |
-| `assets/` | robot/scene assets (so101 URDF) | `assets/so101` |
+| `assets/` | robot/scene assets (so101 URDF) | `assets/g1`, `assets/so101` |
 | `docs/` | guides, design doc, ADRs, this generated appendix | — |
 | `env/` | topic CONTRACT.md and guard limits (config, not code) | `env` |
 | `experts/` |  | — |
@@ -44,9 +44,9 @@ stayed outside it).
 | Surface | Count |
 |---|---:|
 | Graphs | 27 |
-| Capability manifests | 43 |
+| Capability manifests | 44 |
 | CLI command entries | 39 |
-| ADR files | 88 |
+| ADR files | 91 |
 
 ## Graphs
 
@@ -114,32 +114,33 @@ stayed outside it).
 
 | Capability | Provides | Arm profile(s) | Safety | Origin | Source |
 |---|---|---|---|---|---|
-| [registry/manifests/arm-driver-sim.yaml](../../registry/manifests/arm-driver-sim.yaml) | arm_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/arm-driver-sim.yaml](../../registry/manifests/arm-driver-sim.yaml) | arm_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/base-driver-sim.yaml](../../registry/manifests/base-driver-sim.yaml) | base_actuation | franka | motion | hub | `src/aisle/nodes/dora_genesis.py` |
-| [registry/manifests/budget-guard.yaml](../../registry/manifests/budget-guard.yaml) | budget_guard | franka, so101 | motion | hub | `src/aisle/nodes/budget_guard.py` |
-| [registry/manifests/camera-source.yaml](../../registry/manifests/camera-source.yaml) | rgb_stream, depth_stream | franka, so101 | perception | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/budget-guard.yaml](../../registry/manifests/budget-guard.yaml) | budget_guard | franka, so101, g1_right | motion | hub | `src/aisle/nodes/budget_guard.py` |
+| [registry/manifests/camera-source.yaml](../../registry/manifests/camera-source.yaml) | rgb_stream, depth_stream | franka, so101, g1_right | perception | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/detected-pose.yaml](../../registry/manifests/detected-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/l2_pose.py` |
 | [registry/manifests/detector-openvocab.yaml](../../registry/manifests/detector-openvocab.yaml) | object_detection | franka, so101 | perception | hub | `pip:dora-yolo` |
-| [registry/manifests/dora-genesis.yaml](../../registry/manifests/dora-genesis.yaml) | sim_bridge, rgb_stream, depth_stream, arm_actuation, gripper_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/dora-genesis.yaml](../../registry/manifests/dora-genesis.yaml) | sim_bridge, rgb_stream, depth_stream, arm_actuation, gripper_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/g1-driver.yaml](../../registry/manifests/g1-driver.yaml) | hw_bridge | g1_right | motion | hub | `src/aisle/nodes/g1_driver.py` |
 | [registry/manifests/goal-adversary.yaml](../../registry/manifests/goal-adversary.yaml) | goal_adversary | franka, so101 | decision | agent-authored | `src/aisle/nodes/goal_adversary.py` |
-| [registry/manifests/grasp-planner-topdown.yaml](../../registry/manifests/grasp-planner-topdown.yaml) | grasp_planning | franka, so101 | decision | hub | `src/aisle/nodes/grasp_topdown.py` |
-| [registry/manifests/gripper-driver-sim.yaml](../../registry/manifests/gripper-driver-sim.yaml) | gripper_actuation | franka, so101 | motion | hub | `src/aisle/nodes/dora_genesis.py` |
+| [registry/manifests/grasp-planner-topdown.yaml](../../registry/manifests/grasp-planner-topdown.yaml) | grasp_planning | franka, so101, g1_right | decision | hub | `src/aisle/nodes/grasp_topdown.py` |
+| [registry/manifests/gripper-driver-sim.yaml](../../registry/manifests/gripper-driver-sim.yaml) | gripper_actuation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/dora_genesis.py` |
 | [registry/manifests/human-sim.yaml](../../registry/manifests/human-sim.yaml) | dialogue_human | franka, so101 | decision | hub | `src/aisle/nodes/human_sim.py` |
-| [registry/manifests/ik-trajectory.yaml](../../registry/manifests/ik-trajectory.yaml) | trajectory_generation | franka, so101 | motion | hub | `src/aisle/nodes/ik_trajectory.py` |
+| [registry/manifests/ik-trajectory.yaml](../../registry/manifests/ik-trajectory.yaml) | trajectory_generation | franka, so101, g1_right | motion | hub | `src/aisle/nodes/ik_trajectory.py` |
 | [registry/manifests/ik-transfer-v2.yaml](../../registry/manifests/ik-transfer-v2.yaml) | trajectory_generation | franka, so101 | motion | agent-authored | `skills/ik-transfer-v2/ik_transfer_v2.py` |
 | [registry/manifests/misplacement-detector.yaml](../../registry/manifests/misplacement-detector.yaml) | misplacement_detection | franka | perception | hub | `src/aisle/nodes/misplacement_detector.py` |
 | [registry/manifests/monolith-broker.yaml](../../registry/manifests/monolith-broker.yaml) | monolithic_control | franka, so101 | motion | agent-authored | `src/aisle/nodes/monolith_broker.py` |
 | [registry/manifests/nav-action.yaml](../../registry/manifests/nav-action.yaml) | navigation | franka | motion | hub | `src/aisle/nodes/nav_action.py` |
 | [registry/manifests/ocr-label.yaml](../../registry/manifests/ocr-label.yaml) | label_text | franka | perception | hub | `src/aisle/nodes/label_reader.py` |
-| [registry/manifests/oracle-pose.yaml](../../registry/manifests/oracle-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/oracle_pose.py` |
+| [registry/manifests/oracle-pose.yaml](../../registry/manifests/oracle-pose.yaml) | object_pose | franka, so101, g1_right | perception | hub | `src/aisle/nodes/oracle_pose.py` |
 | [registry/manifests/order-reader.yaml](../../registry/manifests/order-reader.yaml) | order_reading | franka, so101 | perception | hub | `src/aisle/nodes/order_reader.py` |
 | [registry/manifests/patrol-planner.yaml](../../registry/manifests/patrol-planner.yaml) | patrol_planning | franka | decision | hub | `src/aisle/nodes/patrol_planner.py` |
 | [registry/manifests/pilot-policy-surface.yaml](../../registry/manifests/pilot-policy-surface.yaml) | pilot_public_observations | franka | decision | agent-authored | `src/aisle/harness/pilot_policy_surface.py` |
 | [registry/manifests/placement-controller.yaml](../../registry/manifests/placement-controller.yaml) | fine_placement | franka | decision | hub | `src/aisle/nodes/placement_controller.py` |
 | [registry/manifests/pose-estimator.yaml](../../registry/manifests/pose-estimator.yaml) | object_pose | franka, so101 | perception | hub | `pip:dora-pose` |
-| [registry/manifests/reset.yaml](../../registry/manifests/reset.yaml) | episode_reset | franka, so101 | decision | hub | `src/aisle/reset/service.py` |
+| [registry/manifests/reset.yaml](../../registry/manifests/reset.yaml) | episode_reset | franka, so101, g1_right | decision | hub | `src/aisle/reset/service.py` |
 | [registry/manifests/return-planner.yaml](../../registry/manifests/return-planner.yaml) | return_item | franka, so101 | decision | hub | `src/aisle/nodes/return_planner.py` |
-| [registry/manifests/rollout-client.yaml](../../registry/manifests/rollout-client.yaml) | episode_driving | franka, so101 | decision | hub | `src/aisle/harness/rollout_client.py` |
+| [registry/manifests/rollout-client.yaml](../../registry/manifests/rollout-client.yaml) | episode_driving | franka, so101, g1_right | decision | hub | `src/aisle/harness/rollout_client.py` |
 | [registry/manifests/s1-driver-v2.yaml](../../registry/manifests/s1-driver-v2.yaml) | s1_expert_driving | franka | motion | agent-authored | `skills/s1-driver-v2/s1_driver_v2.py` |
 | [registry/manifests/s1-expert.yaml](../../registry/manifests/s1-expert.yaml) | s1_expert_driving | franka | motion | hub | `src/aisle/nodes/s1_expert.py` |
 | [registry/manifests/s3-driver-v1.yaml](../../registry/manifests/s3-driver-v1.yaml) | s3_reshelving_driving_both_l1 | franka | motion | agent-authored | `skills/s3-driver-v1/s3_driver_v1.py` |
@@ -150,9 +151,9 @@ stayed outside it).
 | [registry/manifests/t2-scan-pose.yaml](../../registry/manifests/t2-scan-pose.yaml) | object_pose, scan_candidates | franka, so101 | perception | agent-authored | `skills/t2-scan-pose/t2_scan_pose.py` |
 | [registry/manifests/t2-scan-tsm.yaml](../../registry/manifests/t2-scan-tsm.yaml) | task_sequencing | franka | decision | agent-authored | `skills/t2-scan-tsm/t2_scan_tsm.py` |
 | [registry/manifests/task-planner.yaml](../../registry/manifests/task-planner.yaml) | task_planning | franka | decision | hub | `src/aisle/nodes/task_planner.py` |
-| [registry/manifests/task-state-machine.yaml](../../registry/manifests/task-state-machine.yaml) | task_sequencing | franka, so101 | decision | hub | `src/aisle/nodes/task_state_machine.py` |
-| [registry/manifests/turn-barrier.yaml](../../registry/manifests/turn-barrier.yaml) | turn_barrier | franka, so101 | decision | hub | `src/aisle/nodes/turn_barrier.py` |
-| [registry/manifests/verifier-oracle.yaml](../../registry/manifests/verifier-oracle.yaml) | episode_verification | franka, so101 | decision | hub | `src/aisle/verifier/oracle.py` |
+| [registry/manifests/task-state-machine.yaml](../../registry/manifests/task-state-machine.yaml) | task_sequencing | franka, so101, g1_right | decision | hub | `src/aisle/nodes/task_state_machine.py` |
+| [registry/manifests/turn-barrier.yaml](../../registry/manifests/turn-barrier.yaml) | turn_barrier | franka, so101, g1_right | decision | hub | `src/aisle/nodes/turn_barrier.py` |
+| [registry/manifests/verifier-oracle.yaml](../../registry/manifests/verifier-oracle.yaml) | episode_verification | franka, so101, g1_right | decision | hub | `src/aisle/verifier/oracle.py` |
 | [registry/manifests/verifier-realistic.yaml](../../registry/manifests/verifier-realistic.yaml) | episode_verification_realistic | franka, so101 | decision | hub | `src/aisle/nodes/verifier_realistic.py` |
 | [registry/manifests/verifier-retail.yaml](../../registry/manifests/verifier-retail.yaml) | retail_verification | franka | decision | hub | `src/aisle/verifier/retail.py` |
 | [registry/manifests/vla-policy-smolvla.yaml](../../registry/manifests/vla-policy-smolvla.yaml) | manipulation_policy | franka, so101 | motion | hub | `src/aisle/nodes/vla_smolvla.py` |
@@ -175,8 +176,8 @@ stayed outside it).
 | `harness fleet` | `--graph`, `--agents`, `--episodes`, `--seeds`, `--out`, `--timeout-s`, `--root`, `--sim-engine` |
 | `harness freeze build` | `--declaration`, `--output`, `--timestamp`, `--timestamp-source`, `--root` |
 | `harness freeze check` | `--manifest`, `--root`, `--allow-withheld-seeds` |
-| `harness hardware dry-run` | `--seed`, `--output` |
-| `harness hardware report` | `--station`, `--output` |
+| `harness hardware dry-run` | `--seed`, `--embodiment`, `--output` |
+| `harness hardware report` | `--station`, `--embodiment`, `--output` |
 | `harness monolith check` | `--module`, `--embodiment`, `--worker-config`, `--worker-config-sha256` |
 | `harness monolith describe` | `--embodiment` |
 | `harness monolith interface` | `--root`, `--candidate` |
@@ -286,6 +287,9 @@ inference.
 | [docs/decisions/ADR-contract-acceptance-window.md](../decisions/ADR-contract-acceptance-window.md) | ADR-contract-acceptance-window — Nominal-load contract capture | Accepted (issue #497). |
 | [docs/decisions/ADR-declared-session-edits.md](../decisions/ADR-declared-session-edits.md) | ADR-declared-session-edits — Declared edits preserve treatment identity | PROPOSED — engineering interpretation; no protocol or collection approval. |
 | [docs/decisions/ADR-dora-source-pin.md](../decisions/ADR-dora-source-pin.md) | ADR-dora-source-pin — Support a source-pinned Dora CLI | ACCEPTED — maintainer-authorized source installation; candidate adoption remains gated. |
+| [docs/decisions/ADR-g1-driver.md](../decisions/ADR-g1-driver.md) | ADR-g1-driver — G1 hardware driver (`g1-driver`) | PROPOSED (G1-D/G1-D-r1, outer-loop entries #2/#3; draft amendment lane, not for main) |
+| [docs/decisions/ADR-g1-embodiment.md](../decisions/ADR-g1-embodiment.md) | ADR-g1-embodiment — Unitree G1 support, scope A: `g1_right` wire, mode-15 machine, held-DOF mechanism | PROPOSED — draft for owner review under CON-14/CON-7. This work |
+| [docs/decisions/ADR-g1-shelf-lattice.md](../decisions/ADR-g1-shelf-lattice.md) | ADR-g1-shelf-lattice — G1 slot re-lattice, shoulder-roll planning bound, grasp/carry clearance | PROPOSED — operator rulings 2026-10-22 (re-lattice) and 2026-10-23 |
 | [docs/decisions/ADR-h1-protocol.md](../decisions/ADR-h1-protocol.md) | ADR-h1-protocol — H1 composition-experiment protocol (design doc §8.2.4) | accepted (CON-15: §8.2.4 defines what to record but not the |
 | [docs/decisions/ADR-h2-campaign-protocol.md](../decisions/ADR-h2-campaign-protocol.md) | ADR-h2-campaign-protocol — single-scenario research campaign runner (design doc §8.3 item 6) | accepted (CON-15: §8.3 names the campaign but not the mechanics; |
 | [docs/decisions/ADR-h3-campaign-protocol.md](../decisions/ADR-h3-campaign-protocol.md) | ADR-h3-campaign-protocol — H3 accumulation campaign, S1→S2→S3 (design doc §11.5, §8.4) | accepted 2026-07-27 (decisions D1–D6 resolved by human; D1 |

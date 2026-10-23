@@ -24,7 +24,7 @@ params:
 embodiment:
   # SO-101 uses its pinned official-URDF chain, five-axis radial-front IK,
   # official limits, and normalized one-axis gripper mapping (issue #13).
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: parallel
 safety_class: motion
 eval:

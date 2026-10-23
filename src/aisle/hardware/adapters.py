@@ -23,6 +23,9 @@ import numpy as np
 
 EVIDENCE_KIND = "loopback"
 SO101_DOF = 6
+# G1-D: the g1_right wire is 9 DOF (7 right-arm joints + 2 Dex1-1 fingers);
+# run_scenario's `dof` parameter selects it, the SO-101 default never moves.
+G1_DOF = 9
 MAX_STEP_RAD = 0.05
 SCENARIOS = (
     "command_receipt_correlation",
@@ -41,6 +44,10 @@ SCENARIOS = (
     "estop",
     "evidence_sink_failure",
 )
+# G1-only scenario (G1-D): mode_machine != 15 refuses torque. Kept out of
+# SCENARIOS so the SO-101 contract surface (test_hardware_phase pins
+# set(out["scenarios"]) == set(SCENARIOS)) is untouched.
+G1_SCENARIOS = ("mode_mismatch",)
 
 
 class Bus(Protocol):
@@ -94,7 +101,8 @@ class DoubleClock:
 class LoopbackBusDouble:
     """First-order lag toward the last command with scripted faults."""
 
-    home: np.ndarray = field(default_factory=lambda: np.zeros(SO101_DOF, dtype=np.float32))
+    dof: int = SO101_DOF
+    home: np.ndarray | None = None
     lag_steps: int = 1
     saturate_at: float | None = None
     disconnect_ticks: tuple[int, int] | None = None
@@ -107,8 +115,13 @@ class LoopbackBusDouble:
     _receipts: int = 0
 
     def __post_init__(self) -> None:
-        self.q = self.home.copy()
-        self.target = self.home.copy()
+        base = (
+            np.zeros(self.dof, dtype=np.float32)
+            if self.home is None
+            else np.asarray(self.home, dtype=np.float32)
+        )
+        self.q = base.copy()
+        self.target = base.copy()
 
     def connected(self) -> bool:
         if self.disconnect_ticks is None:
@@ -182,17 +195,20 @@ class ListSink:
         return True
 
 
-def run_scenario(name: str, *, seed: int = 0, ticks: int = 12) -> dict:
+def run_scenario(name: str, *, seed: int = 0, ticks: int = 12, dof: int = SO101_DOF) -> dict:
     """Drive the doubles through one scenario and return the telemetry rows
-    plus the observation the drill or fixture asserts on."""
-    if name not in SCENARIOS:
-        raise ValueError(name)
+    plus the observation the drill or fixture asserts on. `dof` sizes the
+    command vectors (SO101_DOF default; G1 runs pass 9) — the scenario
+    semantics and the 12-row pin never change with it."""
+    if name not in SCENARIOS and name not in G1_SCENARIOS:
+        raise ValueError(f"unknown scenario: {name!r}")
     rng = random.Random(seed)
     clock = DoubleClock(
         device_offset_ns=5_000_000 if name == "clock_skew" else 0,
         reset_at_tick=6 if name == "clock_reset" else None,
     )
     bus = LoopbackBusDouble(
+        dof=dof,
         lag_steps=4 if name == "actuator_lag" else 1,
         saturate_at=0.2 if name == "saturation" else None,
         disconnect_ticks=(4, 7) if name == "disconnect_reconnect" else None,
@@ -208,17 +224,18 @@ def run_scenario(name: str, *, seed: int = 0, ticks: int = 12) -> dict:
     lease_ttl = 3 if name == "lease_expiry" else 10_000
     silence = range(4, 9) if name == "lease_expiry" else range(0)  # producer goes quiet
     calibration_ok = name != "calibration_mismatch"
+    mode_ok = name != "mode_mismatch"  # G1-only: mode_machine must be 15 (G1-D)
     current_limit_a, temperature_limit_c = 3.0, 70.0
     last_command_tick, sink_failures, frames_dropped, halted = 0, 0, 0, False
     for tick in range(1, ticks + 1):
         clock.advance()
         estop.advance()
-        target = np.array([0.3 * rng.uniform(0.5, 1.0)] * SO101_DOF, dtype=np.float32)
+        target = np.array([0.3 * rng.uniform(0.5, 1.0)] * dof, dtype=np.float32)
         lease_expired = tick - last_command_tick > lease_ttl
         over_limit = bus.current_a > current_limit_a or bus.temperature_c > temperature_limit_c
         if tick in silence:
             decision, receipt = "hold", None  # held command: nothing transmitted
-        elif estop.engaged() or lease_expired or not calibration_ok or over_limit:
+        elif estop.engaged() or lease_expired or not calibration_ok or not mode_ok or over_limit:
             decision, receipt = "hold", None
             halted = True
         else:
@@ -248,7 +265,13 @@ def run_scenario(name: str, *, seed: int = 0, ticks: int = 12) -> dict:
             "torque_state": "off" if halted else "on",
             "lease_state": "expired" if lease_expired else "held",
             "over_limit": over_limit,
-            "device_error": "calibration_mismatch" if not calibration_ok else None,
+            "device_error": (
+                "mode_mismatch"
+                if not mode_ok
+                else "calibration_mismatch"
+                if not calibration_ok
+                else None
+            ),
             "source_sequence": tick,
             "device_timestamp": clock.device_ns(),
             "host_monotonic_ns": clock.host_ns(),

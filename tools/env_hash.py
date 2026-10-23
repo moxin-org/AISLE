@@ -55,6 +55,7 @@ FROZEN_DIRS = (
     # attested as the same environment.
     "src/aisle/mobility",
     "assets/so101",
+    "assets/g1",
     "env",
 )
 # SPEC 080: the guard and its limits are frozen safety artifacts — a run's

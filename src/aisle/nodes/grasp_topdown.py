@@ -286,6 +286,15 @@ def neighbour_constraints(centres: list, target_med: str, med_names: list, meds:
     ]
 
 
+#: G1-E/F2: g1_right plans top-down on its own physics profile (gripper
+#: geometry and pregrasp height from physics.toml, TCP convention per C1);
+#: any other unknown embodiment is still refused by name before the
+#: profile lookup (HAR-1).
+def require_supported_embodiment(embodiment: str) -> None:
+    if embodiment not in ("franka", "mobile", "so101", "g1_right"):
+        raise ValueError(f"require_supported_embodiment: unsupported embodiment {embodiment!r}")
+
+
 def main() -> None:
     import json
     import os
@@ -300,6 +309,7 @@ def main() -> None:
 
     h6_fault = armed_fault("grasp-planner-topdown")
     embodiment = os.environ.get("AISLE_EMBODIMENT", "franka")
+    require_supported_embodiment(embodiment)
     physics = load_physics()
     layout = resolve_layout(physics, embodiment)
     meds = load_meds()
@@ -343,6 +353,7 @@ def main() -> None:
             grasp, approach, place_z = plan_grasp(
                 pose,
                 meds[med]["size"],
+                grip=float(profile.get("grip_engagement_m", GRIP_ENGAGEMENT)),
                 front=front,
                 shelf_front_x=shelf_front_x,
                 tray_top_z=tray_top_z,

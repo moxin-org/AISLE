@@ -1,0 +1,30 @@
+{
+  "failure_classes": [
+    "wrong_object",
+    "dropped",
+    "timeout",
+    "never_grasped",
+    "collision",
+    "not_returned",
+    "lease_expired_release"
+  ],
+  "fidelity": "hardware_pending",
+  "fidelity_audit_source": "independent annotator over the same recordings; agreement and error estimated per HWP-13",
+  "missing_data_behavior": "refuse the trial as unscorable; never default to success",
+  "observation_window": "goal receipt to timeout_s or verdict",
+  "output_schema": "episode_result with status, failure, t_end, goal_id, verifier=physical",
+  "schema_version": "aisle.hardware.scorer-contract.v1",
+  "sensor_inputs": [
+    "overhead_rgb",
+    "overhead_depth",
+    "head_rgb",
+    "joint_state"
+  ],
+  "success_rule": "target object resting inside the tray region for 2 s within the observation window, judged from recorded overhead RGB-D",
+  "thresholds": {
+    "label_margin": "frozen with the perception envelope",
+    "resting_s": 2.0,
+    "tray_margin_m": 0.01
+  },
+  "wrong_object_rule": "any non-target object entering the tray region as detected by the frozen label reader on recorded frames"
+}

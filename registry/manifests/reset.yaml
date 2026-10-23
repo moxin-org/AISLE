@@ -28,7 +28,7 @@ outputs:
   reset_refused: {schema: reset_refused_u32, latency_class: best_effort}
   turn_done: {schema: sim_turn_u64, latency_class: hard_rt}
 embodiment:
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: decision
 eval: null

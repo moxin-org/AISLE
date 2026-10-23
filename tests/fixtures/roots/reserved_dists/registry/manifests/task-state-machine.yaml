@@ -37,7 +37,7 @@ outputs:
 params:
   max_retries: {type: int, default: 8, range: [0, 8]}
 embodiment:
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: decision
 eval: null

@@ -910,6 +910,8 @@ def _resolve_backend(sim_backend: str | None) -> None:
 def _add_robot(scene: RapierScene, embodiment: str) -> RapierRobot:
     if embodiment in ("franka", "mobile"):
         return scene.add_mjcf_robot(franka_mjcf_path(), "franka")
+    if embodiment == "g1_right":
+        raise NotImplementedError("g1_right: Genesis only (ADR-g1-embodiment)")
     if not SO101_URDF.exists():
         raise FileNotFoundError(f"so101 asset missing: {SO101_URDF} (acquisition pending, ADR-6)")
     return scene.add_urdf_robot(

@@ -122,6 +122,7 @@ Full record: [`analysis/reports/phase2_phase3_report.md`](analysis/reports/phase
 | **Phase 5** — the model tier (next-phases §5) | 5.1/5.1b/5.2/5.3 | **CLOSED 2026-08-27** at measured end-states; every remainder explicitly GPU- or design-gated ([ledger](docs/next-phases.md)) |
 <!-- claim:hardware-so101-validation/readme -->
 | Phase 6 — hardware | entry criteria + prep | **HARDWARE PENDING — prepared, not open**: SO-101 driver node (loopback-tested) + VER-8 hardware calibration parity landed (ADR-phase6-prep); entry gates unwaived (M5 met; M1 + judge fidelity gated) |
+| Unitree G1 (right arm) — scope A | ADR-g1-embodiment | **BRANCH-ONLY (`feat/g1-support`), ADR PROPOSED**: wire + mode-15 machine, kinematics/guard (FK vs Genesis worst 1.2e-7 m / 1.5e-7 rad, outer-loop verified), scene, staged motion — all landed on the branch; the simulation acceptance gate has not run (`unrun`); physical hardware `hardware_pending` |
 
 The one unmet row is stated plainly rather than rounded, and dated: at the
 2026-08-16 close the library held `s1-driver-v2`, `s3-driver-v1`, and

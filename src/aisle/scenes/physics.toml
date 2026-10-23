@@ -250,6 +250,324 @@ shelf_level_size = [0.30, 0.68]
 tray_pos = [0.16, -0.16, 0.04]
 tray_size = [0.12, 0.14, 0.08]
 
+[embodiment.g1_right]
+# Unitree G1, scope A (ADR-g1-embodiment, PROPOSED): the wire drives the
+# right arm's 7 revolute joints + the right Dex1-1's 2 prismatic fingers
+# (TC-5 draft, 7+2 like franka); the other 24 DOFs are held at standing
+# home via held_joint_names (wire ∪ held MUST partition all 33 DOFs).
+# Asset: unitree_ros @5994d4f, g1_29dof_mode_15_with_dex1_1.urdf (mode 15).
+# CoACD full decomposition (addendum-2 ruling): threshold 0.0 keeps the
+# official non-convex collision meshes; cached second load ≈20 s.
+collision_decompose_error_threshold = 0.0
+# FK probe (zero pose, vendored URDF, collision spheres r=0.005 at ankle
+# z=-0.03): sole min-z = -0.7872 => pelvis height for soles on the ground.
+# Shoulder then sits at world [0, -0.1002, 1.0790]; shoulder->dex1_base
+# chain = 0.3254 m; finger AABB x∈[0.0523, 0.1433] => grasp center x≈0.098.
+pelvis_height_m = 0.7872
+# TC-5 wire (URDF document order for the right arm).
+arm_joint_names = [
+  "right_shoulder_pitch_joint",
+  "right_shoulder_roll_joint",
+  "right_shoulder_yaw_joint",
+  "right_elbow_joint",
+  "right_wrist_roll_joint",
+  "right_wrist_pitch_joint",
+  "right_wrist_yaw_joint",
+]
+gripper_joint_names = ["right_dex1_finger_joint_1", "right_dex1_finger_joint_2"]
+# Held DOFs, remaining 24 of 33 in URDF document order (left leg, right
+# leg, waist, left arm, left Dex1-1). Standing home = all zeros: the FK
+# probe verified both soles flat at zero pose.
+held_joint_names = [
+  "left_hip_pitch_joint",
+  "left_hip_roll_joint",
+  "left_hip_yaw_joint",
+  "left_knee_joint",
+  "left_ankle_pitch_joint",
+  "left_ankle_roll_joint",
+  "right_hip_pitch_joint",
+  "right_hip_roll_joint",
+  "right_hip_yaw_joint",
+  "right_knee_joint",
+  "right_ankle_pitch_joint",
+  "right_ankle_roll_joint",
+  "waist_yaw_joint",
+  "waist_roll_joint",
+  "waist_pitch_joint",
+  "left_shoulder_pitch_joint",
+  "left_shoulder_roll_joint",
+  "left_shoulder_yaw_joint",
+  "left_elbow_joint",
+  "left_wrist_roll_joint",
+  "left_wrist_pitch_joint",
+  "left_wrist_yaw_joint",
+  "left_dex1_finger_joint_1",
+  "left_dex1_finger_joint_2",
+]
+held_home_qpos = [
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0,
+  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  0.0, 0.0,
+]
+# Wire home (G1-H-r1): hand OFF the shelf, above box tops — arm up with
+# wrist pitched to near-palm-down (shoulder -1.2, wrist pitch 1.5). TCP
+# [0.4356, -0.0892, 1.0128]; wrist+finger AABB z >= 0.973, 3.3 cm above
+# the tallest box top (0.94); the home->rise reorientation interpolates
+# to a measured z peak of 1.2534 (workspace z_max 1.30 covers it). The
+# a7dd234 ready-pose home deterministically overlapped near-column boxes
+# at t~0.06 s (M0-6 gate evidence). 待 G1-F 调.
+home_qpos = [-1.2, -0.1, 0.0, 0.3, 0.0, 1.5, 0.0, 0.0245, 0.0245]
+# Dex1-1 derivation (URDF): finger_joint_1 axis (0,-1,0), finger_joint_2
+# axis (0,1,0) => +q separates the fingers (outward ±y), -q closes them;
+# limits [-0.02, 0.0245]. So open_qpos = +0.0245 (max gap), close = -0.02
+# (finger contact). Driver normalization contract: 0.0 = open, 1.0 =
+# closed (lane2 must map linearly onto these stops).
+gripper_dofs = 2
+gripper_open_qpos = 0.0245
+gripper_close_qpos = -0.02
+# Conservative Dex1-1 PD gains (effort limit 20 N per finger). 待 G1-F 调.
+gripper_kp = [500.0, 500.0]
+gripper_kv = [20.0, 20.0]
+# Physical jaw metrics from the finger AABBs (inner faces ±0.039 at q=0,
+# ±0.0635 at open => ~0.06 usable gap). 待 G1-F 调.
+gripper_open_m = 0.06
+gripper_close_m = 0.0
+gripper_finger_clear_m = 0.008
+# G1-H-r4 grasp-command/latch consistency (outer-loop #9: two lanes'
+# parameters were individually sane, jointly contradictory — cmd 0.55
+# closed BELOW the latch close threshold 0.65, so the latch could never
+# fire). Contact plateaus per med, from the finger qpos at two-face
+# contact: f = grasp-axis width / 2, g = (0.0245 - f)/0.0445:
+#   omeprazole 0.045 m -> 0.045 | amoxicillin 0.040 -> 0.101
+#   ibuprofen/metformin 0.035 -> 0.157 | cetirizine 0.030 -> 0.213
+# gripper_grasp_cmd 0.90 is a SQUEEZE above every plateau (PD holds
+# contact force). carry_latch_close 0.03 sits under the LOWEST plateau
+# (0.045, omeprazole) — the latch engages mid-close, BEFORE two-face
+# contact, exactly so101's design (its 0.68 fires under the measured
+# 0.75 onset). An EMPTY-hand close ramps g through 0.03 toward 1.0 and
+# would try to capture the nearest box — the second gate is that the
+# planner opens fully (pregrasp_cmd = 0) before every approach, so a
+# close stroke only ever begins with the target box already the nearest
+# neighbor; max_distance 0.15 additionally bounds the capture to the
+# pinched volume (contact TCP-to-center ~0.03 m; slot neighbours sit
+# >= 0.08 m away and only share the envelope during the approach that
+# ends on the target). release 0.01 keeps a wide hysteresis band.
+# A sim aid only — NOT evidence of real-robot grasp capability
+# (ADR-g1-embodiment). 待 G1-F 调.
+kinematic_carry_latch = true
+carry_latch_close = 0.03
+carry_latch_release = 0.01
+# Outer-loop review (G1-H-r4 merge): with close at 0.03 the latch fires as
+# the fingers START closing, so the capture radius is the only test that a
+# grasp is really at the box. 0.15 m would count a grasp several cm off as
+# carried and flatter the gate; a true grasp puts the TCP ~0.03 m from the
+# box center, so 0.05 m keeps real grasps and rejects near misses.
+carry_latch_max_distance_m = 0.05
+# G1-F2 close commands (normalized 0=open .. 1=closed over the 0.06 m
+# jaw): the narrowest med box axis is 0.030 m (cetirizine) — G1-H-r4
+# sets the grasp command as a SQUEEZE above every geometric contact
+# plateau (0.045..0.213, see the latch block above) so the PD keeps a
+# holding force after contact; sim contact physics stops the fingers on
+# the actual box, so the commanded 0.90 never fully closes empty-handed
+# around nothing (the planner opens fully to pregrasp_cmd 0 before any
+# approach, keeping the close motion always box-mediated).
+gripper_grasp_cmd = 0.90
+# G1-F10 (outer smoke f5ceb2d, ep0/ep2 dropped): top-down grasp depth
+# below the box top. The shared GRIP_ENGAGEMENT 0.035 is a Franka palm
+# number; the Dex1 palm bottom (wrist_yaw + Dex1 base meshes, ONE merged
+# collision link in Genesis) sits only 0.027 m above the G1 TCP, so 0.035
+# seated the palm ON the box top through carry and release (in-process
+# replay: right_wrist_yaw_link in contact from release on) and the lateral
+# clear dragged the box off the tray by palm friction. A vertical lift off
+# the box is kinematically unavailable at the tray column (shoulder roll
+# and wrist yaw sit at their limits there; a tilt-locked lift does not
+# converge). 0.015 leaves ~0.012 m of palm clearance and keeps the
+# tallest med's TCP-to-center distance (cetirizine 0.040 m) inside the
+# 0.05 m latch capture radius.
+grip_engagement_m = 0.015
+gripper_pregrasp_cmd = 0.0
+# Held-DOF PD (pelvis fixed: only limb weight, no balance burden); the PD
+# target is always held_home_qpos. kp 200 left a 0.0432 rad static droop
+# (τ_g/kp with the waist/hip gravity torque ≈ 8.6 N·m); 800 holds it under
+# 0.012 rad. The bridge never commands these DOFs. 待 G1-F 调.
+held_kp = 800.0
+held_kv = 40.0
+# G1-C4 arm PD: the 7 wire arm joints previously rode Genesis's URDF
+# default kp=100 (nexus_physics.toml) — the measured ~0.075 m gravity
+# droop per 0.1 m commanded lift (the G1-F6 tracking-failure root cause:
+# tracking fails -> staged bails -> plan completes early -> replan
+# reopens the gripper). Sizing from the MEASURED static gravity torques
+# (per-joint err x kp, holding the heaviest box in home/shelf/tray, the
+# /tmp probe round of 2026-10-20; wire order puts wrist_ROLL before
+# wrist_PITCH):
+#   shoulder pitch ~11.8 N·m | roll ~21.8 | yaw ~15.0 | elbow ~5.5
+#   wrist roll ~4.2 | pitch ~0.7 | yaw ~0.9
+# kp = tau_g / 0.005 rad (2x margin under the 0.01 rad budget), rounded:
+#   [2500, 4500, 3000, 1200, 900, 250, 250]
+# kv = 2*sqrt(kp*J_eff) at ζ ≈ 1.0-1.5 (J_eff ~0.3 shoulder .. ~0.005
+# wrist), rounded: [50, 70, 55, 35, 12, 8, 8]; no overshoot ring at
+# dt=0.01 in the 200-step holds (Genesis integrates actuator damping
+# implicitly — verified stable empirically in the same test).
+# SO-101/Franka carry no arm_kp keys -> zero behavior change there.
+arm_kp = [2500.0, 4500.0, 3000.0, 1200.0, 900.0, 250.0, 250.0]
+arm_kv = [50.0, 70.0, 55.0, 35.0, 12.0, 8.0, 8.0]
+# G1-F11 (50-seed gate e6363bb, pass1 0.76): every failure targeted the
+# cross-midline slot (0.28, 0.08), where IK put shoulder roll at +0.198.
+# Genesis hold probe: right_shoulder_roll_link meets torso_link from
+# ~0.0 rad and stops at +0.039 (advance err -0.159, the logged 'bailed at
+# joint 1 err ~0.15'). PLANNING-only upper bound with a 0.05 rad margin;
+# the guard's env/limits.toml envelope is unchanged.
+ik_shoulder_roll_max_rad = -0.05
+# G1-F11 (operator ruling 2026-10-23: speed up, keep the 150 s per-episode
+# wall budget): executor joint-velocity cap. 1.0 (the shared default) ran
+# 120-210 s of wall per episode; 1.5 is 75% of the 2.0 rad/s guard
+# envelope (qdot_max), leaving headroom for the executor's integral
+# correction. AISLE_MAX_JOINT_VEL still overrides.
+executor_max_joint_vel_rad_s = 1.5
+# TCP frame: Genesis collapses the massless fixed right_dex1_base_link
+# (right_base_joint, pure translation [0.0415, 0, 0]) — same as SO-101's
+# gripper_frame_link. Compose onto the surviving right_wrist_yaw_link:
+# offset = base joint 0.0415 + finger-AABB grasp center 0.0978 = 0.1393
+# along link +x (the direction the fingers extend). rpy pitch +π/2 makes
+# a top-down TCP (diag(1,−1,−1) in _assert_reachable) face the palm down:
+# the vertical forearm puts link +x straight down, and with +π/2 the near
+# column's IK solves (rot err 0.44); −π/2 flipped the palm backward and
+# pushed rotation errors to 1.86 — the sign the second IK run disproved.
+ee_link = "right_wrist_yaw_link"
+ee_frame_offset_xyz = [0.1393, 0.0, 0.0]
+ee_frame_offset_rpy = [0.0, 1.5707963, 0.0]
+# Workspace: origin-distance envelope (sampler pre-filter measures from
+# the world origin). Vertical-forearm top-down budget: |shoulder ->
+# wrist_yaw| <= 0.394 (chain 0.2031+0.1005+0.091); with the 0.19 vertical
+# hand offset, slots are kept at |S->W| <= ~0.34 (86%) for IK conditioning.
+reach_m = 1.30
+placement_radius_m = 0.45
+# Waist-height shelf in front of the right shoulder (y biased to the
+# robot's right, -y): two levels per SCN-3 (staggered, rear-aligned, the
+# upper a 10 mm rail like so101). G1-F11: the upper rail RAISED 0.34 ->
+# 0.60 (z 1.10 -> 1.36, above the 1.30 workspace ceiling). At 1.10 it held
+# no slot yet sat inside the G1 home hand's envelope: the home -> rise
+# wrist flip swept 58-67 mm through it (every slot x med), and smoke
+# 2ee2cb9 seed 5 jammed on it (wrist yaw stuck 0.71 rad, every grasp
+# stage bailed, the misplaced hand pushed the target off the shelf edge
+# -> dropped).
+shelf_pos = [0.30, 0.0, 0.76]
+shelf_level_heights = [0.06, 0.60]
+shelf_level_depths = [0.24, 0.01]
+# y width 0.56 (outer-loop #6 ruling): the same-side replacement slot
+# [0.28, -0.24] needs the wider board (y in [-0.28, 0.28] with margins).
+shelf_level_size = [0.24, 0.56]
+shelf_hand_clearance_m = 0.05
+shelf_edge_margin_m = 0.015
+min_separation = 0.02
+# Measured collision-free slot lattice (G1-H-r1): cross-body column
+# [0.24, +0.16] REMOVED per outer-loop ruling (F2 transfer limitation);
+# replaced by the same-side [0.28, -0.24]. Cross-column y stagger 0.08+
+# still exceeds the worst half-width pair + min_separation (0.0625);
+# board widened to y 0.56 for the new slot's margins. 待 G1-F 调.
+# G1-F11 (operator ruling 2026-10-22): the cross-midline slot
+# [0.28, 0.08] is unreachable top-down without the right shoulder roll
+# link entering the torso (Genesis contact from ~0.0 rad; the 50-seed gate
+# lost all 12 of its episodes there). Measured reachable band under the
+# ik_shoulder_roll_max_rad bound: x 0.24-0.28, y -0.24..+0.02 (y -0.26 and
+# x >= 0.32 fail pregrasp IK). Five slots re-latticed inside it at the
+# 0.065 y pitch (>= the 0.0625 worst half-width pair + min_separation),
+# x staggered 0.28 / 0.24.
+placement_slots_xy = [
+  [0.28, -0.24],
+  [0.24, -0.175],
+  [0.28, -0.11],
+  [0.24, -0.045],
+  [0.28, 0.02],
+]
+placement_global_jitter_m = 0.001
+# Delivery tray on a waist-height stand, fully outside the shelf
+# footprint (x front of 0.20, y behind -0.26), inside the reach sphere.
+# G1-F10: lowered 0.95 -> 0.85. With the shallow Dex1 grasp
+# (grip_engagement_m) the box hangs 2 cm lower, and the release TCP at
+# the old height (~1.085 m) was past the tray column's reach (lower
+# stage IK failed). At 0.85 every release TCP (0.985-0.995 m) sits below
+# the 1.00 m transfer hover, the lower stage is a true descent, and the
+# tallest hanging box (cetirizine, bottom 0.905 m) clears the tray top
+# 0.88 m at the hover.
+tray_pos = [0.13, -0.35, 0.85]
+tray_size = [0.12, 0.16, 0.06]
+# IK / trajectory at so101 scale, conservative (7-DOF arm, top-down
+# intended, full orientation). 待 G1-F 调.
+pregrasp_height_m = 0.10
+# G1-F8: 16 starts keep the whole lattice plannable (measured sweep:
+# 25/25 at 16 and below down to 10) while halving every cold-ladder walk
+# inside the turn budget.
+ik_max_starts = 16
+# G1-F8: measured at the real consumption point — full-budget stalls on
+# the Pareto plateau burned 3x the turn watchdog (lattice worst 15.7s at
+# 200 iters; the tolerance early-exit in _dls buys 10.5s, and 80 iters
+# completes the cut: slow-case worst 5.37s, zero planning failures
+# across the lattice; 60 iters regresses to 5.86s, so 80 is the floor).
+# 80 also matches the bootstrap floor the descent already uses.
+ik_max_solver_iters = 80
+# G1-F2 tuning, measured on the C1 far slot column (x=0.24, ~95 percent
+# of the 0.394 m vertical-forearm chain budget per the slot comments): the
+# redundant 7-DOF DLS sits on a Pareto plateau there — nailing position
+# (0.000 m) leaves rot 0.234; converging orientation (0.106 rad) leaves
+# pos 0.023 m. Doubling iterations (200 -> 800) only moves rot 0.112 ->
+# 0.085, so it is conditioning, not budget. The values below match the
+# tolerance class the C1 build itself accepts for the SAME reachability
+# check (shared [ik] rot_tol_rad 0.15) and so101's near-singular band
+# (ik_pos_tol_m 0.02, rounded up to cover the 0.023 plateau). At the
+# grasp the advance continuation re-converges from the hover; the palm
+# stays within 6.1 deg (rot 0.106 -> rot[2,2] >= 0.994).
+ik_pos_tol_m = 0.025
+ik_rot_tol_rad = 0.15
+# G1-F5 (ep0, smoke 20261019-234952): one UNREACHABLE cold ik_solve walks
+# the full 32-seed x 2-rotation ladder (measured 37.5s wall) and the staged
+# chain multiplies it across stages and parity retries — first-launch
+# planning burned 9 minutes of lockstep wall clock with no crash. This is
+# the planning wall budget: legitimate plans measure 4.7-5.8s per med
+# (F3 probe), so 30s is ~5x headroom; on expiry the plan fails LOUD
+# (plan.error names the budget) instead of freezing the turn.
+# G1-F8: planning runs SYNCHRONOUSLY inside a lockstep turn, so this
+# budget must fit inside the turn watchdog (outer smoke outer-smoke-f7b:
+# `plan ready` landed 3s after the 10s watchdog expired at 1:8 and the
+# dataflow froze). 6.0 = 0.6 x ORDINARY_TURN_WATCHDOG_S (10s, read from
+# turn_barrier) leaves CPU-jitter margin; the lattice worst measures
+# ~5.4s, and expiry still fails LOUD with the budget named.
+ik_plan_budget_s = 5.5
+ik_full_range_starts = true
+# G1-F9: raised 1.00 -> 1.02 so the wrist roll happens with fingertips
+# above the neighbouring slot's tallest box top (0.94): at 1.00 the roll
+# clipped the neighbour boxes (measured -2.7mm); at 1.02 the whole
+# roll+descent chain keeps >= 31.7mm (worst med). Still inside the
+# F2-measured IK conditioning band (ceiling ~1.04).
+trajectory_staging_z = 1.02
+trajectory_lift_m = 0.05
+trajectory_transfer_z = 1.00
+# G1-F10: the transfer backs out to this x (at the slot's own y) before
+# crossing to the tray, so the carried box never passes over a shelf box
+# (front edge x >= 0.205 = slot x 0.24 - worst half-x 0.035; carried
+# half-diagonal <= 0.042; 0.01 margin). The straight chord clipped a
+# neighbour in smoke 0acb406 and the transfer cannot rise (1.04 IK FAIL).
+trajectory_transfer_front_x = 0.13
+# ...but only when the straight slot->tray chord passes within this of
+# another slot centre. G1-F11 lattice chords: (0.28, -0.11) 0.001,
+# (0.28, 0.02) 0.013, (0.24, -0.045) 0.044, (0.24, -0.175) 0.068 ->
+# detour; (0.28, -0.24) 0.076 -> direct (its chord leads away from every
+# other slot, while its -x back-out passed the fingers 2 mm from the
+# (0.24, -0.175) box).
+trajectory_transfer_chord_clear_m = 0.07
+# G1-F5 (ep1, smoke 20261019-234952): the 60s episode timed out with the
+# plan unfinished. Measured sag-0.08 duration model over the whole slot
+# lattice: worst 32.4s at scale 0.5, 28.3s at 0.8, 27.0s at 1.0. 0.8 takes
+# the free-space stages to 0.8 rad/s — still 40 percent of the guard's
+# 2.0 rad/s qdot envelope — and buys 4s of margin for contact variance
+# the model cannot see (ep1's bails); the shelf-proximate insertion
+# stages keep their slower defaults.
+trajectory_retract_vel_scale = 0.8
+trajectory_transfer_vel_scale = 0.8
+trajectory_transfer_route = []
+
 [ik]
 pregrasp_height_m = 0.10
 pos_tol_m = 0.015

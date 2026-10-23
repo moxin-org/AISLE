@@ -31,6 +31,7 @@ import numpy as np
 
 from aisle.embodiment import (
     from_wire_joint_order,
+    held_dof_indices,
     profile_dof_indices,
     profile_joint_names,
     to_wire_joint_order,
@@ -344,6 +345,16 @@ def parse_bridge_config(env: dict) -> BridgeConfig:
     )
 
 
+def require_wire_joint_cmd(payload: np.ndarray, n_dof: int) -> None:
+    """TC-5 input gate: joint_cmd is Float32[n_dof] — the WIRE length
+    (9 for g1_right, never robot.n_dofs). Module-level so the contract
+    is unit-testable without a dataflow."""
+    if payload.shape[0] != n_dof:
+        raise ValueError(
+            f"joint_cmd must be Float32[{n_dof}], got length {payload.shape[0]} (TC-5)"
+        )
+
+
 def require_single_env_for_mobile(embodiment: str, n_envs: int) -> None:
     """SPEC 210 MOB-1 (ADR-13): the kinematic base carries ONE base_cmd /
     base_pose per bridge and batched genesis re-basing is not implemented,
@@ -549,6 +560,7 @@ def make_bridge_info(
     segmentation_ids: dict,
     sim_backend: str,
     sim_engine: str,
+    render_warmup_s: dict[str, float] | None = None,
 ) -> str:
     """BRG-6 + BRG-8: the startup contract announcement, as a JSON string.
 
@@ -598,6 +610,7 @@ def make_bridge_info(
             "sim_backend": sim_backend,
             "sim_engine": sim_engine,
             "calibration": calibration,
+            "render_warmup_s": render_warmup_s,
         }
     )
 
@@ -700,6 +713,37 @@ def render_frames(cameras, due, work):
             work.call("render", cameras["wrist"].render)[0], dtype=np.uint8
         )
     return frames
+
+
+def warmup_render(cameras, due: list[str], work) -> dict[str, float]:
+    """G1-C3 (CON-5): render ONE throwaway frame per ENABLED camera channel
+    before the first turn, pre-paying the per-process shader/kernel compile
+    (measured ~10.9 s/frame on the first window — the ep0 wall_clamp of the
+    r3/r5 smokes; a separate warmup process cannot cover it).
+
+    The result is DISCARDED: nothing is published, sim time does not
+    advance, no scene.step() runs, and no RNG/state is touched — the only
+    side effect is the renderer's own compile cache. Mirrors render_frames'
+    channel logic exactly (one overhead pass for rgb/depth/seg, wrist rgb),
+    so every channel the graph actually enables gets warmed.
+    """
+    import time
+
+    times: dict[str, float] = {}
+    need_rgb = "rgb_overhead" in due
+    need_seg = "seg_overhead" in due
+    need_depth = "depth_overhead" in due
+    if need_rgb or need_depth or need_seg:
+        t0 = time.perf_counter()
+        work.call(
+            "render", cameras["overhead"].render, rgb=True, depth=need_depth, segmentation=need_seg
+        )
+        times["overhead_s"] = round(time.perf_counter() - t0, 3)
+    if "rgb_wrist" in due:
+        t0 = time.perf_counter()
+        work.call("render", cameras["wrist"].render)
+        times["wrist_s"] = round(time.perf_counter() - t0, 3)
+    return times
 
 
 def timing_sidecar_path(env: dict) -> Path | None:
@@ -997,19 +1041,25 @@ def main(
             )
         robot = handle.robot
         n_dof = robot.n_dofs
+        # TC-5 (G1-C2): a profile with held joints carries a PARTIAL wire —
+        # the bridge's n_dof (bridge_info, joint_state, joint_cmd length
+        # checks) is the wire length, never robot.n_dofs. Legacy
+        # full-coverage profiles keep n_dof == robot.n_dofs bit-for-bit.
+        if profile.get("held_joint_names"):
+            n_dof = len(profile_joint_names(profile))
         # carry coupling needs the hand's world position (T15, ADR-18)
         hand_link = robot.get_link("hand") if is_store else None
         held_item: str | None = None  # carry latch (T15, ADR-18)
         held_offset = (0.0, 0.0, 0.0, 0.0)
-        so101_latch = None
-        so101_hand_link = None
-        so101_tcp_offset = None
+        carry_latch_obj = None
+        carry_hand_link = None
+        carry_tcp_offset = None
         if profile.get("kinematic_carry_latch", False):
             if cfg.n_envs != 1 or is_store:
-                raise ValueError("SO-101 carry latch requires single-env pharmacy mode")
-            so101_hand_link = robot.get_link(profile["ee_link"])
-            so101_tcp_offset = np.asarray(profile["ee_frame_offset_xyz"], dtype=np.float64)
-            so101_latch = CarryLatch(
+                raise ValueError(f"{cfg.embodiment} carry latch requires single-env pharmacy mode")
+            carry_hand_link = robot.get_link(profile["ee_link"])
+            carry_tcp_offset = np.asarray(profile["ee_frame_offset_xyz"], dtype=np.float64)
+            carry_latch_obj = CarryLatch(
                 close_threshold=float(profile["carry_latch_close"]),
                 release_threshold=float(profile["carry_latch_release"]),
                 max_distance_m=float(profile["carry_latch_max_distance_m"]),
@@ -1027,6 +1077,32 @@ def main(
             else {}
         )
         require_usable_segmentation_ids(segmentation_ids, cfg.perception)
+
+        # G1-C5: the G1-C3 render warmup MUST run before the dora Node()
+        # is created — Node() opens the subscription, and the outer-loop
+        # pinned smoke (outer-smoke-g1, dora 48e96b5) proved what happens
+        # otherwise: the 11.2 s compile blocked the event loop, >1100
+        # 10 ms tick events piled into the zenoh channel, and the bridge
+        # DROPPED the first reset ("event channel full") — episode 0 sat
+        # at "holding at sim step 0 until the first reset" until the wall
+        # budget died. Pre-Node there is no subscription yet, so nothing
+        # can pile up; the scene/work exist, and the channel set derives
+        # from env + cfg only (AISLE_TURN_OUTPUTS, perception rung,
+        # lockstep, embodiment) — none of it needs the node. Result is
+        # still DISCARDED (CON-5: no state touched; the warmup-leaves-
+        # observations-bit-identical sim test still pins that).
+        _warmup_channels = rung_topic_rates(cfg.perception, cfg.embodiment == "mobile")
+        if cfg.lockstep:
+            _declared = {
+                name for name in os.environ.get("AISLE_TURN_OUTPUTS", "").split(",") if name
+            }
+            _warmup_channels = {t: r for t, r in _warmup_channels.items() if t in _declared}
+        warmup_times = warmup_render(handle.cams, list(_warmup_channels), work)
+        print(
+            f"render warmup (pre-Node): {warmup_times} (overhead/wrist channels"
+            " pre-compiled; first-frame cost paid before any subscription exists)",
+            file=sys.stderr,
+        )
 
         node = Node()
         sim_time_ns = 0
@@ -1070,6 +1146,23 @@ def main(
                 }
             node.send_output(topic, value, metadata=metadata)
 
+        is_mobile = cfg.embodiment == "mobile"
+        topic_rates = rung_topic_rates(cfg.perception, is_mobile)
+        if cfg.lockstep:
+            # A measured graph's declared output set is the executable contract.
+            # Do not render/publish optional sensor ports the graph omitted; their
+            # absence is represented by omission from the bridge's complete
+            # watermark output set, not by an attempted undeclared dora send.
+            topic_rates = {
+                topic: rate for topic, rate in topic_rates.items() if topic in bridge_outputs
+            }
+        base_pose = [float(v) for v in profile.get("base_start", [0.0, 0.0, 0.0])]
+        base_cmd = [0.0, 0.0]
+        if is_store:
+            scan_obstacles = store_scan_obstacles(load_planogram())
+        else:
+            scan_obstacles = desk_scan_obstacles(physics, cfg.embodiment) if is_mobile else []
+
         emit_bridge(
             "bridge_info",
             pa.array(
@@ -1087,6 +1180,7 @@ def main(
                         sim_backend=cfg.sim_backend
                         or select_sim_backend(cfg.sim_engine, "sim", platform.system()),
                         sim_engine=cfg.sim_engine,
+                        render_warmup_s=warmup_times,
                     )
                 ]
             ),
@@ -1117,23 +1211,6 @@ def main(
         # SPEC 210 (T11, ADR-13): the mobile embodiment adds the kinematic base
         # topics. base_pose is integrated from base_cmd each tick and the arm's
         # root is re-based; base_scan is a planar raycast against the scene.
-        is_mobile = cfg.embodiment == "mobile"
-        topic_rates = rung_topic_rates(cfg.perception, is_mobile)
-        if cfg.lockstep:
-            # A measured graph's declared output set is the executable contract.
-            # Do not render/publish optional sensor ports the graph omitted; their
-            # absence is represented by omission from the bridge's complete
-            # watermark output set, not by an attempted undeclared dora send.
-            topic_rates = {
-                topic: rate for topic, rate in topic_rates.items() if topic in bridge_outputs
-            }
-        base_pose = [float(v) for v in profile.get("base_start", [0.0, 0.0, 0.0])]
-        base_cmd = [0.0, 0.0]
-        if is_store:
-            scan_obstacles = store_scan_obstacles(load_planogram())
-        else:
-            scan_obstacles = desk_scan_obstacles(physics, cfg.embodiment) if is_mobile else []
-
         scheduler = RateScheduler(topic_rates, dt)
         commands = CommandQueue(cfg.n_envs)
         dropped_counts: dict[str, dict[int, int]] = {"joint": {}, "gripper": {}, "base": {}}
@@ -1147,6 +1224,11 @@ def main(
         quarantine = ResetQuarantine(RESET_SETTLE_TICKS)  # holds arm at home post-reset
         wire_dof_indices = profile_dof_indices(robot, profile)
         configured_names = profile_joint_names(profile)
+        has_held = bool(profile.get("held_joint_names"))
+        if has_held and "home_qpos" not in profile:
+            raise ValueError(
+                "held_joint_names profiles require home_qpos (held home is the PD target)"
+            )
         if configured_names is None:
             # one name per DOF in native payload order: multi-dof joints repeat,
             # zero-dof (fixed) joints vanish
@@ -1158,13 +1240,25 @@ def main(
             joint_names = list(configured_names)
         assert len(joint_names) == n_dof, (len(joint_names), n_dof)
 
-        home_hold = (
-            from_wire_joint_order(
+        if "home_qpos" not in profile:
+            home_hold = None
+        elif has_held:
+            # G1-C2 (TC-5): full-length home — held DOFs take held_home_qpos
+            # and stay the PD target forever; only wire positions are ever
+            # commanded. Legacy profiles keep the exact old vector.
+            held_base = np.zeros(robot.n_dofs, dtype=np.float32)
+            held_base[list(held_dof_indices(robot, profile))] = np.asarray(
+                profile["held_home_qpos"], dtype=np.float32
+            )
+            home_hold = from_wire_joint_order(
+                np.asarray(profile["home_qpos"], dtype=np.float32),
+                wire_dof_indices,
+                base=held_base,
+            )
+        else:
+            home_hold = from_wire_joint_order(
                 np.asarray(profile["home_qpos"], dtype=np.float32), wire_dof_indices
             )
-            if "home_qpos" in profile
-            else None
-        )
         gripper_open = profile.get("gripper_open_qpos", profile.get("gripper_open_m", 0.04))
         gripper_close = profile.get("gripper_close_qpos", profile.get("gripper_close_m", 0.0))
         gripper_dofs = int(profile.get("gripper_dofs", 2))
@@ -1288,9 +1382,16 @@ def main(
             # command owns any overlapping dofs
             for kind, env_id, payload, dropped in commands.drain():
                 if kind == "joint":
-                    target = from_wire_joint_order(
-                        np.asarray(payload, dtype=np.float32), wire_dof_indices
-                    )
+                    wire_values = np.asarray(payload, dtype=np.float32)
+                    if has_held:
+                        # G1-C2 (TC-5): only the wire DOFs follow joint_cmd —
+                        # the base keeps held joints at their held home, which
+                        # no command may ever overwrite.
+                        target = from_wire_joint_order(
+                            wire_values, wire_dof_indices, base=home_hold
+                        )
+                    else:
+                        target = from_wire_joint_order(wire_values, wire_dof_indices)
                     if cfg.n_envs > 1:
                         robot.control_dofs_position(target[None, :], envs_idx=[env_id])
                     else:
@@ -1354,9 +1455,15 @@ def main(
                         envs_idx=[env_id] if cfg.n_envs > 1 and env_id is not None else None
                     )
             if "home_qpos" in profile:
-                home = from_wire_joint_order(
-                    np.asarray(profile["home_qpos"], dtype=np.float32), wire_dof_indices
-                )
+                if has_held:
+                    # G1-C2 (TC-5): reset re-homes BOTH partitions — wire to
+                    # home_qpos, held DOFs back to held_home_qpos. home_hold
+                    # is already exactly that full-length vector.
+                    home = home_hold
+                else:
+                    home = from_wire_joint_order(
+                        np.asarray(profile["home_qpos"], dtype=np.float32), wire_dof_indices
+                    )
                 if cfg.n_envs > 1 and env_id is not None:
                     robot.set_qpos(home[None, :], envs_idx=[env_id])
                     robot.control_dofs_position(home[None, :], envs_idx=[env_id])
@@ -1588,16 +1695,16 @@ def main(
                             robot.set_quat(
                                 np.array([np.cos(half), 0.0, 0.0, np.sin(half)], dtype=np.float32)
                             )
-                    if so101_latch is not None:
+                    if carry_latch_obj is not None:
                         finger = float(to_numpy(robot.get_qpos()).reshape(-1)[finger_idx[0]])
                         grip = float(
                             np.clip(
                                 (gripper_open - finger) / (gripper_open - gripper_close), 0.0, 1.0
                             )
                         )
-                        hand_pos = to_numpy(so101_hand_link.get_pos()).reshape(-1)[:3]
-                        hand_quat = to_numpy(so101_hand_link.get_quat()).reshape(-1)[:4]
-                        tcp_pos = frame_point_wxyz(hand_pos, hand_quat, so101_tcp_offset)
+                        hand_pos = to_numpy(carry_hand_link.get_pos()).reshape(-1)[:3]
+                        hand_quat = to_numpy(carry_hand_link.get_quat()).reshape(-1)[:4]
+                        tcp_pos = frame_point_wxyz(hand_pos, hand_quat, carry_tcp_offset)
                         candidates = {
                             name: (
                                 to_numpy(entity.get_pos()).reshape(-1)[:3],
@@ -1605,12 +1712,13 @@ def main(
                             )
                             for name, entity in handle.boxes.items()
                         }
-                        before = so101_latch.held_name
-                        attached = so101_latch.update(grip, tcp_pos, hand_quat, candidates)
-                        if before != so101_latch.held_name:
-                            action = "latch" if so101_latch.held_name is not None else "release"
+                        before = carry_latch_obj.held_name
+                        attached = carry_latch_obj.update(grip, tcp_pos, hand_quat, candidates)
+                        if before != carry_latch_obj.held_name:
+                            action = "latch" if carry_latch_obj.held_name is not None else "release"
+                            held_or_released = before or carry_latch_obj.held_name
                             print(
-                                f"so101 carry {action}: {before or so101_latch.held_name}",
+                                f"carry {action}: {held_or_released} ({cfg.embodiment})",
                                 file=sys.stderr,
                             )
                         if attached is not None:
@@ -1643,11 +1751,7 @@ def main(
                     payload = np.asarray(
                         event["value"].to_numpy(zero_copy_only=False), dtype=np.float32
                     ).reshape(-1)
-                    if payload.shape[0] != n_dof:
-                        raise ValueError(
-                            f"joint_cmd must be Float32[{n_dof}], "
-                            f"got length {payload.shape[0]} (TC-5)"
-                        )
+                    require_wire_joint_cmd(payload, n_dof)
                     commands.push("joint", metadata.get("env_id"), payload)
                     env_id = int(metadata.get("env_id", 0))
                     dropped_counts["joint"][env_id] = dropped_counts["joint"].get(env_id, 0) + int(
@@ -1724,13 +1828,14 @@ def main(
                             # oracle_state, base_pose...) is a function of the episode,
                             # not of the wall tick the request happened to land on
                             scheduler = RateScheduler(topic_rates, dt)
-                        if so101_latch is not None:
-                            if so101_latch.held_name is not None:
+                        if carry_latch_obj is not None:
+                            if carry_latch_obj.held_name is not None:
                                 print(
-                                    f"so101 carry release: {so101_latch.held_name} (reset)",
+                                    f"carry release: {carry_latch_obj.held_name} "
+                                    f"(reset, {cfg.embodiment})",
                                     file=sys.stderr,
                                 )
-                            so101_latch.reset()
+                            carry_latch_obj.reset()
                         if is_mobile:
                             # MOB-1/ADR-13: re-home the base to the store-frame start and
                             # drop the in-flight base command (mirrors the arm re-home).

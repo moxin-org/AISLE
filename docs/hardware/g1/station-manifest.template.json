@@ -1,0 +1,18 @@
+{
+  "_instructions": "replace every hardware_pending with measured identities; a guessed identity blocks physical execution (G1H-1, HWP-1). G1 specifics to pin: robot serial number; mode_machine=15 station profile (asset g1_29dof_mode_15_with_dex1_1); Dex1-1 gripper firmware version and RS485-to-USB serial; PC2/Jetson compute unit identity; the wired 192.168.123.x control network interface used by rt/arm_sdk and rt/lowstate; remote controller channel and the physical e-stop path; unitree_sdk2py install commit recorded in .g1-runtime-receipt.json",
+  "actuators": "hardware_pending",
+  "arm": "hardware_pending",
+  "bus_usb_topology": "hardware_pending",
+  "cameras": "hardware_pending",
+  "estop_hardware": "hardware_pending",
+  "firmware_hashes": "hardware_pending",
+  "gripper": "hardware_pending",
+  "host": "hardware_pending",
+  "power_supply": "hardware_pending",
+  "responsible_operators": "hardware_pending",
+  "runtime_hashes": "hardware_pending",
+  "schema_version": "aisle.hardware.station-manifest.v1",
+  "station_id": "hardware_pending",
+  "task_object_ids": "hardware_pending",
+  "workspace_fixture_ids": "hardware_pending"
+}

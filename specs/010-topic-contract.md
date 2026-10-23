@@ -49,11 +49,14 @@ MUST honor it byte-for-byte.
 | `human_msg` | out (human-sim) | JSON utf8 | per event | T4 dialogue (ADR-32): scripted request/confirm_reply/correction — a pure function of the per-goal seed and the observed `robot_msg` sequence (CON-5); goal_id-correlated (TC-7); FORWARD edge under ADR-30 lockstep |
 | `robot_msg` | out (task-state-machine) | JSON utf8 | per event | T4 dialogue (ADR-32): confirm/ack back to the human-sim; `turn_edge: episodic` (breaks the dialogue cycle, ADR-30 §1.3). In T4 the state machine MUST take its task from `human_msg`, not `episode_goal` — the goal (final corrected target) MUST reach only `verifier-*`/measurement-tap nodes, validator-enforced (DIALOGUE_GOAL_LEAK, ADR-32 §1); a completed confirm exchange MUST precede the first `target_request`, and dialogue corrections count in `episode_feedback.dialogue_corrections`, never as HAR-3 retries |
 
-- TC-5: The bridge MUST publish `joint_state` and accept `joint_cmd` for BOTH
-  embodiment profiles (`franka` n_dof=7+2, `so101` n_dof=5+1) with identical
-  semantics; `names` metadata disambiguates. The SO-101 arm-joint order MUST
-  match the official follower model: `shoulder_pan`, `shoulder_lift`,
-  `elbow_flex`, `wrist_flex`, `wrist_roll`, followed by `gripper` (ADR-27).
+- TC-5: The bridge MUST publish `joint_state` and accept `joint_cmd` for the
+  embodiment profiles (`franka` n_dof=7+2, `so101` n_dof=5+1, `g1_right`
+  n_dof=7+2) with identical semantics; `names` metadata disambiguates. The
+  SO-101 arm-joint order MUST match the official follower model:
+  `shoulder_pan`, `shoulder_lift`, `elbow_flex`, `wrist_flex`, `wrist_roll`,
+  followed by `gripper` (ADR-27). For `g1_right`, every G1 DOF outside the
+  wire is held at home via `held_joint_names`: wire ∪ held MUST partition the
+  robot's DOFs (ADR-g1-embodiment, PROPOSED).
 
 ## 3. Services and actions (dora patterns)
 

@@ -11,7 +11,7 @@ import shutil
 import pytest
 from contract_capture import assert_rates, write_contract_dataflow
 
-from aisle.embodiment import SO101_JOINTS
+from aisle.embodiment import G1_RIGHT_JOINTS, SO101_JOINTS
 
 pytestmark = [
     pytest.mark.accept,
@@ -32,6 +32,7 @@ RATES = {
 }
 FRANKA_N_DOF = 9
 SO101_N_DOF = len(SO101_JOINTS)
+G1_RIGHT_N_DOF = len(G1_RIGHT_JOINTS)  # TC-5 draft: the WIRE is 7+2, not 33
 
 
 def capture(dataflow, tmp_path, bridge_env, driver_env, duration_s=10.0):
@@ -150,6 +151,32 @@ def test_so101_schema_conformance(tmp_path, dataflow):
     joint = by_topic["joint_state"][0]
     assert joint["len"] == SO101_N_DOF
     assert tuple(joint["metadata"]["names"]) == SO101_JOINTS
+    gripper = by_topic["gripper_state"][0]
+    assert gripper["len"] == 1
+    assert 0.0 <= gripper["values"][0] <= 1.0
+
+
+def test_g1_right_schema_conformance(tmp_path, dataflow):
+    """Acceptance A1 (TC-5 draft, SCN-4, ADR-g1-embodiment): the g1_right
+    profile serves a WIRE-sized contract — bridge_info n_dof is 9 (the
+    7+2 wire, never the robot's 33 native DOFs), joint_state is 9 long
+    with the official G1 right-arm joint names, and gripper_state stays
+    the normalized [0, 1] width (0=open, 1=closed)."""
+    records = capture(
+        dataflow,
+        tmp_path,
+        bridge_env={"AISLE_SEED": 7, "AISLE_EMBODIMENT": "g1_right"},
+        driver_env={"DRIVER_MODE": "conformance", "DRIVER_N_DOF": G1_RIGHT_N_DOF},
+        duration_s=4.0,
+    )
+    by_topic: dict[str, list[dict]] = {}
+    for record in records:
+        by_topic.setdefault(record["id"], []).append(record)
+    info = json.loads(by_topic["bridge_info"][0]["text"])
+    assert info["embodiment"] == "g1_right" and info["n_dof"] == G1_RIGHT_N_DOF
+    joint = by_topic["joint_state"][0]
+    assert joint["len"] == G1_RIGHT_N_DOF
+    assert tuple(joint["metadata"]["names"]) == G1_RIGHT_JOINTS
     gripper = by_topic["gripper_state"][0]
     assert gripper["len"] == 1
     assert 0.0 <= gripper["values"][0] <= 1.0

@@ -21,11 +21,12 @@ from typing import Any
 
 import numpy as np
 
-from aisle.embodiment import profile_dof_indices
+from aisle.embodiment import held_dof_indices, profile_dof_indices
 
 _SCENES_DIR = Path(__file__).parent
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 SO101_URDF = _REPO_ROOT / "assets" / "so101" / "so101.urdf"
+G1_URDF = _REPO_ROOT / "assets" / "g1" / "g1_29dof_mode_15_with_dex1_1.urdf"
 FRANKA_MJCF = "xml/franka_emika_panda/panda.xml"
 FRANKA_EE_LINK = "hand"
 
@@ -68,6 +69,79 @@ def so101_urdf_options(profile: dict) -> dict[str, Any]:
         "convexify": True,
         "decompose_robot_error_threshold": float(profile["collision_decompose_error_threshold"]),
     }
+
+
+def g1_urdf_options(profile: dict) -> dict[str, Any]:
+    """Genesis import options for the G1 (ADR-g1-embodiment).
+
+    The pelvis is FIXED at the FK-derived standing height (soles on the
+    ground at held home, zero pose); CoACD full decomposition
+    (addendum-2 ruling) keeps the official non-convex collision meshes.
+    """
+    return {
+        "fixed": True,
+        "pos": (0.0, 0.0, float(profile["pelvis_height_m"])),
+        "convexify": True,
+        "decompose_robot_error_threshold": float(profile["collision_decompose_error_threshold"]),
+    }
+
+
+def robot_morph(embodiment: str, physics: dict) -> Any:
+    """Resolve an embodiment to a Genesis morph; unknown names fail loud.
+
+    SCN-4: the former else-branch silently loaded the SO-101 model for any
+    name that resolved in physics.toml but was not franka — the explicit
+    ValueError here keeps a typo from building the wrong robot. It fires
+    BEFORE the genesis import so unit tests reject unknown names without a
+    sim environment.
+    """
+    if embodiment not in ("franka", "mobile", "so101", "g1_right"):
+        raise ValueError(f"unknown embodiment {embodiment!r}")
+    import genesis as gs
+
+    profile = physics["embodiment"][embodiment]
+    if embodiment in ("franka", "mobile"):
+        # mobile reuses the franka arm on a kinematic base (ADR-13); the
+        # bridge re-bases it each tick
+        return gs.morphs.MJCF(file=FRANKA_MJCF)
+    if embodiment == "so101":
+        if not SO101_URDF.exists():
+            raise FileNotFoundError(
+                f"so101 asset missing: {SO101_URDF} (acquisition pending, ADR-6)"
+            )
+        return gs.morphs.URDF(file=str(SO101_URDF), **so101_urdf_options(profile))
+    if embodiment == "g1_right":
+        if not G1_URDF.exists():
+            raise FileNotFoundError(f"g1 asset missing: {G1_URDF} (G1-A vendoring incomplete)")
+        return gs.morphs.URDF(file=str(G1_URDF), **g1_urdf_options(profile))
+    raise ValueError(f"unknown embodiment {embodiment!r}")
+
+
+def native_home_qpos(robot, profile: dict, wire_dof_indices) -> np.ndarray | None:
+    """Full-length native home, or None when the profile has no home_qpos.
+
+    Wire joints take profile home_qpos (TC-5 order). Profiles with
+    held_joint_names fill every held DOF with held_home_qpos first and
+    overwrite only the wire positions (from_wire_joint_order base=);
+    legacy full-coverage wires keep the exact old np.empty semantics —
+    including its garbage-filled tail — so behavior is bit-identical.
+    """
+    if "home_qpos" not in profile:
+        return None
+    home = np.asarray(profile["home_qpos"], dtype=np.float32)
+    if wire_dof_indices is None:
+        return home
+    if "held_joint_names" in profile:
+        base = np.zeros(robot.n_dofs, dtype=np.float32)
+        base[list(held_dof_indices(robot, profile))] = np.asarray(
+            profile["held_home_qpos"], dtype=np.float32
+        )
+        from aisle.embodiment import from_wire_joint_order
+
+        return from_wire_joint_order(home, wire_dof_indices, base=base)
+    native_home = np.empty(robot.n_dofs, dtype=np.float32)
+    native_home[list(wire_dof_indices)] = home
+    return native_home
 
 
 def resolve_layout(physics: dict, embodiment: str) -> dict:
@@ -738,19 +812,9 @@ def build_scene(
         material=tray_material,
     )
 
-    if embodiment in ("franka", "mobile"):
-        # mobile reuses the franka arm on a kinematic base (ADR-13); the
-        # bridge re-bases it each tick
-        robot = scene.add_entity(gs.morphs.MJCF(file=FRANKA_MJCF))
-    else:
-        if not SO101_URDF.exists():
-            raise FileNotFoundError(
-                f"so101 asset missing: {SO101_URDF} (acquisition pending, ADR-6)"
-            )
-        profile = physics["embodiment"][embodiment]
-        robot = scene.add_entity(
-            gs.morphs.URDF(file=str(SO101_URDF), **so101_urdf_options(profile))
-        )
+    # SCN-4: the loader is explicit per embodiment (robot_morph raises on
+    # unknown names); franka/mobile share the MJCF arm (ADR-13).
+    robot = scene.add_entity(robot_morph(embodiment, physics))
 
     box_physics = physics["materials"]["box"]
     applied_frictions: dict[str, float] = {}
@@ -842,11 +906,7 @@ def build_scene(
     profile = physics["embodiment"][embodiment]
     wire_dof_indices = profile_dof_indices(robot, profile)
     if "home_qpos" in profile:
-        home = np.asarray(profile["home_qpos"], dtype=np.float32)
-        if wire_dof_indices is not None:
-            native_home = np.empty(robot.n_dofs, dtype=np.float32)
-            native_home[list(wire_dof_indices)] = home
-            home = native_home
+        home = native_home_qpos(robot, profile, wire_dof_indices)
         robot.set_qpos(home if n_envs == 1 else np.tile(home, (n_envs, 1)))
     # finger-dof gains: without these the tendon-approximated gripper
     # actuator ignores position control and the fingers fall closed
@@ -863,6 +923,32 @@ def build_scene(
         robot.set_dofs_kv(
             np.asarray(profile["gripper_kv"], dtype=np.float32), dofs_idx_local=finger_dofs
         )
+    # Arm-DoF PD (G1-C4): profiles that carry arm_kp/arm_kv set them on the
+    # WIRE arm joints (g1_right rode Genesis's kp=100 default — the
+    # tracking-failure root cause behind the F6 gripper-reopen loop).
+    # Profiles without the keys (franka/so101) keep bit-identical gains.
+    if "arm_kp" in profile and wire_dof_indices is not None:
+        n_arm = len(profile["arm_kp"])
+        arm_dofs = list(wire_dof_indices[:n_arm])
+        robot.set_dofs_kp(np.asarray(profile["arm_kp"], dtype=np.float32), dofs_idx_local=arm_dofs)
+        robot.set_dofs_kv(np.asarray(profile["arm_kv"], dtype=np.float32), dofs_idx_local=arm_dofs)
+    # Held-DOF PD (g1_right): the 24 non-wire joints stay at held home —
+    # gravity must not droop them (SCN-4). The PD target is always the
+    # held home, set once here; the bridge never commands these DOFs.
+    if "held_joint_names" in profile:
+        held_dofs = list(held_dof_indices(robot, profile))
+        robot.set_dofs_kp(
+            np.full(len(held_dofs), float(profile["held_kp"]), dtype=np.float32),
+            dofs_idx_local=held_dofs,
+        )
+        robot.set_dofs_kv(
+            np.full(len(held_dofs), float(profile["held_kv"]), dtype=np.float32),
+            dofs_idx_local=held_dofs,
+        )
+        # ...and the target IS that home: gains alone do not hold a DOF.
+        # Full-length target (wire positions equal their home; the bridge
+        # overwrites those every tick anyway). Batched like set_qpos above.
+        robot.control_dofs_position(home if n_envs == 1 else np.tile(home, (n_envs, 1)))
 
     ee_link = robot.get_link(profile.get("ee_link", FRANKA_EE_LINK))
     # SCN-5: orientation as well as position. SO-101 composes the official
@@ -903,11 +989,7 @@ def _assert_reachable(handle: SceneHandle, ee_link, layout: dict, n_envs: int = 
     profile = load_physics()["embodiment"][handle.embodiment]
     wire_dof_indices = profile_dof_indices(handle.robot, profile)
     if "home_qpos" in profile:
-        home = np.asarray(profile["home_qpos"], dtype=np.float32)
-        if wire_dof_indices is not None:
-            native_home = np.empty(handle.robot.n_dofs, dtype=np.float32)
-            native_home[list(wire_dof_indices)] = home
-            home = native_home
+        home = native_home_qpos(handle.robot, profile, wire_dof_indices)
     else:
         home = to_numpy(handle.robot.get_qpos()).reshape(-1)[: handle.robot.n_dofs]
 

@@ -33,7 +33,7 @@ outputs:
   frame_info: {schema: json_utf8, latency_class: best_effort}
   sim_turn: {schema: sim_turn_u64, latency_class: hard_rt}
 embodiment:
-  arm: [franka, so101]
+  arm: [franka, so101, g1_right]
   gripper: any
 safety_class: motion
 eval:
