@@ -61,9 +61,14 @@ perfect TCP reservation.
 2. **Port reservation.** Before a confined session starts, the controller
    binds the dual-stack wildcard `::` on an ephemeral port P, then binds P on
    every address currently assigned to the host. No reservation socket sets
-   `SO_REUSEPORT`; the specific binds set `SO_REUSEADDR` only because BSD
-   requires it to bind a specific address beneath a held wildcard. Any bind
-   failure refuses the session; there is no partial reservation.
+   `SO_REUSEPORT`. Every reservation socket sets `SO_REUSEADDR`: BSD requires
+   it to bind a specific address beneath a held wildcard, and on the wildcard
+   it lets a session re-reserve the port while the audit's served connections
+   sit in TIME_WAIT (about 30 s), which otherwise refused the session. With
+   `SO_REUSEADDR` on every socket, a re-measured intruder matrix (11 host
+   addresses, both wildcards and an IPv4-mapped address, under every
+   `SO_REUSEADDR`/`SO_REUSEPORT`/`IPV6_V6ONLY` combination) bound nothing.
+   Any bind failure refuses the session; there is no partial reservation.
 3. **Only the relay listens.** The relay serves on the `127.0.0.1` reservation
    socket. Every other reservation socket stays bound and never listens, so a
    connection to it is never answered. Measured on macOS 27.2, the kernel

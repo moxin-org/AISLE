@@ -92,14 +92,15 @@ def host_addresses() -> tuple[HostAddress, ...]:
     return parse_ifconfig(result.stdout)
 
 
-def _bind(family: str, host: str, port: int, *, reuseaddr: bool) -> socket.socket:
+def _bind(family: str, host: str, port: int) -> socket.socket:
     af = socket.AF_INET if family == "v4" else socket.AF_INET6
     sock = socket.socket(af, socket.SOCK_STREAM)
     try:
-        if reuseaddr:
-            # BSD needs SO_REUSEADDR to bind a specific address beneath a held
-            # wildcard; SO_REUSEPORT is never set, so P stays unshareable.
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # SO_REUSEADDR lets a specific address bind beneath the held wildcard
+        # and lets the session re-reserve P while the audit's connections sit
+        # in TIME_WAIT. SO_REUSEPORT is never set, so P stays unshareable:
+        # measured, no intruder binds P under any flag combination (ADR-69).
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if host == "::":
             sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         flags = socket.AI_NUMERICHOST | socket.AI_PASSIVE
@@ -159,11 +160,11 @@ def _hold_all(port: int, covered: tuple[HostAddress, ...]) -> dict[str, socket.s
     # The message names the family and position, never the address (ADR-69 §4).
     target = "the wildcard"
     try:
-        held["::"] = _bind("v6", "::", port, reuseaddr=False)
+        held["::"] = _bind("v6", "::", port)
         port = held["::"].getsockname()[1]
         for index, address in enumerate(covered):
             target = f"{address.family} address {index}"
-            held[address.host] = _bind(address.family, address.host, port, reuseaddr=True)
+            held[address.host] = _bind(address.family, address.host, port)
     except OSError as exc:
         _close_all(held)
         raise ReservationError(

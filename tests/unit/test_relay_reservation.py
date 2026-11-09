@@ -214,16 +214,28 @@ def test_reservation_refuses_when_addresses_change_while_binding():
         reserve_relay_port(addresses=lambda: next(calls))
 
 
-def test_reservation_wildcard_takes_no_reuse_flags_and_nothing_sets_reuseport():
-    """ADR-69 §1 (TRT-5): SO_REUSEPORT would let a cooperating socket share P;
-    SO_REUSEADDR is set only on the specific binds beneath the wildcard."""
+def test_reservation_sockets_set_reuseaddr_and_never_reuseport():
+    """ADR-69 §2 (TRT-5): SO_REUSEPORT would let a cooperating socket share P;
+    SO_REUSEADDR is what lets the port be re-reserved through TIME_WAIT."""
     with reserve_relay_port(addresses=lambda: LOOPBACK) as reservation:
-        wildcard, *specific = reservation.sockets()
-        assert not wildcard.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR)
-        assert all(s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) for s in specific)
-        assert not any(
-            s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) for s in reservation.sockets()
-        )
+        sockets = reservation.sockets()
+        assert all(s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) for s in sockets)
+        assert not any(s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) for s in sockets)
+
+
+def test_port_can_be_reserved_again_after_served_connections():
+    """ADR-69 §2 (TRT-5): the audit serves on P and closes first, leaving
+    TIME_WAIT; the session that follows must still be able to reserve P."""
+    with reserve_relay_port(addresses=lambda: LOOPBACK) as first:
+        port = first.port
+        relay = first.relay_socket()
+        relay.listen(1)
+        with socket.create_connection((RELAY_HOST, port), timeout=2) as client:
+            served, _ = relay.accept()
+            served.close()
+            client.recv(1)
+    with reserve_relay_port(port=port, addresses=lambda: LOOPBACK) as second:
+        assert second.port == port
 
 
 def test_only_the_relay_socket_answers():
