@@ -9,6 +9,12 @@ none with SO_REUSEPORT, so no other socket can bind P anywhere the sandbox
 can reach. Only the 127.0.0.1 socket is handed to the relay to listen on; the
 others stay bound and never answer (measured on macOS 27.2: the kernel drops
 the SYN to a bound, non-listening socket).
+
+Exclusivity is a macOS (BSD) bind property. Linux lets two SO_REUSEADDR
+sockets share a port while neither listens, so there a reservation holds the
+port but does not exclude. The `loopback` policy exists only under macOS
+sandbox-exec, and its audit re-measures exclusivity on the host before every
+session (`reservation_intruder_bind`).
 """
 
 from __future__ import annotations

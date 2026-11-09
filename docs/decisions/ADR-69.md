@@ -128,6 +128,11 @@ perfect TCP reservation.
 - **Undocumented semantics.** What SBPL `localhost` admits is not a public
   contract; it was measured on macOS 27.2 build 26B123. The audit's intruder
   and UDP cases re-measure it on every attested host and build.
+- **macOS only.** Exclusivity is a BSD bind property. Linux lets two
+  `SO_REUSEADDR` sockets share a port while neither listens (ci/unit-linux
+  showed intruders binding P), so the exclusivity tests run only on macOS. The
+  `loopback` policy exists only under macOS sandbox-exec, and its audit
+  re-measures exclusivity on each host before every session.
 - **Enumeration source.** Addresses come from `ifconfig` text, run with a
   pinned environment and checked to include loopback. `getifaddrs(3)` would
   be a stronger source; any address it lists that `ifconfig` misses would be

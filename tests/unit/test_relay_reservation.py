@@ -32,6 +32,12 @@ WILDCARDS = (HostAddress("v4", "0.0.0.0"), HostAddress("v6", "::"))
 FLAG_COMBINATIONS = tuple(product((False, True), repeat=2))
 #: TEST-NET-3: never assigned to the host, so binding it fails mid-sequence
 UNASSIGNED = HostAddress("v4", "203.0.113.9")
+#: Exclusivity rests on BSD bind semantics. Linux lets two SO_REUSEADDR
+#: sockets share a port while neither listens, so these assertions hold only
+#: on macOS, the one platform with the sandbox-exec `loopback` policy.
+BSD_BIND_SEMANTICS = pytest.mark.skipif(
+    sys.platform != "darwin", reason="relay port exclusivity is a macOS (BSD) bind property"
+)
 
 IFCONFIG_FIXTURE = """\
 lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
@@ -154,6 +160,7 @@ def test_host_addresses_reports_a_missing_ifconfig(monkeypatch):
         host_addresses()
 
 
+@BSD_BIND_SEMANTICS
 def test_reservation_blocks_every_intruder_bind_on_covered_addresses():
     """ADR-69 §1 (TRT-5): with the wildcard and every address held, no
     reuse-flag combination lets another socket bind the relay port."""
@@ -161,6 +168,7 @@ def test_reservation_blocks_every_intruder_bind_on_covered_addresses():
         assert _bound_intruders((*LOOPBACK, *WILDCARDS), reservation.port) == []
 
 
+@BSD_BIND_SEMANTICS
 def test_reservation_refuses_a_port_another_socket_already_holds():
     """ADR-69 §1 (TRT-5): any bind failure refuses; no partial reservation."""
     squatter = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -183,6 +191,7 @@ def test_failure_after_partial_hold_releases_every_socket():
     assert _intruder_binds(HostAddress("v6", "::"), port, False, False)
 
 
+@BSD_BIND_SEMANTICS
 def test_reservation_blocks_ipv4_mapped_and_v6only_wildcard_intruders():
     """ADR-69 §1 (TRT-5): IPv6 sockets reaching v4 through a mapped address,
     or holding a v6-only wildcard, cannot share the relay port either."""
