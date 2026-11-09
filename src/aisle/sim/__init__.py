@@ -67,8 +67,10 @@ def select_engine(env: Mapping[str, str] | None = None) -> str:
 
 def select_nexus_backend(sim_extra: str, platform_name: str, cuda_available: bool = False) -> str:
     """Nexus counterpart of `select_genesis_backend`: the portable ``sim``
-    selection maps to Metal on macOS and WebGPU elsewhere; ``cuda`` is the
-    Linux-only explicit opt-in and fails closed without a device."""
+    selection maps to native Metal on macOS, which the locked
+    dimforge-nexus3d wheel is built with there (ADR-70), and WebGPU
+    elsewhere; ``cuda`` is the Linux-only explicit opt-in and fails closed
+    without a device."""
     if sim_extra == "sim":
         return "metal" if platform_name == "Darwin" else "webgpu"
     if sim_extra != "cuda":
@@ -128,8 +130,8 @@ def engine_available(engine: str) -> bool:
 
 def engine_version(engine: str) -> str:
     """The installed simulator's version string, for `bridge_info`. The
-    rapier engine reports its solver's version; its renderer is attested
-    separately through the run's engine build receipt (ADR-68)."""
+    rapier engine reports its solver's version; its renderer, the locked
+    dimforge-nexus3d wheel, is attested by the lock (ADR-68, ADR-70)."""
     engine = normalize_engine(engine)
     if engine == "genesis":
         import genesis

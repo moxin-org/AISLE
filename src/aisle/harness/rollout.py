@@ -765,9 +765,9 @@ def run_gates(
         "env_attested": bool((dist or {}).get("attested")),
         "dist_problems": (dist or {}).get("problems") or [],
         "dist_inventory": (dist or {}).get("inventory"),
-        # ADR-67: {"engine", "sim_engine_hash", "n_files", "build"} — the
-        # realization package plus the out-of-lock engine's build receipt,
-        # which is the only trace of which engine sources produced the run
+        # ADR-67: {"engine", "sim_engine_hash", "n_files"}, the digest of the
+        # engine realization package; the engine wheel itself is identified
+        # by the lock like every other dist (ADR-70)
         "sim_engine_build": hash_report.get("sim"),
         "budget": remaining,
     }
@@ -2009,7 +2009,7 @@ def rollout(
         "sim_backend": gates["sim_backend"],
         "sim_device": gates["sim_device"],
         # ADR-67: env_hash cannot tell two engines (or two solver settings)
-        # apart, so the engine digest and its build receipt ride here
+        # apart, so the engine digest rides here
         "sim_engine_build": gates.get("sim_engine_build"),
         # ADR-67: the bridge's step/render/GPU timing, aggregated over the run,
         # so engines are compared on the same graph and seeds

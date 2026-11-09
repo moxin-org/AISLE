@@ -37,12 +37,14 @@ Known platform caveats — recorded here rather than hidden (SCN-7):
   `build_scene` supersedes the previous scene's render nodes and frees its
   cameras, so the older handle keeps its physics readbacks and camera poses
   but its cameras raise on render.
-- Nexus stepping determinism is not established (ADR-67). Only build
-  determinism is covered, by `tests/sim/test_nexus_scene.py`; the GPU broad
-  phase and constraint coloring use atomics, so run-to-run bitwise equality
-  after the first step is unmeasured. Nexus evidence must not be treated as
-  reproducible until it is measured, and Genesis remains the only engine
-  behind the measured record.
+- Nexus steps in its deterministic mode (`deterministic = true` in
+  `src/aisle/sim/nexus_physics.toml`), which sorts contacts, constraint colors
+  and solver order canonically so the GPU atomics no longer decide the result.
+  `tests/sim/test_nexus_scene.py::test_stepping_is_reproducible` drops a box
+  pile under a moving arm twice and requires bitwise identical joint
+  coordinates and `oracle_state`. The guarantee is same machine, same wheel
+  and same backend only; Genesis remains the only engine behind the measured
+  record.
 - The rapier engine (ADR-68) is the one with stepping determinism, and it is
   measured: `tests/sim/test_rapier_scene.py::test_bitwise_step_determinism`
   drops a box into contact in two identically seeded worlds, steps both 200
@@ -50,7 +52,8 @@ Known platform caveats — recorded here rather than hidden (SCN-7):
   It steps single-threaded on the CPU by configuration
   (`num_threads = 1` in `src/aisle/sim/rapier_physics.toml`), which is what
   removes the only ordering variation it has. Cross-platform bit equality is
-  a separate claim and is not measured; rapier's `determinism` cargo feature
-  (`tools/rapier_runtime.py install --determinism`) is what that would need.
+  a separate claim and is not measured; it would need a `rapier3d` wheel
+  built with rapier's `determinism` cargo feature, which the published one is
+  not.
 - CUDA startup errors propagate; AISLE never silently retries initialization
   on CPU. Metal-vs-CUDA post-step divergence has not yet been quantified.

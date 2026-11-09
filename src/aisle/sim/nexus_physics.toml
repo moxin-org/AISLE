@@ -43,6 +43,11 @@ substep_refresh_light = true
 # default is the average. Match Genesis so the box/finger pair sees the same
 # coefficient on both engines.
 friction_combine_rule = "max"
+# Same-machine determinism (CON-5, nexus 0.6): contacts, constraint colors
+# and solver order are sorted canonically, so a seed and its commands replay
+# bit-identically on one machine and build. Off, a dropped box pile settled
+# differently between two runs in one process. Nexus quotes ~10-17% per step.
+deterministic = true
 
 [ground]
 # Nexus has no infinite plane primitive; the ground is a fixed slab whose

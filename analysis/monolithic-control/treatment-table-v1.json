@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:3e23d000fa6f041dcbbec4c9849d72c0f0f74caf6ed60fba7095c8ff5b256690",
+  "immutable_id": "sha256:d5b19b29c9541eef79ef31d73637dc9ea41e44764a106f8fe02b5367ee4afe68",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -116,7 +116,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "episode budget, seeds, reset semantics, evaluator",
-      "typed": "src/aisle/harness/rollout.py#sha256:486ceec3ee030b8ff84f96dde1b55f4b6a59a4eb49eed682d8f3896dc5edd8a0"
+      "typed": "src/aisle/harness/rollout.py#sha256:a80fae7cc78bf2776f60c29bde358964b0820b967e98ee6c9568a6aa59eb8fc2"
     },
     {
       "analysis": "infrastructure-invalid records excluded in both arms; confinement status in the MON-8 tuple",

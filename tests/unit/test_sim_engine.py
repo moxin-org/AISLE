@@ -56,8 +56,9 @@ def test_unknown_engine_is_refused_not_defaulted():
     ],
 )
 def test_select_nexus_backend(sim_extra, platform_name, cuda_available, expected):
-    """ADR-67: the portable extra never changes physics because a GPU is
-    visible; CUDA is the explicit Linux opt-in."""
+    """ADR-67, ADR-70: the portable extra never changes physics because a GPU
+    is visible: native Metal on macOS, whose locked dimforge-nexus3d wheel is
+    built with it, and WebGPU elsewhere; CUDA is the explicit Linux opt-in."""
     assert select_nexus_backend(sim_extra, platform_name, cuda_available) == expected
 
 
@@ -141,6 +142,8 @@ def test_nexus_physics_constants_are_declared():
     assert physics["sim"]["friction_combine_rule"] == "max"
     assert physics["sim"]["internal_pgs_iterations"] >= 1
     assert isinstance(physics["sim"]["implicit_coriolis"], bool)
+    # CON-5: same seed, same inputs, same machine give the same Nexus run
+    assert physics["sim"]["deterministic"] is True
     # render settings the Nexus viewer applies to its sensor cameras
     assert physics["camera"]["msaa_samples"] in (1, 4)
     assert 0.0 <= physics["camera"]["shadow_softness"] <= 1.0

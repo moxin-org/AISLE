@@ -167,6 +167,38 @@ def test_resting_boxes_hold_still(handle):
     assert drift.max() < 1.0e-3, drift
 
 
+def _scripted_run(seed: int) -> tuple[np.ndarray, np.ndarray]:
+    """Builds a scene, drives the arm off its home pose and drops every box
+    into one tilted pile, then returns the final joint positions and oracle
+    state. The pile matters: without the deterministic mode, the first run
+    of a process settled it differently from the later ones."""
+    from aisle.sim import build_scene
+
+    handle = build_scene("nexus", seed=seed, embodiment="franka", n_envs=1, headless=True)
+    assert handle.scene.state.deterministic()
+    robot = handle.robot
+    target = to_numpy(robot.get_qpos()).reshape(-1).copy()
+    target[:7] += np.float32(0.2)
+    robot.control_dofs_position(target)
+    for i, box in enumerate(handle.boxes.values()):
+        box.set_pos(np.array([0.3 + 0.01 * (i % 3), -0.45, 0.25 + 0.06 * i], dtype=np.float32))
+        tilt = [0.38268, 0.0] if i % 2 else [0.0, 0.38268]
+        box.set_quat(np.array([0.92388, *tilt, 0.0], dtype=np.float32))
+        box.zero_all_dofs_velocity()
+    for _ in range(300):
+        handle.scene.step()
+    return to_numpy(robot.get_qpos()).reshape(-1).copy(), oracle_state(handle).copy()
+
+
+def test_stepping_is_reproducible():
+    """CON-5 on Nexus: with the engine's deterministic mode on, two runs of
+    the same seed and commands end bit-identical, contacts included."""
+    first_qpos, first_oracle = _scripted_run(7)
+    again_qpos, again_oracle = _scripted_run(7)
+    assert np.array_equal(first_qpos, again_qpos)
+    assert np.array_equal(first_oracle, again_oracle)
+
+
 def test_so101_urdf_matches_frozen_chain(so101_handle):
     """ADR-67: the imported SO-101 kinematics agree with the frozen URDF
     chain (`aisle.kinematics`) at several configurations, so grasp planning
