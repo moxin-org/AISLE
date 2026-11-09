@@ -46,7 +46,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 89 |
+| ADR files | 90 |
 
 ## Graphs
 
