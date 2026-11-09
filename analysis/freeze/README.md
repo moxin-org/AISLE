@@ -238,3 +238,11 @@ the rollout runner and the simulator bridge now select the physics engine
 behind `AISLE_SIM_ENGINE`. Calibration rules, seed lineages, decision rules and
 every pending gate are preserved, and Genesis remains the default and the only
 engine behind these campaigns.
+
+BND v16, CSE v28 and pilot v14 supersede v15, v27 and pilot v13 after ADR-70
+moved the Nexus and rapier wheels into the lock: `pyproject.toml` and `uv.lock`
+gained `dimforge-nexus3d` 0.2.1 and `rapier3d` 0.36.1 in the `sim` extra, and
+the CSE pair also binds the revised rollout runner and the regenerated
+treatment table. FLT v7 does not bind the lock and stays current. Calibration
+rules, seed lineages, decision rules and every pending gate are preserved, and
+Genesis remains the default and the only engine behind these campaigns.

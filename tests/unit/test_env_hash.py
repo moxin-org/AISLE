@@ -558,11 +558,10 @@ def test_adr55_sim_engine_hash_covers_the_realization_the_fence_does_not(tmp_pat
     assert sim_engine_hash(root, "nexus")["sim_engine_hash"] != before["sim_engine_hash"]
 
 
-def test_adr55_sim_engine_hash_names_the_engine_and_its_build(tmp_path):
-    """CON-5, ADR-67: the digest binds the engine name and the engine build
-    provenance, so the same realization built from different Nexus sources
-    is a different environment identity — and a run manifest can carry the
-    receipt the gitignored file would otherwise keep local."""
+def test_adr55_sim_engine_hash_names_the_engine(tmp_path):
+    """CON-5, ADR-67, ADR-70: the digest binds the engine name, so the same
+    realization stepped by another engine is a different identity. The engine
+    wheels come from the lock (ADR-70), so no build receipt is folded in."""
     import sys as _sys
 
     _sys.path.insert(0, str(REPO_ROOT / "tools"))
@@ -572,14 +571,7 @@ def test_adr55_sim_engine_hash_names_the_engine_and_its_build(tmp_path):
     genesis = sim_engine_hash(root, "genesis")
     nexus = sim_engine_hash(root, "nexus")
     assert genesis["sim_engine_hash"] != nexus["sim_engine_hash"]
-    assert genesis["build"] is None
-
-    receipt = {"version": "0.1.0", "sources": {"nexus": {"commit": "a" * 40, "dirty": False}}}
-    built = sim_engine_hash(root, "nexus", receipt)
-    assert built["build"] == receipt
-    assert built["sim_engine_hash"] != nexus["sim_engine_hash"]
-    moved = {"version": "0.1.0", "sources": {"nexus": {"commit": "b" * 40, "dirty": False}}}
-    assert sim_engine_hash(root, "nexus", moved)["sim_engine_hash"] != built["sim_engine_hash"]
+    assert set(nexus) == {"engine", "sim_engine_hash", "n_files"}
 
 
 def test_adr55_attested_set_names_the_running_engines_distribution(tmp_path):
@@ -599,72 +591,23 @@ def test_adr55_attested_set_names_the_running_engines_distribution(tmp_path):
     assert {"genesis-world", "torch"} <= set(nexus)  # the neutral core is kept
 
 
-def test_adr67_cli_refuses_an_out_of_lock_engine_without_its_only_provenance(tmp_path):
-    """CON-5, CON-8, ADR-67: Nexus and rapier live outside the lock, so their
-    build receipt is the only source provenance a run can retain. Missing
-    provenance must fail before a run can record an unidentified wheel."""
+def test_adr70_cli_attests_a_locked_engine_without_a_receipt(tmp_path):
+    """CON-5, CON-8, ADR-70: Nexus and rapier come from the lock like Genesis,
+    so the checker reports their digest without any build receipt, and a stale
+    receipt left by the retired source builds changes nothing."""
     root = _sim_root(tmp_path)
     plain = json.loads(run_env_hash("--root", str(root)).stdout)
     proc = run_env_hash("--root", str(root), "--sim-engine", "nexus")
-    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert proc.returncode == 0, proc.stdout + proc.stderr
     report = json.loads(proc.stdout)
     assert report["env_hash"] == plain["env_hash"] and "sim" not in plain
     assert report["sim"]["engine"] == "nexus"
     assert len(report["sim"]["sim_engine_hash"]) == 64
-    assert report["sim"]["build"] is None
-    assert "build receipt" in report["error"]
+    assert "build" not in report["sim"]
 
-
-def test_adr67_engine_receipt_gate_requires_clean_solver_and_renderer_sources():
-    """CON-5, ADR-67/ADR-68: a receipt is provenance only when it identifies
-    clean source bytes; rapier also needs the Nexus renderer's receipt."""
-    import sys as _sys
-
-    _sys.path.insert(0, str(REPO_ROOT / "tools"))
-    from env_hash import engine_build_problem
-
-    source = {"commit": "a" * 40, "dirty": False}
-    nexus = {
-        "schema_version": 1,
-        "wheel": "dimforge_nexus3d.whl",
-        "version": "0.1.0",
-        "platform": "test",
-        "sources": {"nexus": source},
-    }
-    rapier = {
-        "schema_version": 1,
-        "wheel": "rapier3d.whl",
-        "version": "0.1.0",
-        "platform": "test",
-        "sources": {"rapier": source},
-        "renderer": nexus,
-    }
-    assert engine_build_problem("genesis", None) is None
-    assert engine_build_problem("nexus", nexus) is None
-    assert engine_build_problem("rapier", rapier) is None
-    assert "missing" in engine_build_problem("nexus", None)
-    assert "renderer" in engine_build_problem("rapier", {**rapier, "renderer": None})
-    dirty = {**nexus, "sources": {"nexus": {**source, "dirty": True}}}
-    assert "dirty" in engine_build_problem("nexus", dirty)
-
-
-def test_adr67_cli_records_a_clean_out_of_lock_engine_receipt(tmp_path):
-    """CON-5, CON-8, ADR-67: a clean receipt passes and becomes part of the
-    recorded engine digest rather than merely serving as a presence flag."""
-    root = _sim_root(tmp_path)
-    receipt = {
-        "schema_version": 1,
-        "wheel": "dimforge_nexus3d.whl",
-        "feature": "metal",
-        "version": "0.1.0",
-        "platform": "test",
-        "sources": {"nexus": {"commit": "a" * 40, "dirty": False}},
-    }
-    (root / ".nexus-runtime-receipt.json").write_text(json.dumps(receipt))
-    proc = run_env_hash("--root", str(root), "--sim-engine", "nexus")
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    report = json.loads(proc.stdout)
-    assert report["ok"] is True and report["sim"]["build"] == receipt
+    (root / ".nexus-runtime-receipt.json").write_text(json.dumps({"version": "0.1.0"}))
+    again = json.loads(run_env_hash("--root", str(root), "--sim-engine", "nexus").stdout)
+    assert again["sim"] == report["sim"]
 
 
 def _frozen_set():

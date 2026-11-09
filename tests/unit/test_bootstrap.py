@@ -137,14 +137,25 @@ def test_no_cuda_in_default_dependencies():
     )
 
 
+# ADR-70: engine wheels in the sim extra and deliberately absent from cuda.
+SIM_ONLY_ENGINES = {"dimforge-nexus3d", "rapier3d"}
+
+
 def test_sim_and_cuda_extras_route_linux_torch_to_disjoint_indexes():
     """CON-1: the portable and GPU simulation closures MUST bind Linux
     torch to their respective CPU/CUDA indexes; merely having both indexes
-    somewhere in the lock does not prove either extra selects the right one."""
+    somewhere in the lock does not prove either extra selects the right one.
+    ADR-70: the published Nexus/rapier wheels ride the sim extra only, since
+    no published Nexus wheel has CUDA; that is the extras' only difference."""
     pyproject = load_pyproject()
     extras = pyproject["project"].get("optional-dependencies", {})
-    assert set(extras["cuda"]) == set(extras["sim"]), (
-        "cuda must carry the complete sim stack; only the torch distribution differs"
+    engines = {
+        dep for dep in extras["sim"] if dep.split(";")[0].split("==")[0].strip() in SIM_ONLY_ENGINES
+    }
+    assert {dep.split("==")[0] for dep in engines} == SIM_ONLY_ENGINES
+    assert set(extras["cuda"]) == set(extras["sim"]) - engines, (
+        "cuda must carry the complete common sim stack; only the torch distribution "
+        "and the sim-only engines differ"
     )
     sources = pyproject["tool"]["uv"]["sources"]["torch"]
     linux_bindings = {

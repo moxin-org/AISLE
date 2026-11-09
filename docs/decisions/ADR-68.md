@@ -1,6 +1,8 @@
 # ADR-68 — A CPU engine: rapier physics behind the Nexus renderer
 
 Status: PROPOSED — owner review required under CON-14, with ADR-67.
+Amended by: ADR-70 (`rapier3d` comes from PyPI inside the lock;
+`tools/rapier_runtime.py` and the source pins are retired).
 Trigger: ADR-67 left stepping determinism unestablished on the only
 alternative engine.
 Scope: a development-only engine, under the conditions ADR-67's scope

@@ -2,6 +2,8 @@
 
 Status: PROPOSED — owner review required under CON-14; the spec-change PR it
 owes (see below) must land before it can be accepted.
+Amended by: ADR-70 (the wheel comes from PyPI inside the lock; the build
+receipt, `engine-runtime.json` and `tools/nexus_runtime.py` are retired).
 
 ## Scope: development-only engines
 

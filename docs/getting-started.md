@@ -33,10 +33,11 @@ Things to know before anything else:
   (#516). Install the corrected source pin rather than relying on version
   output, which is also 1.0.1 for the corrected binary.
 
-Genesis is the default simulation engine. Nexus and rapier are optional source
-builds installed after this locked environment; see the
+Genesis is the default simulation engine. Nexus and rapier come with the same
+locked `sim` extra (on macOS arm64, Linux x86_64 and aarch64, and Windows
+x64); see the
 [simulation backend guide](simulation-backends.md) for a comparison and the
-shortest install, verify, and selection path.
+selection path.
 
 On Ubuntu 24.04, install the CPU quickstart's rendering prerequisites. Genesis
 constructs an offscreen renderer even when physics runs on CPU:
@@ -159,7 +160,8 @@ common cause).
 
 Genesis is the default and the only engine behind the measured record. The
 graphs can also run on [Nexus](https://github.com/dimforge/nexus) (GPU
-rigid bodies, Metal on macOS) for development: the bridge picks the engine
+rigid bodies, native Metal on macOS and WebGPU elsewhere) for development:
+the bridge picks the engine
 from `AISLE_SIM_ENGINE`, which `harness rollout --sim-engine nexus` injects
 into the bridge node and records in the manifest. Results are not
 comparable across engines.
@@ -180,43 +182,29 @@ How far the Nexus path is actually exercised, as of today:
   fidelity rather than physics: Nexus box pixels come back at 0.47
   saturation against a declared 0.73 albedo, and the frame is flatter than
   Genesis's.
-- **Nexus stepping determinism is not established** (ADR-67): only build
-  determinism is. See [determinism](determinism.md) before reading anything
-  reproducible into a Nexus run.
+- Nexus steps in its **deterministic mode**: the same seed and commands
+  replay bit for bit on one machine, wheel and backend. See
+  [determinism](determinism.md) for what is and is not covered.
 
-Nexus is not part of the lock, so its Python module is built from source.
-`engine-runtime.json` pins that source the way `dora-runtime.json` pins the
-Dora CLI: repository, branch and full commit. Nothing else has to be checked
-out first.
-
-```bash
-uv run --no-sync python tools/nexus_runtime.py install
-```
-
-That fetches the pinned nexus commit into `.engine-sources/` (gitignored),
-builds with `maturin` (`--features metal` on macOS), installs the wheel with
-`uv pip`, and writes a receipt naming the commit it built. The rapier and
-kiss3d crates the engine links against are NOT fetched here: nexus's own
-Cargo manifest takes the published rapier 0.36.0 from crates.io and patches
-kiss3d from git by revision, so cargo resolves and caches both, and
-`engine-runtime.json` does not pin them a second time.
-
-Working across local checkouts instead? Pass `--nexus ../nexus`. Any path
-argument switches the whole build to local sources, so you never get a
-half-pinned, half-local mix. Then:
+Nexus is part of the lock (ADR-70): `uv sync --extra sim` installs the
+published `dimforge-nexus3d` wheel (WebGPU everywhere, plus native Metal
+on macOS). Then:
 
 ```bash
-uv run --no-sync pytest -m sim tests/sim/test_nexus_scene.py
+uv run --extra sim --locked pytest -m sim tests/sim/test_nexus_scene.py
 ```
 
 ```bash
-uv run --no-sync harness rollout --graph graphs/expert_t0.yaml --tier T0 \
+uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local --sim-engine nexus
 ```
 
-Plain `uv sync` removes the wheel (it is not in the lock); reinstall with the
-command above. `AISLE_SIM_BACKEND` accepts `metal`, `webgpu`, `cuda` or `cpu`
-for Nexus, matching the features the wheel was built with.
+`AISLE_SIM_BACKEND` accepts `metal`, `webgpu`, `cuda` or `cpu` for Nexus, as
+far as the installed wheel supports them (`nexus3d.available_backends()`):
+the macOS wheel has `metal`, `webgpu` and `cpu`, the others `webgpu` and
+`cpu`; none has `cuda`. The
+[simulation backend guide](simulation-backends.md) covers development builds
+of unreleased Nexus changes.
 
 The solver settings Nexus needs for the pick-and-place (substeps, contact
 stiffness, PGS iterations) live in `src/aisle/sim/nexus_physics.toml`;
@@ -231,30 +219,12 @@ The third engine steps the same scenes with
 through the Nexus viewer, so a rapier run and a Nexus run differ only in the
 solver. Select it with `harness rollout --sim-engine rapier`.
 
-It needs BOTH wheels: the Nexus one above for the renderer, and the rapier
-Python bindings, which are also outside the lock and pinned in
-`engine-runtime.json`:
-
-```bash
-uv run --no-sync python tools/rapier_runtime.py install
-```
-
-`--rapier ../rapier` builds from a local checkout instead.
-
-Keep `--no-sync` on the installer and subsequent commands so no sync step runs
-or changes the environment containing the out-of-lock Nexus wheel that this
-engine needs for rendering.
-
-`tools/rapier_runtime.py verify` reports the solver's receipt and the
-renderer's together, so a half-installed environment is visible before a run
-rather than at the first render. Its engine constants live in
+It needs both wheels, the Nexus one above for the renderer and `rapier3d`
+for the solver; the `sim` extra installs both. Its engine constants live in
 `src/aisle/sim/rapier_physics.toml`, alongside the Nexus ones.
 
-Run the same graph through rapier without another sync step:
-
 ```bash
-uv run --no-sync python tools/rapier_runtime.py verify
-uv run --no-sync harness rollout --graph graphs/expert_t0.yaml --tier T0 \
+uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local --sim-engine rapier
 ```
 

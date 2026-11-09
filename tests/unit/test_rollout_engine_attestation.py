@@ -1,4 +1,4 @@
-"""The run records which engine build produced it (ADR-67, CON-5).
+"""The run records which engine realization produced it (ADR-67, ADR-70, CON-5).
 
 `env_hash` is engine neutral by construction: the frozen set does not contain
 `src/aisle/sim`, so two runs on different engines, or on the same engine with
@@ -22,7 +22,6 @@ ENGINE_FACTS = {
     "engine": "nexus",
     "sim_engine_hash": "b" * 64,
     "n_files": 3,
-    "build": {"version": "0.1.0", "sources": {"nexus": {"commit": "c" * 40}}},
 }
 
 
@@ -30,8 +29,8 @@ ENGINE_FACTS = {
 def captured_hash_cmd(monkeypatch):
     """Answer the trusted env_hash checker with a canned report, keeping the
     argv it was called with. Every other subprocess call is refused so the
-    test cannot silently exercise something else. The engine wheels are
-    outside the lock, so the unit tier has none installed (ADR-67)."""
+    test cannot silently exercise something else. The engine wheels ride the
+    sim extra, which the unit tier does not install (ADR-70)."""
     monkeypatch.setattr("aisle.sim.engine_available", lambda engine: True)
     seen: dict = {}
     real_run = subprocess.run
@@ -77,23 +76,22 @@ def test_gate_asks_the_checker_for_the_engine_digest(captured_hash_cmd):
     assert cmd[cmd.index("--sim-engine") + 1] == "nexus"
 
 
-def test_gate_carries_the_engine_build_into_the_manifest_facts(captured_hash_cmd):
-    """CON-5/ADR-67: the digest and the out-of-lock engine's build receipt are
-    facts of the run, recorded verbatim. The receipt is the only trace of which
-    engine sources produced a result: the wheel is not in the lock, so nothing
-    else in the manifest can name them."""
+def test_gate_carries_the_engine_digest_into_the_manifest_facts(captured_hash_cmd):
+    """CON-5/ADR-67: the engine digest is a fact of the run, recorded verbatim
+    beside the engine-neutral env_hash, which cannot tell engines apart."""
     root = Path(__file__).resolve().parents[2]
     gates = _gates(root, "nexus")
     assert gates["sim_engine_build"] == ENGINE_FACTS
     assert gates["sim_engine_build"]["sim_engine_hash"] != gates["env_hash"]
 
 
-def test_gate_refuses_an_installed_out_of_lock_engine_without_a_receipt(monkeypatch):
-    """CON-5/ADR-67: importability does not identify an out-of-lock wheel.
-    The trusted checker must stop the run when its only source receipt is
-    absent, before validation or launch can turn it into evidence."""
+def test_gate_needs_no_receipt_for_a_locked_engine(monkeypatch):
+    """CON-5/ADR-70: the engine wheels come from the lock, so the real trusted
+    checker passes a Nexus run without any build receipt and reports the
+    engine digest; the dist attestation covers the wheel's provenance."""
     monkeypatch.setattr("aisle.sim.engine_available", lambda engine: True)
     root = Path(__file__).resolve().parents[2]
-    refused = _gates(root, "nexus")
-    assert refused["ok"] is False and refused["gate"] == "env_hash"
-    assert "build receipt" in refused["detail"]
+    gates = _gates(root, "nexus")
+    assert gates["ok"] is True, gates
+    assert gates["sim_engine_build"]["engine"] == "nexus"
+    assert "build" not in gates["sim_engine_build"]

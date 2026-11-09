@@ -34,8 +34,8 @@ def test_scripted_order_pick():
     code, logged = run_harness("report", "log", "--idea", f"S1 gate run {run_id}", timeout=60)
     assert code == 0, logged
     try:
-        # store-sim rtf ~0.1 (ADR-18): build ~2.5 min + a ~25 min episode
-        # (settle-renavigate loops add legs); first green run: 28:39 total.
+        # Genesis on Metal (2026-10-06): ~1m40s build and a ~4 min episode
+        # (steady rtf ~0.7), ~7 min in all; ADR-18's first green run took 28:39.
         # The harness's own deadline is 420 + 2100 s (tier_budgets); the
         # outer timeout only backstops a hung harness process.
         code, report = run_harness(

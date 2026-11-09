@@ -409,7 +409,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 69
+    assert len(manifests) == 72
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -490,6 +490,35 @@ def test_shared_cli_successor_preserves_bnd_protocol_and_review_gates():
     assert current["artifact_hashes"]["perception_cli"] == hash_path(
         REPO_ROOT, "src/aisle/harness/cli.py"
     )
+
+
+@pytest.mark.parametrize(
+    ("previous_id", "current_id"),
+    [
+        ("bnd-task-band-calibration-v15", "bnd-task-band-calibration-v16"),
+        ("cse-causal-study-v27", "cse-causal-study-v28"),
+        ("cse-causal-study-pilot-v13", "cse-causal-study-pilot-v14"),
+    ],
+)
+def test_engine_lock_successors_preserve_protocol_and_gates(previous_id, current_id):
+    """BND-12/BND-13/CSE-15, ADR-70: moving the engine wheels into the lock needs
+    successors that change only identity and lineage, and bind the new lock."""
+    root = REPO_ROOT / "analysis/freeze"
+    previous = json.loads((root / previous_id / "freeze-manifest.json").read_text())
+    current = json.loads((root / current_id / "freeze-manifest.json").read_text())
+    assert current["seed_commitment"] == previous["seed_commitment"]
+    assert current["pending_gates"] == previous["pending_gates"]
+    assert current["gate_record_hashes"] == previous["gate_record_hashes"]
+    assert not current["frozen"]
+    lineage = f"analysis/freeze/{previous_id}/freeze-manifest.json"
+    assert current["declaration"]["seed_commitment"]["inherited_from"] == lineage
+    assert current["declaration"]["superseded"].startswith(f"{previous_id} (")
+    unchanged = set(previous["declaration"]) - {"campaign_id", "superseded", "artifacts"}
+    unchanged.discard("seed_commitment")
+    for key in unchanged:
+        assert current["declaration"][key] == previous["declaration"][key], key
+    lock = "lock" if "lock" in current["artifact_hashes"] else "dependency_lock"
+    assert current["artifact_hashes"][lock] == hash_path(REPO_ROOT, "uv.lock")
 
 
 def test_pilot_purpose_registers_as_its_own_campaign(tmp_path):

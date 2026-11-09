@@ -238,9 +238,9 @@ uv run --extra sim --locked python tools/quickstart.py --runtime-prefix "$AISLE_
 
 ### Choose a simulation backend
 
-Genesis is installed by the `sim` extra and remains the default. Select it
-explicitly, or choose an installed optional backend, with the same rollout
-flag:
+The `sim` extra installs Genesis, the default, and the optional Nexus and
+rapier engines (on macOS arm64, Linux x86_64 and aarch64, and Windows x64).
+Choose one with the same rollout flag:
 
 ```bash
 # Default, measured backend
@@ -248,24 +248,20 @@ uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local \
     --sim-engine genesis
 
-# Optional GPU backend: install after `uv sync --extra sim --locked`
-uv run --no-sync python tools/nexus_runtime.py install
-uv run --no-sync python tools/nexus_runtime.py verify
-uv run --no-sync harness rollout --graph graphs/expert_t0.yaml --tier T0 \
+# Optional GPU backend
+uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local \
     --sim-engine nexus
 
 # Optional CPU solver with the Nexus renderer
-uv run --no-sync python tools/rapier_runtime.py install
-uv run --no-sync python tools/rapier_runtime.py verify
-uv run --no-sync harness rollout --graph graphs/expert_t0.yaml --tier T0 \
+uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local \
     --sim-engine rapier
 ```
 
 See the [simulation backend guide](docs/simulation-backends.md) for platform
-support, source receipts, backend overrides, direct graph declarations, and
-current limitations. Nexus and rapier are development backends; do not compare
+support, backend overrides, direct graph declarations, and current
+limitations. Nexus and rapier are development backends; do not compare
 their results with the Genesis measured record.
 
 The Python API remains pinned to 1.0.1; the CLI is built from the corrected,
