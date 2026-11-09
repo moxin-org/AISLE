@@ -4,10 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
+import time
 from contextlib import ExitStack
 
 from aisle.harness.frontend_app_server import run_app_server_async
-from aisle.harness.provider_relay import ProviderRelay, verify_provider
+from aisle.harness.provider_relay import SESSION_TOKEN_HEADER, ProviderRelay, verify_provider
+from aisle.harness.relay_reservation import drifted, host_addresses
+
+#: the controller-only variable Codex reads the relay token from; the `KEY`
+#: in its name keeps it out of Codex shell commands under the default
+#: `shell_environment_policy` excludes (`*KEY*`), verified at Codex 0.153.4
+RELAY_KEY_ENV = "AISLE_RELAY_KEY"
+RELAY_HEADER_SETTING = "model_providers.aisle_authorized.env_http_headers." + SESSION_TOKEN_HEADER
+#: how often a pinned session re-enumerates host addresses (ADR-69 §4)
+DRIFT_INTERVAL_S = 1.0
 
 
 def provider_settings(binding, address, timeout_s):
@@ -24,6 +35,9 @@ def provider_settings(binding, address, timeout_s):
         "model_providers.aisle_authorized.request_max_retries": 0,
         "model_providers.aisle_authorized.stream_max_retries": 0,
         "model_providers.aisle_authorized.stream_idle_timeout_ms": int(timeout_s * 1000),
+        # A pinned relay requires the session token; Codex reads it from a
+        # controller-only variable, so only the variable's name is in argv.
+        **({RELAY_HEADER_SETTING: RELAY_KEY_ENV} if binding.get("relay_port") else {}),
     }
 
 
@@ -40,12 +54,23 @@ def run_provider_app_server(
     code_mode_output=None,
     mcp_harness=False,
     mcp_output=None,
+    reservation=None,
+    addresses=host_addresses,
     **options,
 ):
-    """Retain closed provider evidence and reap the frontend on relay failure."""
+    """Retain closed provider evidence and reap the frontend on relay failure.
+
+    A pinned `relay_port` (a `loopback` confinement grant) runs the relay on
+    the controller's `reservation`, gives the session frontend a fresh relay
+    token through a controller-only variable, and stops the session if the
+    host's addresses drift from the reserved set (ADR-69)."""
     verify_provider(binding)
     if "--" in argv:
         raise ValueError("provider launch cannot append configuration after an option terminator")
+    pinned = binding.get("relay_port", 0) != 0
+    if pinned and (mcp_harness or code_mode_host is not None):
+        raise ValueError("a single relay port cannot reach the MCP harness or Code Mode listeners")
+    session_token = secrets.token_urlsafe(32) if pinned else None
     relay = None
     mcp = None
     mcp_listener = None
@@ -58,6 +83,8 @@ def run_provider_app_server(
                 delegated_tools=delegated_tools,
                 output=provider_output,
                 timeout_s=timeout_s,
+                reservation=reservation,
+                session_token=session_token,
             ) as relay,
             ExitStack() as resources,
         ):
@@ -93,6 +120,8 @@ def run_provider_app_server(
                     }
                 )
                 options["on_mcp_source"] = mcp.observe
+            if pinned:
+                options["controller_env"] = {RELAY_KEY_ENV: session_token}
             command = [*argv]
             for key, value in settings.items():
                 command.extend(["-c", key + "=" + json.dumps(value)])
@@ -125,8 +154,15 @@ def run_provider_app_server(
                 return await run_app_server_async(command, timeout_s=timeout_s, **options)
 
             async def watch():
+                checked = time.monotonic()
                 while not relay.failed.is_set() and not (mcp is not None and mcp.failed.is_set()):
                     await asyncio.sleep(0.01)
+                    if pinned and time.monotonic() - checked >= DRIFT_INTERVAL_S:
+                        checked = time.monotonic()
+                        if await asyncio.to_thread(drifted, reservation, addresses):
+                            raise ValueError(
+                                "host addresses changed during the session: unattested environment"
+                            )
                 if mcp is not None and mcp.failed.is_set():
                     raise ValueError("MCP harness failed: " + str(mcp._failure))
                 raise ValueError("provider relay failed: " + str(relay._failure))
@@ -144,7 +180,12 @@ def run_provider_app_server(
                         raise ValueError("provider relay failed: " + str(relay._failure))
                     if mcp is not None and mcp.failed.is_set():
                         raise ValueError("MCP harness failed: " + str(mcp._failure))
-                    return await frontend
+                    result = await frontend
+                    if pinned and await asyncio.to_thread(drifted, reservation, addresses):
+                        raise ValueError(
+                            "host addresses changed by teardown: unattested environment"
+                        )
+                    return result
                 finally:
                     for task in (frontend, watcher):
                         if not task.done():

@@ -246,3 +246,12 @@ the CSE pair also binds the revised rollout runner and the regenerated
 treatment table. FLT v7 does not bind the lock and stays current. Calibration
 rules, seed lineages, decision rules and every pending gate are preserved, and
 Genesis remains the default and the only engine behind these campaigns.
+
+CSE v29 and pilot v15 supersede v28 and pilot v14 after ADR-69's exclusive
+relay transport changed seven matched sources and added two
+(`relay_reservation.py`, `loopback_capability.py`): a TCP-only `loopback`
+grant on one pinned port, the relay served from a controller reservation of
+that port on every host address with a per-session token, and address-drift
+stop checks. Seed commitments are inherited unverified and every pending gate
+is preserved, the TRT gate included; these registrations do not authorize
+collection.

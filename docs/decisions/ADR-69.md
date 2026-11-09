@@ -84,8 +84,8 @@ perfect TCP reservation.
    existing stop condition). Detection is after the fact: an intruder that
    binds a new address can receive traffic until the next check, so sessions
    also require a quiescent network as an attested precondition (VPN and
-   container bridges down, no interface churn), and PR B evaluates watching
-   `PF_ROUTE` for immediate detection.
+   container bridges down, no interface churn). PR B polls once a second;
+   watching `PF_ROUTE` for immediate detection is deferred.
 5. **Retained evidence names no addresses.** The record carries the port, the
    counts per family and a SHA-256 over the sorted address set, not the LAN
    topology; refusal messages name an address's family and position only.
@@ -102,14 +102,54 @@ perfect TCP reservation.
 - **PR A (this ADR):** `src/aisle/harness/relay_reservation.py` — address
   enumeration, the reservation, the drift check, and their tests on real
   sockets. New file outside every hashed source set; no registration change.
-- **PR B:** wire the reservation into `treatment_confinement.py`
-  (re-admit `loopback` with a reservation), `provider_relay.py` (serve on the
-  reservation socket), the matched-session runner (drift checks), the audit's
-  intruder and UDP cases, a per-session relay token (so other local
-  processes cannot spend the provider credential through the relay), an
-  explicit hand-off of only the relay socket (no reservation descriptor may
-  reach the confined process), and successor registrations for the changed
-  hashed sources.
+- **PR B:** the wiring, as built:
+  - `treatment_confinement.py` re-admits `loopback` with one pinned
+    `loopback_port`, compiled to the TCP-only rule. Under it the audit
+    (`loopback_capability.py`) holds the port through a reservation and
+    requires relay reach plus foreign-port, external, UDP and intruder-bind
+    denials. Pre-ADR-69 loopback attestations fail the exact case-set check.
+  - Admission ties a `loopback` arm to an App Server launch with an owned
+    `provider` whose `relay_port` equals the pin, and refuses `mcp_harness`
+    and `code_mode_host`: both listen on ephemeral ports a one-port grant
+    cannot reach.
+  - `tools/matched_campaign.py` reserves the port for the session's lifetime
+    and retains `relay-reservation.json`; a reservation failure refuses the
+    launch. `provider_relay.py` serves from the reservation's `127.0.0.1`
+    socket and never closes it, so the port is not freed under the wildcard.
+  - **Relay token.** The relay does not bind requests to the session's
+    frontend, and any local process can reach the port, so a pinned relay
+    requires a fresh `X-Aisle-Relay-Token`. Without it a foreign request
+    would be journalled and dispatched as session work. Codex 0.153.4 reads
+    the value from `AISLE_RELAY_KEY` via `env_http_headers`, so argv carries
+    only the variable's name. The frontend receives it as a controller-only
+    addition. `invocation.json` hashes the declared environment and lists
+    `controller_environment_keys`, keeping qualification's hash check intact.
+    Codex's default shell-environment excludes (`*KEY*`) keep it out of the
+    environment of agent commands. Before admission, nothing a caller does
+    fails the session: a stall, reset, malformed or tokenless request, or a
+    slot flood ends only that connection. Before this change, any such
+    connection failed the session. A pinned relay refuses to start without a
+    token.
+  - **What the token does not stop (measured).** On macOS 27.2 any same-user
+    process can read a third-party process's environment through
+    `KERN_PROCARGS2`, and so can a process confined by a deny-default
+    `system.sb` profile. None of `(deny sysctl-read)`,
+    `(deny sysctl-read (sysctl-name "kern.procargs2"))` or
+    `(deny process-info* (target others))` blocked the read. The token
+    therefore excludes other users' processes and untargeted local traffic.
+    It does not exclude the confined agent or a deliberately targeted
+    same-user process. Separately, the `loopback` grant itself admits the
+    agent's own processes to the relay port, so the relay must treat any
+    request as possibly agent-originated. It journals every request it
+    accepts, so such traffic is never invisible, but it bypasses the
+    frontend's protocol accounting. Making the relay frontend-exclusive would
+    need a channel Codex alone holds, such as an inherited descriptor, which
+    Codex 0.153.4 does not offer for its provider; this is an owner decision.
+  - Drift is checked every second and at teardown.
+  - Reservation sockets are non-inheritable and the frontend spawn closes
+    other descriptors, so no reservation socket reaches a confined process.
+  - The matched source set and the registrations gain both new modules
+    (CSE v29, pilot v15).
 
 ## Consequences and residual risk
 
@@ -125,6 +165,15 @@ perfect TCP reservation.
 - **Privileged processes** are out of scope: the threat is an ordinary local
   service on the same port, not root on the controller host. An operator
   account with passwordless `sudo` is outside that boundary.
+- **ChatGPT-login refresh.** With `requires_openai_auth`, Codex may try to
+  refresh its login token at `auth.openai.com`. A one-port grant denies that,
+  so a session whose credential needs refreshing fails visibly. Sessions
+  should start from a fresh credential.
+- **Refused foreign requests are not counted.** The relay answers them 403
+  but retains no record, so attempted interference leaves no evidence.
+- **Agent-originated relay traffic** (see the token bullet above) is
+  journalled but not attributed to the frontend; analyses that rely on
+  frontend accounting should reconcile it against the relay journal.
 - **Undocumented semantics.** What SBPL `localhost` admits is not a public
   contract; it was measured on macOS 27.2 build 26B123. The audit's intruder
   and UDP cases re-measure it on every attested host and build.

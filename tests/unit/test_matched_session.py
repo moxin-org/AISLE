@@ -2016,3 +2016,53 @@ def test_provider_binding_requires_equal_admitted_transport_and_budget(tmp_path,
     else:
         with pytest.raises(AdmissionError):
             admit_pair(control, candidates, roots, launches=launches)
+
+
+@pytest.mark.parametrize(
+    ("launch", "message"),
+    [
+        ({"argv": ["codex"], "app_server": {}}, "requires an owned provider"),
+        ({"argv": ["codex"]}, "requires an owned provider"),
+        (
+            {
+                "argv": ["codex"],
+                "app_server": {},
+                "provider": {"relay_port": 4321},
+                "mcp_harness": True,
+            },
+            "single relay port",
+        ),
+        (
+            {
+                "argv": ["codex"],
+                "app_server": {},
+                "provider": {"relay_port": 4321},
+                "code_mode_host": {},
+            },
+            "single relay port",
+        ),
+    ],
+)
+def test_loopback_policy_admits_only_a_provider_only_launch(launch, message):
+    """TRT-5 (ADR-69 §6): a one-port loopback grant serves exactly the owned
+    provider relay; a launch without it, or with listeners on other ports,
+    refuses at admission."""
+    from aisle.harness.matched_session import AdmissionError, _verify_loopback_launch
+
+    policy = {"network_policy": "loopback", "loopback_port": 4321}
+    with pytest.raises(AdmissionError, match=message):
+        _verify_loopback_launch(policy, launch)
+
+
+def test_loopback_policy_admits_a_provider_only_launch_and_ignores_deny_external():
+    """TRT-5: the provider-only loopback launch and every deny-external launch pass."""
+    from aisle.harness.matched_session import _verify_loopback_launch
+
+    _verify_loopback_launch(
+        {"network_policy": "loopback", "loopback_port": 4321},
+        {"argv": ["codex"], "app_server": {}, "provider": {"relay_port": 4321}},
+    )
+    _verify_loopback_launch(
+        {"network_policy": "deny-external"}, {"argv": ["x"], "mcp_harness": True}
+    )
+    _verify_loopback_launch(None, {"argv": ["x"]})

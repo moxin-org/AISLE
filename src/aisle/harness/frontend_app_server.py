@@ -280,8 +280,14 @@ async def run_app_server_async(
     on_message=None,
     on_mcp_source=None,
     on_reference=None,
+    controller_env=None,
 ):
     """Run one fresh thread/turn over a private pipe and retain protocol bytes.
+
+    ``controller_env`` adds controller-only variables (such as the relay
+    session secret) to the child's environment. They may not replace a
+    declared variable; the retained invocation hashes the declared
+    environment and names the added keys, never their values.
 
     ``handle_call(call, raw_message)`` may return an awaitable. It must return the
     dynamic tool result only after controller authorization/execution. Callbacks
@@ -292,6 +298,11 @@ async def run_app_server_async(
         raise ValueError("invalid app-server deadline")
     if token_ceiling is not None and (type(token_ceiling) is not int or token_ceiling <= 0):
         raise ValueError("invalid token ceiling")
+    controller_env = dict(controller_env or {})
+    if set(controller_env) & set(env) or any(
+        type(k) is not str or type(v) is not str for k, v in controller_env.items()
+    ):
+        raise ValueError("controller environment may only add string variables")
     output = Path(output).absolute()
     if output.resolve() != output:
         raise ValueError("redirected app-server output")
@@ -323,6 +334,11 @@ async def run_app_server_async(
                 "environment_sha256": hashlib.sha256(
                     json.dumps(env, sort_keys=True).encode()
                 ).hexdigest(),
+                **(
+                    {"controller_environment_keys": sorted(controller_env)}
+                    if controller_env
+                    else {}
+                ),
                 "thread_params": thread_params,
                 "input_items": input_items,
                 "timeout_s": timeout_s,
@@ -353,7 +369,7 @@ async def run_app_server_async(
             process = await asyncio.create_subprocess_exec(
                 *argv,
                 cwd=cwd,
-                env=env,
+                env={**env, **controller_env},
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=stderr,

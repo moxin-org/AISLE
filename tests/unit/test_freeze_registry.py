@@ -409,7 +409,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 72
+    assert len(manifests) == 74
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())

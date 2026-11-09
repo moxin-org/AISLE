@@ -31,12 +31,20 @@ EVIDENCE_CLASS = "synthetic_unscored_capability"
 SANDBOX_EXEC = Path("/usr/bin/sandbox-exec")
 SYSTEM_PROFILE = Path("/System/Library/Sandbox/Profiles/system.sb")
 _HASH_LENGTH = 64
-#: Only deny-external can currently enforce the declared endpoint authority.
-NETWORK_POLICIES = ("deny-external",)
-_LOOPBACK_REFUSAL = (
-    "loopback port policy cannot isolate the provider relay: macOS localhost "
-    "covers multiple local addresses; use deny-external until an exclusive "
-    "relay transport is implemented"
+#: `deny-external` allows no network at all. `loopback` allows TCP to one
+#: pinned port only, the arm's provider relay, which the controller holds on
+#: every host address for the session (ADR-69, relay_reservation).
+NETWORK_POLICIES = ("deny-external", "loopback")
+_LOOPBACK_CASE_IDS = frozenset(
+    {
+        "loopback_tcp_read",
+        "foreign_loopback_tcp_read",
+        "external_tcp_read",
+        "unrestricted_udp_baseline",
+        "udp_send",
+        "reservation_intruder_bind",
+        "unrestricted_intruder_baseline",
+    }
 )
 #: the preferred Unix-socket probe; an admitted Python interpreter is the fallback
 _NETCAT = "/usr/bin/nc"
@@ -80,22 +88,33 @@ _BASE_CASE_IDS = frozenset(
 
 
 def _require_network_policy(network_policy: str) -> None:
-    if network_policy == "loopback":
-        raise ConfinementError(_LOOPBACK_REFUSAL)
     if network_policy not in NETWORK_POLICIES:
         raise ConfinementError(f"unknown network policy: {network_policy}")
 
 
 def required_case_ids(network_policy: str) -> frozenset[str]:
-    """The case matrix for a supported, enforceable network policy."""
+    """The case matrix an attestation must carry for a compiled network policy."""
     _require_network_policy(network_policy)
+    if network_policy == "loopback":
+        return _BASE_CASE_IDS | _LOOPBACK_CASE_IDS
     return _BASE_CASE_IDS | {"tcp_read"}
 
 
 def verify_relay_port(policy: Any, provider: Any) -> None:
-    """Refuse the unsupported loopback authority at provider admission (TRT-5)."""
-    if type(policy) is dict and policy.get("network_policy") == "loopback":
-        raise ValueError(_LOOPBACK_REFUSAL)
+    """A `loopback` policy and its provider binding must name the same relay
+    port (TRT-5/MON-8): the sandbox admits exactly that port and the relay
+    serves on it from the controller's reservation."""
+    declared = provider.get("relay_port", 0) if type(provider) is dict else 0
+    if type(policy) is not dict or policy.get("network_policy") != "loopback":
+        # A pinned port is served only from a loopback session's reservation;
+        # anywhere else it would fail late, after launch evidence was written.
+        if declared != 0:
+            raise ValueError("only a loopback confinement policy may pin a provider relay_port")
+        return
+    pinned = policy.get("loopback_port")
+    declared = provider.get("relay_port") if type(provider) is dict else None
+    if type(declared) is not int or isinstance(declared, bool) or declared != pinned:
+        raise ValueError("provider relay_port must equal the confinement policy's loopback_port")
 
 
 class ConfinementError(RuntimeError):
@@ -112,7 +131,7 @@ class MacOSPolicy:
     allowed_executables: tuple[Path, ...]
     hidden_roots: tuple[Path, ...]
     network_policy: str
-    #: Retained for parsing old declarations; loopback authority is refused.
+    #: the one local TCP port a `loopback` policy may reach (its provider relay)
     loopback_port: int | None = None
 
     @property
@@ -241,8 +260,12 @@ def _contains(parent: Path, child: Path) -> bool:
 
 def _validate_policy(policy: MacOSPolicy) -> None:
     _require_network_policy(policy.network_policy)
-    if policy.loopback_port is not None:
-        raise ConfinementError("deny-external network policy cannot carry a relay port")
+    port = policy.loopback_port
+    if policy.network_policy == "loopback":
+        if type(port) is not int or isinstance(port, bool) or not 0 < port < 65536:
+            raise ConfinementError("loopback network policy must pin one relay port")
+    elif port is not None:
+        raise ConfinementError("only a loopback network policy may carry a relay port")
     for name in (
         "visible_roots",
         "output_roots",
@@ -292,6 +315,10 @@ def compile_macos_profile(policy: MacOSPolicy) -> CompiledProfile:
     lines.extend([")", "(allow file-write*"])
     lines.extend(f"  (subpath {_sbpl_path(path)})" for path in policy.output_roots)
     lines.extend([")", "(allow signal (target self))"])
+    if policy.network_policy == "loopback":
+        # TCP only: `remote ip` would also admit UDP to any local listener
+        # on the port, which the TCP reservation does not cover (ADR-69).
+        lines.append(f'(allow network-outbound (remote tcp "localhost:{policy.loopback_port}"))')
     lines.append("")
     text = "\n".join(lines)
     return CompiledProfile(
@@ -1116,7 +1143,12 @@ def run_macos_capability_audit(
             _case_result("hidden_write", forbidden_write, hidden_sentinel, expected="deny")
         )
 
-        cases.extend(_socket_capability_cases(profile_path, visible, hidden_sentinel))
+        if policy.network_policy == "loopback":
+            from aisle.harness.loopback_capability import loopback_capability_cases
+
+            cases.extend(loopback_capability_cases(profile_path, visible, policy.loopback_port))
+        else:
+            cases.extend(_socket_capability_cases(profile_path, visible, hidden_sentinel))
         cases.extend(_unix_socket_capability_cases(profile_path, visible, hidden_sentinel, client))
         executable_command = ["/usr/bin/printf", "%s", hidden_sentinel.decode()]
         cases.append(

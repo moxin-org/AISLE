@@ -353,3 +353,63 @@ def test_cancellation_during_reaping_cannot_publish_reference_early(tmp_path, mo
                 await original_wait()
 
     asyncio.run(exercise())
+
+
+def test_controller_environment_reaches_the_child_but_not_the_declared_hash(tmp_path):
+    """TRT-7/MON-13 (ADR-69 §6): a controller-only secret is delivered to the
+    frontend process, while the retained invocation hashes only the declared
+    environment and names the added keys, never their values."""
+    import hashlib
+    import json
+    import os
+    import sys
+
+    from aisle.harness.frontend_app_server import run_app_server
+
+    script = tmp_path / "server.py"
+    seen = tmp_path / "seen"
+    script.write_text(
+        "import os,pathlib,sys\n"
+        "pathlib.Path(sys.argv[1]).write_text(os.environ.get('AISLE_RELAY_KEY',''))\n"
+    )
+    declared = {"PATH": os.defpath}
+    secret = "s" * 43
+    with pytest.raises((ValueError, TimeoutError)):
+        run_app_server(
+            [sys.executable, "-I", str(script), str(seen)],
+            cwd=tmp_path,
+            env=declared,
+            controller_env={"AISLE_RELAY_KEY": secret},
+            output=tmp_path / "protocol",
+            thread_params={},
+            input_items=[],
+            handle_call=lambda *args: None,
+            timeout_s=2,
+        )
+    assert seen.read_text() == secret
+    invocation = json.loads((tmp_path / "protocol" / "invocation.json").read_text())
+    expected = hashlib.sha256(json.dumps(declared, sort_keys=True).encode()).hexdigest()
+    assert invocation["environment_sha256"] == expected
+    assert invocation["controller_environment_keys"] == ["AISLE_RELAY_KEY"]
+    retained = b"".join(p.read_bytes() for p in (tmp_path / "protocol").iterdir())
+    assert secret.encode() not in retained
+
+
+def test_controller_environment_cannot_override_declared_keys(tmp_path):
+    """TRT-7: the controller may add a variable, never replace a declared one."""
+    import os
+
+    from aisle.harness.frontend_app_server import run_app_server
+
+    with pytest.raises(ValueError, match="controller environment"):
+        run_app_server(
+            ["/usr/bin/true"],
+            cwd=tmp_path,
+            env={"PATH": os.defpath},
+            controller_env={"PATH": "/tmp"},
+            output=tmp_path / "protocol",
+            thread_params={},
+            input_items=[],
+            handle_call=lambda *args: None,
+            timeout_s=1,
+        )

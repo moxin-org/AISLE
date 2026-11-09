@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import http.client
 import json
 import os
@@ -19,6 +20,9 @@ from aisle.harness.provider_response_authority import ProviderResponseAuthority,
 MAX_EVIDENCE_BYTES = 64 * 1024 * 1024
 #: request headers the relay forwards verbatim and never retains by value; the
 #: ChatGPT-login backend requires the account header beside the bearer token
+#: the header a session's own frontend presents to its relay (ADR-69 §6)
+SESSION_TOKEN_HEADER = "X-Aisle-Relay-Token"
+SESSION_TOKEN_MIN_LENGTH = 32
 FORWARDED_HEADERS = (
     "Authorization",
     "Content-Encoding",
@@ -89,10 +93,43 @@ class ProviderRelay:
     destinations. Network ownership still requires independent confinement.
     """
 
-    def __init__(self, binding, *, dispatch, output, timeout_s, delegated_tools=()):
+    def __init__(
+        self,
+        binding,
+        *,
+        dispatch,
+        output,
+        timeout_s,
+        delegated_tools=(),
+        reservation=None,
+        session_token=None,
+    ):
         self.url = verify_provider(binding)
         self.hosted_contract = binding.get("hosted_tool_contract")
         self._binding_port = binding.get("relay_port", 0)
+        # A pinned port is the one a `loopback` confinement grant admits; it is
+        # exclusive only while the controller holds it on every host address,
+        # so the relay serves from that reservation and never binds it itself
+        # (ADR-69). Zero keeps the ephemeral, unconfined default.
+        _require(
+            self._binding_port == 0
+            or (reservation is not None and reservation.port == self._binding_port),
+            "pinned relay port requires the controller reservation for that port",
+        )
+        self._reservation = reservation if self._binding_port else None
+        # Any local process can reach a loopback listener; the per-session
+        # token keeps foreign requests out of upstream, dispatch and evidence.
+        # It is a runtime secret, never part of the retained binding.
+        _require(
+            session_token is None
+            or (type(session_token) is str and len(session_token) >= SESSION_TOKEN_MIN_LENGTH),
+            "session token must be a string of at least 32 characters",
+        )
+        _require(
+            self._reservation is None or session_token is not None,
+            "a pinned relay requires a session token",
+        )
+        self._session_token = session_token
         _require(
             type(timeout_s) in (int, float) and 0 < timeout_s < 86400, "invalid provider deadline"
         )
@@ -172,7 +209,18 @@ class ProviderRelay:
         if time.monotonic() >= self._deadline:
             raise TimeoutError("provider session deadline expired")
 
+    def _admitted(self, handler):
+        if self._session_token is None:
+            return True
+        sent = handler.headers.get_all(SESSION_TOKEN_HEADER, [])
+        return len(sent) == 1 and hmac.compare_digest(
+            sent[0].encode(), self._session_token.encode()
+        )
+
     def _handle(self, handler):
+        if not self._admitted(handler):  # also enforced before dispatch to do_POST
+            handler.send_error(403)
+            return
         upstream = None
         prefix = None
         started = False
@@ -351,7 +399,10 @@ class ProviderRelay:
 
             def process_request(self, request, client_address):
                 if not relay._handlers.acquire(blocking=False):
-                    relay._fail(ValueError("too many concurrent provider requests"))
+                    # In token mode any local process can occupy handler slots
+                    # before admission, so overflow is shed, never fatal.
+                    if relay._session_token is None:
+                        relay._fail(ValueError("too many concurrent provider requests"))
                     self.shutdown_request(request)
                     with relay._lock:
                         relay._connections.discard(request)
@@ -367,6 +418,14 @@ class ProviderRelay:
             def handle_error(self, request, client_address):
                 relay._fail(ValueError("provider request handler failed"))
 
+            def server_close(self):
+                # The reservation owns its socket: closing it here would free
+                # 127.0.0.1:P beneath the still-held wildcard. Swap in a
+                # throwaway so the stock close still joins every handler.
+                if relay._reservation is not None:
+                    self.socket = socket.socket()
+                super().server_close()
+
         class Handler(BaseHTTPRequestHandler):
             def setup(self):
                 self.admission_handled = False
@@ -376,8 +435,32 @@ class ProviderRelay:
                 try:
                     super().finish()
                 finally:
-                    if not self.admission_handled:
+                    # With a session token any local process may knock on the
+                    # port; only the session's own frontend can fail it.
+                    if not self.admission_handled and relay._session_token is None:
                         relay._fail(ValueError("provider request did not reach admission"))
+
+            def handle_one_request(self):
+                if relay._session_token is None:
+                    return super().handle_one_request()
+                # Everything before admission belongs to an unauthenticated
+                # caller: a stall, reset or malformed request ends only that
+                # connection, never the session.
+                try:
+                    self.raw_requestline = self.rfile.readline(65537)
+                    if len(self.raw_requestline) > 65536:
+                        self.send_error(414)
+                        return
+                    if not self.raw_requestline or not self.parse_request():
+                        return
+                    if self.command != "POST" or not relay._admitted(self):
+                        self.send_error(403)
+                        return
+                except OSError:
+                    self.close_connection = True
+                    return
+                self.do_POST()
+                self.wfile.flush()
 
             def log_message(self, *_):
                 pass
@@ -387,10 +470,18 @@ class ProviderRelay:
                 relay._handle(self)
 
         try:
-            # An explicit relay_port fixes the listener's address; it grants
-            # no confinement authority. Zero keeps the ephemeral default.
-            self._server = Server(("127.0.0.1", self._binding_port), Handler)
+            if self._reservation is None:
+                self._server = Server(("127.0.0.1", 0), Handler)
+            else:
+                self._server = Server(
+                    ("127.0.0.1", self._binding_port), Handler, bind_and_activate=False
+                )
+                self._server.socket.close()
+                self._server.socket = self._reservation.relay_socket()
+                self._server.server_address = self._server.socket.getsockname()[:2]
+                self._server.server_activate()
             self.address = self._server.server_address
+            # The reservation's own record is retained by the session controller.
             self._retain(
                 "listener.json",
                 {
