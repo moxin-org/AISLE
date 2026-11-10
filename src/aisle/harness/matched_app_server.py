@@ -210,7 +210,9 @@ def acquire_authority_evidence(output, references):
     return result
 
 
-def run_authorized_app_server(controller, command, *, cwd, env, launch, budget, references):
+def run_authorized_app_server(
+    controller, command, *, cwd, env, launch, budget, references, reservation=None
+):
     """Host the fixed harness request API while the owned frontend process runs."""
     output = controller.output
     manifest = controller.plan["arms"][controller.arm]
@@ -357,6 +359,7 @@ def run_authorized_app_server(controller, command, *, cwd, env, launch, budget, 
                         code_mode_output=output / "code-mode",
                         mcp_harness=launch.get("mcp_harness", False),
                         mcp_output=output / "mcp-harness",
+                        reservation=reservation,
                         **options,
                     )
                 elif "code_mode_host" in launch:

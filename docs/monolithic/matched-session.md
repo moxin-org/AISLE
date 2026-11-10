@@ -121,13 +121,18 @@ directories instead so the audit never writes into another arm's readable
 view. The retained report replaces hidden-root paths with their digests
 (`policy_id` still binds the full policy). A sentinel left behind by an audit
 process that died uncleanly is reclaimed on the next run; any other occupant
-refuses. Only `deny-external` (no network) is supported. The proposed
-`loopback` port policy is rejected during compilation, provider admission,
-audit startup, and launch verification, including for previously passing
-attestations. macOS SBPL's `localhost` selector covers every address owned by
-the host: a relay on `127.0.0.1:<port>` can coexist with a separate service on
-`[::1]:<port>`. A port number therefore cannot establish exclusive relay
-access. Literal IP endpoint selectors are rejected by the sandbox compiler.
+refuses. Two network policies exist ([ADR-69](../decisions/ADR-69.md)).
+`deny-external` allows no network. `loopback` pins one `loopback_port` and
+compiles to `(allow network-outbound (remote tcp "localhost:<port>"))`: TCP
+only, because `remote ip` also admits UDP. SBPL's `localhost` covers every
+address the host owns, LAN and link-local included, so the grant is exclusive
+only while the controller holds the port on the dual-stack wildcard and every
+assigned address (`relay_reservation.py`). Under `loopback` the audit holds the
+port exactly that way and requires `loopback_tcp_read` (the relay canary),
+`foreign_loopback_tcp_read`, `external_tcp_read` and `udp_send` (each refused
+with "Operation not permitted"), `unrestricted_udp_baseline`, and
+`reservation_intruder_bind` (no unsandboxed bind of the port on any covered
+address or wildcard under any reuse-flag combination).
 
 A worker or validator policy admits only an interpreter and cannot run the
 audit's probes. `--widen-probes` audits it under the policy plus exactly those
@@ -143,12 +148,30 @@ sentinel homes. The attestation is an unsigned controller-owned document:
 recomputation guards against tool misuse, not against an author who can edit
 that document.
 
-A pinned `provider.relay_port` configures a listener but grants no network
-authority. Relay-backed confined sessions remain unavailable until an
-exclusive transport is implemented and validated. This stop condition must
-not be bypassed with a broader policy or a cached attestation. The pilot
-still requires exact-context admission and independent confinement evidence
-before collection.
+A `loopback` arm must launch the App Server with an owned `provider` whose
+`relay_port` equals the policy's `loopback_port`, and may not use
+`mcp_harness` or `code_mode_host`: both listen on ephemeral ports a one-port
+grant cannot reach, so admission refuses them. At launch the controller
+reserves the port on every host address (refusing the session if any bind
+fails) and retains `relay-reservation.json` (port, per-family counts and an
+address-set digest, never addresses). The relay serves from the reservation's
+`127.0.0.1` socket and requires a fresh per-session `X-Aisle-Relay-Token`.
+Codex reads it from `AISLE_RELAY_KEY` through
+`model_providers.aisle_authorized.env_http_headers`, so only the variable's
+name appears in argv. The value is a controller-only addition to the
+frontend's environment: `invocation.json` hashes the declared environment and
+lists `controller_environment_keys`. Codex's default shell-environment
+excludes (`*KEY*`) keep it out of agent commands' environment, but the agent
+(or any same-user process) can still read it from Codex's process arguments
+through `KERN_PROCARGS2`, which the sandbox does not mediate. The token
+excludes other users' processes and untargeted traffic, not the agent; see
+ADR-69. Before admission, nothing a caller does fails the session: stalls,
+resets, tokenless requests and slot floods end only that connection.
+The controller re-enumerates host addresses every second and at teardown; any
+change fails the session as an unattested environment. This remains
+engineering infrastructure: the pilot still requires an attested session,
+exact-context admission and the registration's other gates before
+collection.
 
 Deterministic integration tests run real child processes for both arms through
 an explicitly synthetic pass-through adapter. Those tests cover the process

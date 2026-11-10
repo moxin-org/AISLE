@@ -86,6 +86,8 @@ CONTROLLER_FILES = (
     "src/aisle/harness/provider_hosted.py",
     "src/aisle/harness/provider_relay.py",
     "src/aisle/harness/provider_runner.py",
+    "src/aisle/harness/relay_reservation.py",
+    "src/aisle/harness/loopback_capability.py",
     "src/aisle/harness/provider_source_audit.py",
     "src/aisle/harness/mcp_harness_source.py",
     "src/aisle/harness/mcp_harness_authority.py",
@@ -362,6 +364,19 @@ def _permission_ids(
     return identities
 
 
+def _verify_loopback_launch(policy: object, launch: dict) -> None:
+    """A `loopback` grant reaches one pinned port: the owned provider relay.
+    MCP harness and Code Mode listen on other ports it cannot reach (ADR-69)."""
+    if type(policy) is not dict or policy.get("network_policy") != "loopback":
+        return
+    if "app_server" not in launch or "provider" not in launch:
+        raise AdmissionError("a loopback policy requires an owned provider relay launch")
+    if launch.get("mcp_harness") or "code_mode_host" in launch:
+        raise AdmissionError(
+            "a single relay port cannot reach the MCP harness or Code Mode listeners"
+        )
+
+
 def _verify_launches(
     candidates: dict,
     launches: dict,
@@ -374,10 +389,15 @@ def _verify_launches(
     if not isinstance(launches, dict) or set(launches) != ARMS:
         raise AdmissionError("both launch bindings are required")
     comparable = copy.deepcopy(launches)
+    bindings = (execution or {}).get("confinement_bindings") or {}
     for arm in sorted(ARMS):
         launch = launches[arm]
         if not isinstance(launch, dict):
             raise AdmissionError("unsupported launch binding")
+        binding = bindings.get(arm) if isinstance(bindings, dict) else None
+        _verify_loopback_launch(
+            binding.get("policy") if isinstance(binding, dict) else None, launch
+        )
         app_server = "app_server" in launch
         if app_server:
             if (
@@ -1241,6 +1261,7 @@ def execute_session(
             "frontend-dispatch-reference.json",
             "code-mode-reference.json",
             "provider-reference.json",
+            "relay-reservation.json",
             "mcp-harness-reference.json",
             "code-mode/host.stdout",
             "code-mode/host.stderr",

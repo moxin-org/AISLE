@@ -29,10 +29,13 @@ Since the session-bound attestation (2026-09-14), `audit-macos --policy
 (`MacOSPolicy.canonical_dict` JSON) so the retained record's profile hash and
 policy id are the ones `wrap_verified_command` demands; `policy_source` in the
 report says whether the synthetic or a session policy was audited, and the
-report's hidden roots are digests, not paths. Only `deny-external` is supported.
-The proposed `loopback` grant is refused because a port pin cannot isolate
-one service across the host's IPv4 and IPv6 addresses. Previously passing
-loopback attestations cannot authorize a launch. `--widen-probes` attests an
+report's hidden roots are digests, not paths. `deny-external` allows no
+network. `loopback` ([ADR-69](../../../docs/decisions/ADR-69.md)) allows TCP to
+one pinned relay port; it is exclusive only while the controller holds that
+port on every host address, so the audit holds it the same way and adds the
+relay-reach, foreign-port, external, UDP and intruder-bind cases. Loopback
+attestations from before ADR-69 lack the UDP and intruder cases, so the launch
+wrapper's exact case-set check refuses them. `--widen-probes` attests an
 interpreter-only policy under itself plus the audit's own probes; the record
 then carries `audit_profile_sha256`/`audit_policy_id` beside the session's
 `compiled_profile_sha256`/`policy_id` and a `probe_widening` declaration.

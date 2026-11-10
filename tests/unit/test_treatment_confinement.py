@@ -376,34 +376,57 @@ def _session_policy(tmp_path: Path) -> MacOSPolicy:
     )
 
 
-def test_old_loopback_policy_parses_but_is_not_compilable(tmp_path: Path):
-    """TRT-5: old policy declarations remain readable but cannot grant broad endpoints."""
+def _loopback_policy(tmp_path: Path, port: int = 4321) -> MacOSPolicy:
+    return MacOSPolicy(
+        **{**_policy(tmp_path).as_dict(), "network_policy": "loopback", "loopback_port": port}
+    )
+
+
+def test_loopback_policy_compiles_a_tcp_only_rule_for_its_pinned_port(tmp_path: Path):
+    """TRT-5 (ADR-69 §1): `loopback` grants TCP to its one pinned relay port and
+    nothing else; `remote ip` would also admit UDP."""
     from aisle.harness.treatment_confinement import NETWORK_POLICIES
 
-    assert NETWORK_POLICIES == ("deny-external",)
-    base = _policy(tmp_path)
-    assert "loopback_port" not in base.canonical_dict()
-    assert MacOSPolicy.from_canonical(base.canonical_dict()) == base
-    pinned = MacOSPolicy(**{**base.as_dict(), "network_policy": "loopback", "loopback_port": 4321})
+    assert NETWORK_POLICIES == ("deny-external", "loopback")
+    pinned = _loopback_policy(tmp_path)
+    text = compile_macos_profile(pinned).text
+    assert '(allow network-outbound (remote tcp "localhost:4321"))' in text
+    assert "remote ip" not in text
+    assert text.count("network-outbound") == 1
     assert MacOSPolicy.from_canonical(pinned.canonical_dict()) == pinned
-    with pytest.raises(ConfinementError, match="cannot isolate the provider relay"):
-        compile_macos_profile(pinned)
-    with pytest.raises(ConfinementError, match="cannot carry a relay port"):
-        compile_macos_profile(MacOSPolicy(**{**base.as_dict(), "loopback_port": 4321}))
+    base = MacOSPolicy(**{**pinned.as_dict(), "network_policy": "deny-external"})
+    base = MacOSPolicy(**{**base.as_dict(), "loopback_port": None})
+    assert "loopback_port" not in base.canonical_dict()
+    assert "network-outbound" not in compile_macos_profile(base).text
 
 
-def test_provider_admission_refuses_loopback_even_when_ports_match():
-    """TRT-5/MON-8: matching port numbers cannot establish exclusive relay authority."""
+@pytest.mark.parametrize("port", [None, 0, 65536, True, "4321"])
+def test_loopback_policy_requires_one_valid_pinned_port(tmp_path: Path, port):
+    """TRT-5: a loopback grant without exactly one valid port refuses."""
+    with pytest.raises(ConfinementError, match="pin one relay port"):
+        compile_macos_profile(_loopback_policy(tmp_path, port))
+
+
+def test_deny_external_policy_cannot_carry_a_relay_port(tmp_path: Path):
+    """TRT-5: only a loopback policy may name a relay port."""
+    with pytest.raises(ConfinementError, match="only a loopback"):
+        compile_macos_profile(MacOSPolicy(**{**_policy(tmp_path).as_dict(), "loopback_port": 4321}))
+
+
+def test_provider_admission_binds_relay_port_to_the_loopback_pin():
+    """TRT-5/MON-8: the provider relay must listen on exactly the pinned port."""
     from aisle.harness.treatment_confinement import verify_relay_port
 
     verify_relay_port({"network_policy": "deny-external"}, {"base_url": "https://x"})
     verify_relay_port(None, {"base_url": "https://x"})
-    for port in (None, 4321, 4322):
-        with pytest.raises(ValueError, match="cannot isolate the provider relay"):
-            verify_relay_port(
-                {"network_policy": "loopback", "loopback_port": 4321},
-                {"base_url": "https://x", "relay_port": port},
-            )
+    pinned = {"network_policy": "loopback", "loopback_port": 4321}
+    verify_relay_port(pinned, {"base_url": "https://x", "relay_port": 4321})
+    for port in (None, 4322, True):
+        with pytest.raises(ValueError, match="must equal"):
+            verify_relay_port(pinned, {"base_url": "https://x", "relay_port": port})
+    for policy in ({"network_policy": "deny-external"}, None):
+        with pytest.raises(ValueError, match="only a loopback"):
+            verify_relay_port(policy, {"base_url": "https://x", "relay_port": 4321})
 
 
 def test_roots_must_be_printable_ascii(tmp_path: Path):
@@ -416,14 +439,25 @@ def test_roots_must_be_printable_ascii(tmp_path: Path):
         )
 
 
-def test_required_case_ids_refuse_unsupported_network_authority():
-    """TRT-6: unsupported loopback authority has no passing audit case matrix."""
+def test_required_case_ids_name_the_network_matrix_per_policy():
+    """TRT-6 (ADR-69 §1, §6): a loopback attestation must prove relay reach,
+    foreign-port, external, UDP and intruder denial; unknown policies refuse."""
     from aisle.harness.treatment_confinement import required_case_ids
 
     assert "tcp_read" in required_case_ids("deny-external")
-    for network in ("loopback", "unrestricted"):
-        with pytest.raises(ConfinementError):
-            required_case_ids(network)
+    loopback = required_case_ids("loopback")
+    assert "tcp_read" not in loopback
+    assert {
+        "loopback_tcp_read",
+        "foreign_loopback_tcp_read",
+        "external_tcp_read",
+        "unrestricted_udp_baseline",
+        "udp_send",
+        "reservation_intruder_bind",
+        "unrestricted_intruder_baseline",
+    } <= loopback
+    with pytest.raises(ConfinementError):
+        required_case_ids("unrestricted")
 
 
 def test_launch_wrapper_requires_matching_attested_network_policy(tmp_path: Path):
@@ -606,6 +640,46 @@ def test_session_policy_audit_binds_the_launch_profile_and_leaves_no_sentinels(t
     profile_path.write_text(compiled.text)
     wrapped = wrap_verified_command(["/bin/cat", "x"], compiled, profile_path, report)
     assert wrapped[:3] == [str(SANDBOX_EXEC), "-f", str(profile_path)]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="sandbox-exec capability is macOS-only")
+def test_loopback_session_audit_proves_the_relay_is_the_only_reachable_endpoint(tmp_path: Path):
+    """TRT-5/TRT-6 (ADR-69): under a loopback session policy the audit holds the
+    pinned port on every host address, reaches only the relay over TCP, is
+    denied a foreign port, an external address and UDP, sees no intruder bind,
+    and releases the port afterwards."""
+    import socket
+
+    from aisle.harness.treatment_confinement import required_case_ids
+
+    with socket.socket(socket.AF_INET6) as probe:
+        probe.bind(("::", 0))
+        port = probe.getsockname()[1]
+    policy = MacOSPolicy(
+        **{
+            **_session_policy(tmp_path).as_dict(),
+            "network_policy": "loopback",
+            "loopback_port": port,
+        }
+    )
+    report = run_macos_capability_audit(policy=policy)
+    cases = {row["id"]: row for row in report["cases"]}
+    assert set(cases) == required_case_ids("loopback")
+    assert report["capability_pass"] is True, [c for c in report["cases"] if not c["passed"]]
+    assert cases["loopback_tcp_read"]["expected"] == "allow"
+    for denial in (
+        "foreign_loopback_tcp_read",
+        "external_tcp_read",
+        "udp_send",
+        "reservation_intruder_bind",
+    ):
+        assert cases[denial]["denied"] and not cases[denial]["sentinel_exposed"], cases[denial]
+    assert cases["unrestricted_udp_baseline"]["sentinel_exposed"]
+    assert cases["unrestricted_intruder_baseline"]["sentinel_exposed"]
+    from aisle.harness.relay_reservation import reserve_relay_port
+
+    with reserve_relay_port(port=port) as session:  # the session's reservation follows the audit
+        assert session.port == port
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="sandbox-exec capability is macOS-only")

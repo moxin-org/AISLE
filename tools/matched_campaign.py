@@ -24,6 +24,7 @@ from aisle.harness.matched_frontend import FrontendToolBudget
 from aisle.harness.matched_session import AdmissionError, admit_pair, execute_session, verify_plan
 from aisle.harness.matched_tool_service import ToolService
 from aisle.harness.matched_tools import ToolController
+from aisle.harness.relay_reservation import ReservationError, host_addresses, reserve_relay_port
 from aisle.harness.treatment_confinement import (
     SANDBOX_EXEC,
     MacOSPolicy,
@@ -33,6 +34,25 @@ from aisle.harness.treatment_confinement import (
 
 COLLECTOR = "macos-sandbox-reports"
 COLLECTION_DIR = "access-collection"
+
+
+@contextlib.contextmanager
+def session_relay_reservation(policy, destination: Path, *, addresses=host_addresses):
+    """Hold a loopback session's pinned relay port on every host address for
+    the session's lifetime, retaining the address-free record (ADR-69). A
+    port that cannot be held exclusively refuses the launch."""
+    if policy.network_policy != "loopback":
+        yield None
+        return
+    try:
+        reservation = reserve_relay_port(port=policy.loopback_port, addresses=addresses)
+    except ReservationError as exc:
+        raise AdmissionError(f"cannot hold the relay port exclusively: {exc}") from exc
+    with reservation:
+        with (destination / "relay-reservation.json").open("x") as stream:
+            json.dump(reservation.record(), stream, indent=2, allow_nan=False)
+            stream.write("\n")
+        yield reservation
 
 
 def _worker_policies(preparations) -> list[dict]:
@@ -247,15 +267,17 @@ def run_engineering_session(
         if app_server:
             from aisle.harness.matched_app_server import run_authorized_app_server
 
-            return run_authorized_app_server(
-                controller,
-                command,
-                cwd=Path(visible_roots[arm]),
-                env=ambient["environment"],
-                launch=current["launch_bindings"][arm],
-                budget=budget,
-                references=authority_references,
-            )
+            with session_relay_reservation(policy, destination) as reservation:
+                return run_authorized_app_server(
+                    controller,
+                    command,
+                    cwd=Path(visible_roots[arm]),
+                    env=ambient["environment"],
+                    launch=current["launch_bindings"][arm],
+                    budget=budget,
+                    references=authority_references,
+                    reservation=reservation,
+                )
         with ToolService(controller) as service:
             result = run_agent()
         if not service.report["ok"]:
