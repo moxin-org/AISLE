@@ -1,8 +1,8 @@
-# SPEC 030 — dora-genesis bridge node
+# SPEC 030 — simulation bridge node (`dora-genesis`)
 
-Status: DRAFT until M0. Module: `src/aisle/nodes/dora_genesis.py`. Implements SPEC 010 against SPEC 020.
+Status: DRAFT until M0. Module: `src/aisle/nodes/dora_genesis.py`. Implements SPEC 010 against SPEC 020. The node keeps its historical name `dora-genesis` on every engine (ADR-67): graphs, traces and manifests refer to it by that name.
 
-- BRG-1: Exactly one bridge node owns the Genesis scene per dataflow.
+- BRG-1: Exactly one bridge node owns the simulation scene per dataflow.
   An attested, acceptance, or campaign simulation MUST use run-to-quiescence
   lockstep (ADR-30). The bridge publishes the observations due for
   simulated state `S(k)` and then `sim_turn` (`sim_turn_u64`, UInt64[1]); its
@@ -42,7 +42,7 @@ Status: DRAFT until M0. Module: `src/aisle/nodes/dora_genesis.py`. Implements SP
   arriving faster than 100 Hz are coalesced to latest.
 - BRG-4: Reset service per TC-6. Behavioral mode (mode=1) delegates to SPEC 040 reset routine; teleport mode re-invokes `build_scene` state injection without process restart.
 - BRG-5: `n_envs>1`: every output message carries `env_id` (TC-2); `joint_cmd` metadata `env_id` routes commands; missing env_id in multi-env mode is an ERROR event, not a default.
-- BRG-6: The node MUST publish a `bridge_info` message once at startup: JSON `{contract:"v0", embodiment, n_dof, n_envs, genesis_version, platform, env_hash}` — rollout runner (SPEC 070) refuses on hash mismatch (CON-7).
+- BRG-6: The node MUST publish a `bridge_info` message once at startup: JSON `{contract:"v0", embodiment, n_dof, n_envs, genesis_version, platform, env_hash}` — rollout runner (SPEC 070) refuses on hash mismatch (CON-7). The payload also names the engine as `sim_engine` (`genesis`, `nexus` or `rapier`; an unknown name is refused, never defaulted), and `genesis_version` keeps its name while carrying the version of whichever engine ran (ADR-67).
 - BRG-8: (realistic-verifier increment one; declarative pre-implementation like VER-8..14 — the implementing bridge PR upgrades it to RFC-2119 normative wording together with the updated BRG-6 exact-shape test, avoiding a spec/test conflict on main) the `bridge_info` payload additionally carries `calibration` — the VER-8 v1 calibration block (SPEC 040) as a nested JSON object, populated from the BUILT scene's realized camera state converted to the v1 conventions per VER-8 (post-DR-jitter poses, the same values the render path uses; on hardware, from the measured-calibration artifact VER-8 names). The block is static per graph run — camera jitter realizes once at build — so consumers correlate it by run; time-varying wrist geometry correlates via `joint_state` sim stamps per VER-8. The existing BRG-6 fields, cadence, and the runner's hash-refusal behavior are unchanged.
 - BRG-7: Failure honesty: sim exceptions crash the node loudly (dora ERROR event); the bridge MUST NOT catch-and-continue physics errors.
 
