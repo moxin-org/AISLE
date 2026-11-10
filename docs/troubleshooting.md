@@ -145,3 +145,27 @@ same-seeds replicate check.
   citing test — grep the spec id, add the test docstring citation.
 - CI has no simulator; `-m unit` must not import sim deps at
   collection time.
+
+## Local unit tests fail with `infrastructure_exclusion` or expired deadlines
+
+The matched-run tests launch real sandboxed workers, and each worker's runtime
+record walks and hashes the interpreter trees it is granted: the base Python
+and the virtual environment. Two local conditions make that too large or too
+slow, and both look like scattered timeouts (issue #598):
+
+- **Packages installed into the base interpreter.** A uv-managed Python that
+  has had packages installed into its own `site-packages` (bare `pip`, outside
+  any venv) can grow to gigabytes. Check with
+  `ls "$(uv python find --system 3.13 | xargs dirname)/../lib/python3.13/site-packages"`:
+  a clean install lists only `pip` and a README. Repair with
+  `uv python uninstall 3.13.5 && uv python install 3.13.5`, then `uv sync`.
+- **Running the unit suite in the `sim` environment.** The `sim` extra adds
+  about 49,000 files to `.venv`. Run the unit suite in a lean environment
+  instead, leaving `.venv` for simulation work:
+
+  ```bash
+  UV_PROJECT_ENVIRONMENT=.venv-unit uv run --locked pytest -m unit
+  ```
+
+`AdmissionError: run configuration exceeds size limit` is the same cause: the
+serialized tree record passed the 16 MiB cap.
