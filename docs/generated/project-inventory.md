@@ -46,7 +46,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 90 |
+| ADR files | 91 |
 
 ## Graphs
 
@@ -278,6 +278,7 @@ inference.
 | [docs/decisions/ADR-69.md](../decisions/ADR-69.md) | ADR-69 — An exclusive relay transport: reserve the relay port on every host address | PROPOSED — owner review required (confinement class, TRT-5). Revisits |
 | [docs/decisions/ADR-7.md](../decisions/ADR-7.md) | ADR-7: T05 bridge interpretations and measured performance (SPEC 030) | ACCEPTED |
 | [docs/decisions/ADR-70.md](../decisions/ADR-70.md) | ADR-70 — Engine wheels from PyPI, inside the lock | PROPOSED — owner review required under CON-14, with ADR-67 and ADR-68. |
+| [docs/decisions/ADR-71.md](../decisions/ADR-71.md) | ADR-71 — hardware readiness: platform order, Nexus as default engine, work order | ACCEPTED 2026-11-10 (owner direction given the same day; agent-drafted). |
 | [docs/decisions/ADR-8.md](../decisions/ADR-8.md) | ADR-8: T06 verifier/reset interpretations (SPEC 040) | ACCEPTED |
 | [docs/decisions/ADR-9.md](../decisions/ADR-9.md) | ADR-9: T07 budget-guard interpretations (SPEC 080) | ACCEPTED |
 | [docs/decisions/ADR-M0.md](../decisions/ADR-M0.md) | ADR-M0 — Milestone M0 sign-off (SPEC 090, M0-6) | SIGNED 2026-07-21 (option (a), M0-5 deferred); RE-AFFIRMED on |
