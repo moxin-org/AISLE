@@ -896,7 +896,9 @@ uv run python tools/env_hash.py --check
 Add `uv run pytest -m "sim or graph"` when simulation or graph code changes.
 Acceptance surfaces (`uv run pytest -m "sim or graph or accept"`) apply before
 releases and run locally: the `nightly` workflow is manual-dispatch only because
-GitHub-hosted macOS runners have no Metal device for the simulator.
+GitHub-hosted macOS runners have no Metal device for the Genesis simulator.
+The Nexus and rapier sim tests do run on hosted runners, daily, on the CPU
+backend (`sim-nexus` workflow).
 [`tools/ci.sh`](../tools/ci.sh) is the repository CI entry point.
 
 ### 13.3 Risk classes and frozen set

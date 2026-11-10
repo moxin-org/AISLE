@@ -1,0 +1,39 @@
+name: sim-nexus
+# Scheduled simulation coverage on hosted runners (ADR-71 workstream 1).
+# The Genesis suites in nightly.yml need a Metal device that hosted macOS
+# runners do not expose. The Nexus and rapier backends ship a CPU physics
+# backend in the locked wheel (ADR-70), so their sim tests can run here.
+# AISLE_SIM_BACKEND=cpu is explicit: a run on another backend is a different
+# measurement (docs/simulation-backends.md).
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/sim-nexus.yml"
+      - "src/aisle/sim/**"
+      - "tests/sim/test_nexus_scene.py"
+      - "tests/sim/test_rapier_scene.py"
+jobs:
+  sim-nexus:
+    name: sim-nexus/${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      AISLE_SIM_BACKEND: cpu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # the renderer goes through wgpu; hosted Linux runners have no GPU, so
+      # give it Mesa's software Vulkan driver
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+      - run: uv sync --extra sim --locked
+      - run: >-
+          uv run --extra sim --locked pytest -m sim -q
+          tests/sim/test_nexus_scene.py tests/sim/test_rapier_scene.py

@@ -3,7 +3,8 @@ name: nightly
 # the Genesis sim/graph/acceptance suites failed there every night with
 # "MPS backend out of memory" before running a single episode. Those suites
 # are run locally before each merge (docs/contributor-wiki.md); dispatch this
-# workflow from a runner with a GPU when one exists.
+# workflow from a runner with a GPU when one exists. The Nexus and rapier sim
+# tests run on hosted runners on a schedule: see sim-nexus.yml.
 on:
   workflow_dispatch:
 jobs:
