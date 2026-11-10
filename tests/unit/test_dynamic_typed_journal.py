@@ -72,6 +72,18 @@ def test_ordinary_typed_child_retains_preparation_and_gate_refusal(tmp_path):
     runtime_env = tmp_path / "runtime-env"
     venv.EnvBuilder(with_pip=False, symlinks=True).create(runtime_env)
     direct_python, runtime_root = _worker_interpreter()
+    # venv writes `home` from the unresolved base executable. uv-managed
+    # interpreters are reached through a minor-version symlink
+    # (cpython-3.13-... -> cpython-3.13.5-...), which lies outside the
+    # sandbox's runtime read roots (those are resolved paths), so the confined
+    # validator could not find its standard library (#598).
+    config = runtime_env / "pyvenv.cfg"
+    config.write_text(
+        "".join(
+            f"home = {direct_python.parent}\n" if line.startswith("home = ") else line
+            for line in config.read_text().splitlines(keepends=True)
+        )
+    )
     python = runtime_env / "bin/python"
     python.unlink()
     python.symlink_to(direct_python)
