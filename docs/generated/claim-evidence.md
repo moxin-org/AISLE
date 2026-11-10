@@ -148,17 +148,17 @@ Physical exposure ledgers, held-command timing, and contact instrumentation on t
 
 ## safety-exposure-ledger
 
-The SPEC 470 exposure ledger regenerates from retained simulation traces and reports, for two instrument sessions (expert_t1 and expert_t2, 16 development episodes), 16 manipulation attempts, 8 deliveries, 24838 valid proposals with 23 clamps, and zero wrong-object events with an exact one-sided 95% upper bound of 0.171 on the episode unit.
+The SPEC 470 exposure ledger regenerates from retained simulation traces and reports, for two instrument sessions (expert_t1 and expert_t2, 16 development episodes), 16 manipulation attempts, 8 deliveries, 24838 valid proposals with 23 clamps, and zero wrong-object events in 2 exposed sessions, an exact one-sided 95% upper bound of 0.776 on the session unit.
 
 - Type / status: `empirical` / `supported`
 - Scope: {"agent_model": "expert graphs, no coding agent", "environment": "simulation", "perception": "L1 and L2", "platform": "development Mac campaign host", "task": "T1 and T2 expert graphs on development seeds 0..7"}
-- Experimental unit and sample: included_episode; 16 included episodes over two sessions; instrument pilot, not a campaign.
-- Uncertainty: Exact one-sided 95% Clopper-Pearson upper bound 0.171 on wrong-object episodes.
+- Experimental unit and sample: exposed_session; 2 exposed sessions holding 16 included episodes; instrument pilot, not a campaign.
+- Uncertainty: Exact one-sided 95% Clopper-Pearson upper bound 0.776 on sessions with any wrong-object event; the 0/16 episode count is descriptive.
 - Attestation: {"rationale": "Ledgers, reports, manifests, and regeneration commands are tracked; raw traces are retained privately with hashes in the ledger.", "status": "repository_verified"}
 - Evidence: [{"kind": "raw_record", "path": "analysis/safety-exposure/records/pooled-report.json", "rationale": "Pooled SFE-6 report with denominators, exclusions, and bounds.", "scope": "simulation"}, {"kind": "raw_record", "path": "analysis/safety-exposure/records/sfe-exposure-pilot-01/episodes.jsonl", "rationale": "The T1 session's episode outcomes.", "scope": "simulation"}, {"kind": "analyzer", "path": "src/aisle/harness/exposure.py", "rationale": "Derives the ledger from Arrow traces under frozen exposure rules.", "scope": "agnostic"}]
-- Counterevidence: ["Sixteen episodes bound nothing tighter than about 17 percent.", "Collision rows are a pose-displacement proxy; contact instrumentation is unmeasured."]
+- Counterevidence: ["Two sessions bound nothing tighter than about 78 percent; episodes within a session are nested, not independent (SFE-8, issue", "Collision rows are a pose-displacement proxy; contact instrumentation is unmeasured."]
 - Limitations: ["Simulation evidence only (SFE-15); no physical ledger exists.", "Development seeds, not a held-out distribution."]
-- Allowed wording: {"focused_paper": "Zero observed wrong-object events over 16 episodes, upper bound 0.171; not prevention.", "readme": "The exposure ledger reports zero wrong-object deliveries in 16 development episodes with an upper bound of 0.171.", "technical_report": "A regenerable exposure ledger with explicit denominators exists for two development sessions."}
+- Allowed wording: {"focused_paper": "Zero observed wrong-object events in 2 sessions (16 episodes), session-level upper bound 0.776; not prevention.", "readme": "The exposure ledger reports zero wrong-object deliveries in 2 development sessions (16 episodes) with a session-level upper bound of 0.776.", "technical_report": "A regenerable exposure ledger with explicit denominators exists for two development sessions."}
 - Headline markers: []
 
 ## safety-identity-authorization
@@ -202,7 +202,7 @@ Historical development summaries report zero wrong-object events in retained den
 - Experimental unit and sample: coding_agent_session; Historical summaries include 224 H2 episodes and later campaign denominators.
 - Uncertainty: {"rationale": "No unified session-level raw table supports a project-wide interval yet.", "value": "not_applicable"}
 - Attestation: {"rationale": "Some component campaigns are retained; the aggregate denominator is not unified.", "status": "mixed_historical"}
-- Evidence: [{"kind": "raw_record", "path": "analysis/safety-exposure/records/pooled-report.json", "rationale": "SPEC 470 exposure report over the two instrument sessions (16 development episodes): 0 wrong-object events, exact one-sided 95% upper bound 0.171. It is the first audited denominator, not the project-wide historical one.", "scope": "simulation"}, {"kind": "analyzer", "path": "src/aisle/harness/exposure_report.py", "rationale": "Regenerates the report from the retained ledgers with reconciliation.", "scope": "agnostic"}]
+- Evidence: [{"kind": "raw_record", "path": "analysis/safety-exposure/records/pooled-report.json", "rationale": "SPEC 470 exposure report over the two instrument sessions (16 development episodes): 0 wrong-object events in 2 exposed sessions, exact one-sided 95% upper bound 0.776 on the session unit (SFE-8). It is the first audited denominator, not the project-wide historical one.", "scope": "simulation"}, {"kind": "analyzer", "path": "src/aisle/harness/exposure_report.py", "rationale": "Regenerates the report from the retained ledgers with reconciliation.", "scope": "agnostic"}]
 - Counterevidence: ["Event-free development observations do not prove prevention.", "Historical statements used episode and approximate session denominators inconsistently.", "The audited ledger covers 16 development episodes, not the historical session set."]
 - Limitations: ["The allowed claim is observational and simulation-scoped.", "Issue #351's exposure ledger and held-command ablation now exist for two sessions; the historical denominator remains unaudited.", "Physical exposure ledgers are absent; see safety-exposure-hardware."]
 - Allowed wording: {"focused_paper": "WEAKENED historical observation, not confirmatory safety evidence.", "readme": "WEAKENED: retained development summaries report zero events; prevention is unproven.", "technical_report": "WEAKENED observational record with no project-wide session interval."}

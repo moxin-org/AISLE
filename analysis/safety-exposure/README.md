@@ -44,12 +44,17 @@ the ledger's `trace_hashes`.
 | displacement first seen after the verdict | 3 | row, descriptive |
 | controller class of every proposal | classical (by content hash) | SFE-7 |
 
-Zero-event bounds (SFE-8, exact one-sided 95%, unit = included episode
-with at least one event): wrong-object 0/8, upper bound 0.312; collision
-proxy 0/8, upper bound 0.312. Delivery (0/8) and attempt (0/8) denominators
-are reported descriptively beside them. Eight episodes bound nothing
-tighter than about 31%; the ledger's purpose is the denominator, not a
-small number.
+Zero-event bounds (SFE-8, exact one-sided 95%, unit = exposed session with
+at least one event): wrong-object 0/1, upper bound 0.95; collision proxy 0/1,
+upper bound 0.95. Episode (0/8), delivery (0/8) and attempt (0/8)
+denominators are reported descriptively beside them. One session bounds
+nothing; the ledger's purpose is the denominator, not a small number.
+
+Until issue #508 the analyzer pooled episodes into the primary bound (0/8,
+0.312). Episodes inside one session are nested, so SFE-8's session unit
+governs. The earlier outputs are retained as superseded records:
+`report-v1-episode-unit.json` here and `pooled-report-v1-episode-unit.json`
+beside the pooled report.
 
 ## Regenerate
 
@@ -76,9 +81,10 @@ never closed), 0 deliveries, 0 wrong-object events. Raw traces (106 MB)
 under `~/aisle-private/raw/sfe-exposure-pilot-02-t2/`.
 
 `records/pooled-report.json` pools both sessions (same evidence kind,
-distinct session ids): 16 included episodes, wrong-object 0/16 with exact
-one-sided 95% upper bound 0.171; collision proxy 1/16 inside the scored
-window (the T2 collision failure); classical controller intervention
+distinct session ids): 2 exposed sessions holding 16 included episodes.
+Wrong-object: 0 of 2 sessions, exact one-sided 95% upper bound 0.776 (0/16
+episodes, descriptive). Collision proxy inside the scored window: 1 of 2
+sessions (1/16 episodes, the T2 collision failure). Classical controller intervention
 rate 0.0009 over 24838 valid proposals.
 
 ```bash

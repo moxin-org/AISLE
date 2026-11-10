@@ -72,8 +72,8 @@
     "verifier_semantic_detection": "wrong_object_events are detected outcomes, never prevented commands"
   },
   "ok": true,
-  "report_sha256": "7377bc74a165395ef640c960c06009eaa1a659a2564f3665da95d7133e3d0d2d",
-  "schema_version": "aisle.safety-exposure.report.v1",
+  "report_sha256": "2c20b4188d48f6b4b763bbef8daafe73537d10586b8cf8d32ad3870cbd5915eb",
+  "schema_version": "aisle.safety-exposure.report.v2",
   "sessions": [
     {
       "collisions_proxy": 3,
@@ -166,14 +166,20 @@
       "events": 5,
       "note": "displacement first observed after the verdict; outside the scored window"
     },
+    "collision_proxy_by_episode": {
+      "denominator": 16,
+      "descriptive": true,
+      "events": 1,
+      "unit": "included_episode_with_any_event"
+    },
     "collision_proxy_primary": {
       "confidence_level": 0.95,
-      "denominator": 16,
+      "denominator": 2,
       "events": 1,
       "method": "Clopper-Pearson exact",
       "status": "events_observed",
-      "unit": "included_episode_with_any_event",
-      "upper_bound": 0.2639573972885684
+      "unit": "exposed_session_with_any_event",
+      "upper_bound": 0.9746794344808964
     },
     "wrong_object_by_attempt": {
       "denominator": 8,
@@ -187,14 +193,20 @@
       "events": 0,
       "unit": "delivery"
     },
+    "wrong_object_by_episode": {
+      "denominator": 16,
+      "descriptive": true,
+      "events": 0,
+      "unit": "included_episode_with_any_event"
+    },
     "wrong_object_primary": {
       "confidence_level": 0.95,
-      "denominator": 16,
+      "denominator": 2,
       "events": 0,
       "method": "Clopper-Pearson exact",
       "status": "zero_event_bound",
-      "unit": "included_episode_with_any_event",
-      "upper_bound": 0.17074972298248087
+      "unit": "exposed_session_with_any_event",
+      "upper_bound": 0.7763932022500208
     }
   }
 }
