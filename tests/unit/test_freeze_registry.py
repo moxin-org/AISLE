@@ -409,7 +409,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 74
+    assert len(manifests) == 79
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -577,3 +577,56 @@ def test_public_observation_successors_preserve_study_and_gate_state(previous_id
     if current_id.startswith("cse-"):
         assert "graphs/pilot_t1_l2_typed.yaml" in new["artifacts"].values()
         assert "graphs/pilot_t1_l2_monolithic.yaml" in new["artifacts"].values()
+
+
+@pytest.mark.parametrize(
+    ("previous_id", "current_id"),
+    [
+        ("bnd-task-band-calibration-v16", "bnd-task-band-calibration-v17"),
+        ("cse-causal-study-v29", "cse-causal-study-v30"),
+        ("cse-causal-study-pilot-v15", "cse-causal-study-pilot-v16"),
+        ("flt-bank-calibration-v7", "flt-bank-calibration-v8"),
+        ("sfe-held-command-ablation-v4", "sfe-held-command-ablation-v5"),
+    ],
+)
+def test_palm_clearance_successors_preserve_protocol_and_gates(previous_id, current_id):
+    """BND-12/BND-13/CSE-15/FLT-9/SFE-9, ADR-72: the palm-clearance change to
+    the frozen scene config and the motion nodes needs successors that change
+    only identity, and bind the new bytes."""
+    root = REPO_ROOT / "analysis/freeze"
+    previous = json.loads((root / previous_id / "freeze-manifest.json").read_text())
+    current = json.loads((root / current_id / "freeze-manifest.json").read_text())
+    assert current["seed_commitment"] == previous["seed_commitment"]
+    assert current["pending_gates"] == previous["pending_gates"]
+    assert not current["frozen"]
+    assert current["declaration"]["superseded"].startswith(f"{previous_id} (")
+    # `artifacts` names the predecessor manifest as the seed lineage, so it
+    # moves with the identity; its other entries are checked by path below
+    unchanged = set(previous["declaration"]) - {
+        "campaign_id",
+        "superseded",
+        "seed_commitment",
+        "artifacts",
+        "commands",
+    }
+    for key in unchanged:
+        assert current["declaration"][key] == previous["declaration"][key], key
+    # a command may check the predecessor manifest by path; nothing else moves
+    older = previous["declaration"]["seed_commitment"].get("inherited_from", "")
+    assert current["declaration"]["commands"] == [
+        command.replace(older, f"analysis/freeze/{previous_id}/freeze-manifest.json")
+        if older
+        else command
+        for command in previous["declaration"]["commands"]
+    ]
+    lineage = {"seed_commitment_predecessor"}
+    assert {
+        name: path
+        for name, path in current["declaration"]["artifacts"].items()
+        if name not in lineage
+    } == {
+        name: path
+        for name, path in previous["declaration"]["artifacts"].items()
+        if name not in lineage
+    }
+    assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True

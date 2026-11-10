@@ -255,3 +255,11 @@ that port on every host address with a per-session token, and address-drift
 stop checks. Seed commitments are inherited unverified and every pending gate
 is preserved, the TRT gate included; these registrations do not authorize
 collection.
+
+CSE v30, pilot v16, BND v17, FLT v8 and SFE v5 supersede their predecessors
+after ADR-72's palm clearance: `src/aisle/scenes/physics.toml` gained the
+franka palm geometry (a frozen-set change, so the CON-7 gate record moved for
+BND, FLT and SFE), and the CSE pair also binds the regenerated treatment table
+for the `grasp_topdown.py` and `ik_trajectory.py` changes. Seed commitments are
+inherited, every pending gate is preserved, and no registration authorizes
+collection.
