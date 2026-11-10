@@ -98,7 +98,9 @@ the **2026-08-28** record (commit `93de5e0`): no hypothesis or ablation has
 been measured since. What changed in between — the pre-registration program,
 the pilot-first order, and the still-pending #347 pilot — is in
 [Since 2026-08-28](#since-2026-08-28-the-pre-registration-program-and-the-pilot)
-at the end of this section. Each row states the verdict its committed evidence
+at the end of this section, followed by
+[Since 2026-09-14](#since-2026-09-14-hardware-readiness-adr-71) for the
+hardware-readiness program. Each row states the verdict its committed evidence
 supports, with that evidence's own qualifications — a hypothesis with no
 admissible data says so rather than reading as progress.
 
@@ -220,6 +222,21 @@ when it runs. Stated as such:
 | Halt contract for motion nodes | ADR-64 (accepted): a halt ends the episode, no in-episode resume. The declared halt contract itself is #562, **parked** until SPEC 460 ratifies or Phase 6 opens |
 | Related systems reviewed | PhyAgentOS (arXiv 2607.16636) and TypeGo (arXiv 2607.05482) assessed 2026-09-10/11; positioning in the paper's §7. PhyAgentOS runs on dora with the graph hidden behind an HTTP tool API — a shipped instance of this repository's monolithic control arm, which is the strongest external reason to run #347 |
 | Open owner-side gates | External reviews not yet arranged: statistical (#483), terminology (#484), independent reproduction (#485), external benchmark user (#486). No in-house work can satisfy these |
+
+### Since 2026-09-14: hardware readiness (ADR-71)
+
+Added 2026-11-10 at commit `f34301e`. Between 2026-09-14 and that commit the
+repository gained 39 commits and still **no new measured hypothesis or
+ablation result**. The rows above are unchanged. What moved:
+
+| Item | State on 2026-11-10 |
+|---|---|
+| Execution order ([ADR-71](docs/decisions/ADR-71.md), tracking issue #604) | Amends ADR-66. Hardware order is now Unitree G1 EDU U2 (23 DOF), then G1 29-DOF, then SO-101. The G1 29-DOF right-arm profile is draft PR #601; the 23-DOF profile is not started and waits on the unit's end effector. The #347 pilot moves behind the engine switch below and stays owner-started |
+| Simulation engines (ADR-67, ADR-68, ADR-70) | Nexus and rapier run the same scene contract from the locked wheels. **Genesis is still the default and the only engine behind the measured record.** ADR-71 makes Nexus the intended default once the frozen baseline is re-established on it; the spec wording change (#609) and the baseline are owner-review items |
+| M0-1 on Nexus (development, unattested, `--env-baseline local`) | On `main`: **0.94** twice (47/50), the same three seeds failing, zero per-seed flips and identical episode end times across the pair. With the palm-clearance change proposed in ADR-72 (draft PR #610, frozen-set, not merged): **0.98** twice (49/50). These are engineering runs on the simulation Mac, not gate evidence and not comparable with the Genesis record |
+| #347 pilot | Still **zero sessions**. ADR-69's loopback relay confinement is merged (#602, #603); registrations are at CSE v29 and pilot v15 on `main`. Remaining before a session: requalify the conformance profile and run one attested loopback session |
+| CI | Local unit suite repaired on the simulation Mac (#598 closed: a polluted base interpreter and a sandbox symlink bug, #607). New daily `sim-nexus` workflow runs the Nexus and rapier sim tests on hosted macOS and Linux (#608). The Genesis `nightly` workflow stays manual: hosted runners have no GPU for it |
+| Open owner-side gates | Unchanged: #483, #484, #485, #486. Added: review of #609 (spec wording) and #610 (frozen set) |
 
 ## Quickstart
 
