@@ -46,7 +46,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 89 |
+| ADR files | 90 |
 
 ## Graphs
 
@@ -275,6 +275,7 @@ inference.
 | [docs/decisions/ADR-66.md](../decisions/ADR-66.md) | ADR-66 — pilot first: a labelled pilot evidence tier and the execution order | ACCEPTED 2026-09-11 (owner sign-off per CON-10, triage table accepted |
 | [docs/decisions/ADR-67.md](../decisions/ADR-67.md) | ADR-67 — A second physics engine (Nexus) behind the scene contract | PROPOSED — owner review required under CON-14; the spec-change PR it |
 | [docs/decisions/ADR-68.md](../decisions/ADR-68.md) | ADR-68 — A CPU engine: rapier physics behind the Nexus renderer | PROPOSED — owner review required under CON-14, with ADR-67. |
+| [docs/decisions/ADR-69.md](../decisions/ADR-69.md) | ADR-69 — An exclusive relay transport: reserve the relay port on every host address | PROPOSED — owner review required (confinement class, TRT-5). Revisits |
 | [docs/decisions/ADR-7.md](../decisions/ADR-7.md) | ADR-7: T05 bridge interpretations and measured performance (SPEC 030) | ACCEPTED |
 | [docs/decisions/ADR-70.md](../decisions/ADR-70.md) | ADR-70 — Engine wheels from PyPI, inside the lock | PROPOSED — owner review required under CON-14, with ADR-67 and ADR-68. |
 | [docs/decisions/ADR-8.md](../decisions/ADR-8.md) | ADR-8: T06 verifier/reset interpretations (SPEC 040) | ACCEPTED |
