@@ -198,18 +198,23 @@ def test_wrong_object_is_a_detected_outcome_row():
     assert ledger["evidence_kind"] == "simulation"
 
 
-def test_analyzer_zero_event_bound_uses_the_episode_unit():
-    """SFE-8 / SFE-6: 0 wrong-object episodes over 8 included episodes gives
-    the exact one-sided upper bound 1 - 0.05 ** (1/8); delivery and attempt
-    denominators are reported descriptively beside it."""
-    ledgers = []
-    for index in range(4):
-        ledgers.append(_ledger(session=f"run-{index}"))
-    report = analyze_ledgers(ledgers)
+def test_analyzer_zero_event_bound_uses_the_session_unit():
+    """SFE-8 / SFE-6 (issue #508): four exposed sessions with two included
+    episodes each bound the wrong-object rate on 4 sessions, not 8 episodes;
+    episode, delivery and attempt counts are reported descriptively."""
+    report = analyze_ledgers([_ledger(session=f"run-{index}") for index in range(4)])
     assert report["ok"] is True
     primary = report["zero_event"]["wrong_object_primary"]
-    assert primary["denominator"] == 8 and primary["events"] == 0
-    assert primary["upper_bound"] == pytest.approx(1 - 0.05 ** (1 / 8), abs=1e-9)
+    assert primary["unit"] == "exposed_session_with_any_event"
+    assert primary["denominator"] == 4 and primary["events"] == 0
+    assert primary["upper_bound"] == pytest.approx(1 - 0.05 ** (1 / 4), abs=1e-9)
+    by_episode = report["zero_event"]["wrong_object_by_episode"]
+    assert by_episode == {
+        "events": 0,
+        "denominator": 8,
+        "unit": "included_episode_with_any_event",
+        "descriptive": True,
+    }
     assert report["zero_event"]["wrong_object_by_delivery"]["descriptive"] is True
     assert report["zero_event"]["wrong_object_by_delivery"]["denominator"] == 4
     session = report["sessions"][0]
@@ -217,6 +222,66 @@ def test_analyzer_zero_event_bound_uses_the_episode_unit():
     assert session["proposals"]["distinct_with_intervention"] == 2
     assert report["by_controller_class"]["classical"]["unit"] == "session"
     assert "prevention" in report["wording"]
+
+
+def _with_extra_episodes(ledger: dict, copies: int) -> dict:
+    """The same session with its episodes repeated: more nested opportunities,
+    no additional independent exposure."""
+    grown = copy.deepcopy(ledger)
+    template = grown["episodes"][0]
+    for index in range(copies):
+        extra = copy.deepcopy(template)
+        extra["goal_id"] = f"ep-extra-{index:04d}"
+        extra["proposal_ids"] = []
+        extra["attempts"] = []
+        extra["deliveries"] = []
+        extra["collisions"] = []
+        extra["wrong_object_events"] = []
+        grown["episodes"].append(extra)
+    return grown
+
+
+def test_more_episodes_in_a_session_do_not_tighten_the_primary_bound():
+    """SFE-8: within-session replication is nested, so adding episodes to the
+    same sessions leaves the primary denominator and bound unchanged."""
+    base = [_ledger(session="a"), _ledger(session="b")]
+    grown = [_with_extra_episodes(ledger, 10) for ledger in base]
+    before = analyze_ledgers(base)["zero_event"]
+    after = analyze_ledgers(grown)["zero_event"]
+    assert after["wrong_object_primary"]["denominator"] == 2
+    assert after["wrong_object_primary"]["upper_bound"] == pytest.approx(
+        before["wrong_object_primary"]["upper_bound"], abs=1e-12
+    )
+    assert after["wrong_object_by_episode"]["denominator"] == 24
+    assert before["wrong_object_by_episode"]["denominator"] == 4
+
+
+def test_several_events_in_one_session_count_as_one_session_event():
+    """SFE-8: the binary outcome is 'session with at least one event'; two
+    wrong-object episodes in one session are one session event and two
+    descriptive episode events."""
+    hit = _ledger(session="hit")
+    for episode in hit["episodes"]:
+        episode["wrong_object_events"] = [{"delivery_id": f"{episode['goal_id']}-d0"}]
+    report = analyze_ledgers([hit, _ledger(session="clean-1"), _ledger(session="clean-2")])
+    primary = report["zero_event"]["wrong_object_primary"]
+    assert (primary["events"], primary["denominator"]) == (1, 3)
+    assert primary["status"] == "events_observed"
+    assert report["zero_event"]["wrong_object_by_episode"]["events"] == 2
+
+
+def test_sessions_without_an_included_episode_are_not_exposure():
+    """SFE-8: a session whose episodes are all excluded contributes no
+    exposure; with none exposed the analyzer reports no bound, never 0%."""
+    excluded = _ledger(session="excluded")
+    for episode in excluded["episodes"]:
+        episode["included"] = False
+    mixed = analyze_ledgers([excluded, _ledger(session="kept")])["zero_event"]
+    assert mixed["wrong_object_primary"]["denominator"] == 1
+    assert mixed["wrong_object_by_episode"]["denominator"] == 2
+    none = analyze_ledgers([excluded])["zero_event"]["wrong_object_primary"]
+    assert none["denominator"] == 0 and none["bound"] is None
+    assert none["status"] == "no exposure" and "upper_bound" not in none
 
 
 def test_analyzer_refuses_mixed_evidence_kinds_and_duplicate_sessions():

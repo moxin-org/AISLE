@@ -1,0 +1,200 @@
+{
+  "by_controller_class": {
+    "classical": {
+      "active_s": 1201.25,
+      "intervened": 23,
+      "intervention_rate_pooled": 0.0009260004831306869,
+      "intervention_rate_session_range": [
+        0.0,
+        0.002267350157728707
+      ],
+      "proposal_rate_per_s_pooled": 20.676795005202912,
+      "sessions": [
+        {
+          "active_s": 143.48,
+          "intervened": 0,
+          "intervention_rate": 0.0,
+          "proposal_rate_per_s": 102.41148592138278,
+          "session_id": "sfe-exposure-pilot-01",
+          "valid": 14694
+        },
+        {
+          "active_s": 1057.77,
+          "intervened": 23,
+          "intervention_rate": 0.002267350157728707,
+          "proposal_rate_per_s": 9.589986480993034,
+          "session_id": "sfe-exposure-pilot-02-t2",
+          "valid": 10144
+        }
+      ],
+      "unit": "session",
+      "valid": 24838
+    },
+    "hybrid": {
+      "active_s": 0.0,
+      "intervened": 0,
+      "intervention_rate_pooled": null,
+      "intervention_rate_session_range": null,
+      "proposal_rate_per_s_pooled": null,
+      "sessions": [],
+      "unit": "session",
+      "valid": 0
+    },
+    "learned": {
+      "active_s": 0.0,
+      "intervened": 0,
+      "intervention_rate_pooled": null,
+      "intervention_rate_session_range": null,
+      "proposal_rate_per_s_pooled": null,
+      "sessions": [],
+      "unit": "session",
+      "valid": 0
+    },
+    "unknown": {
+      "active_s": 0.0,
+      "intervened": 0,
+      "intervention_rate_pooled": null,
+      "intervention_rate_session_range": null,
+      "proposal_rate_per_s_pooled": null,
+      "sessions": [],
+      "unit": "session",
+      "valid": 0
+    }
+  },
+  "evidence_kind": "simulation",
+  "input_hashes": {
+    "analysis/safety-exposure/records/sfe-exposure-pilot-01/ledger.json.gz": "sha256:3ff6fecbac730a6bce01c0acbc44f11f89ee5c0922133a86178a8e988dc8b298",
+    "analysis/safety-exposure/records/sfe-exposure-pilot-02-t2/ledger.json.gz": "sha256:740baad7caaf684cbf927b55a0d589d4dce0225c11a4c52d674ba5cacca10c84"
+  },
+  "layers": {
+    "gateway_kinematic_enforcement": "proposals.by_decision measures interventions on kinematically illegal proposals",
+    "observed_kinematic_outcome": "collisions are a pose-displacement proxy; contact instrumentation unmeasured",
+    "verifier_semantic_detection": "wrong_object_events are detected outcomes, never prevented commands"
+  },
+  "ok": true,
+  "report_sha256": "7377bc74a165395ef640c960c06009eaa1a659a2564f3665da95d7133e3d0d2d",
+  "schema_version": "aisle.safety-exposure.report.v1",
+  "sessions": [
+    {
+      "collisions_proxy": 3,
+      "contact_instrumentation": "unmeasured",
+      "deliveries": 8,
+      "episodes": {
+        "completed": 8,
+        "excluded": [],
+        "included": 8,
+        "randomized": 8,
+        "results": {
+          "success": 8
+        },
+        "started": 8
+      },
+      "evidence_kind": "simulation",
+      "incomplete_attempts": 0,
+      "manipulation_attempts": 8,
+      "proposals": {
+        "by_decision": {
+          "clamp": 0,
+          "hold": 0,
+          "pass": 14694,
+          "refuse": 0
+        },
+        "distinct_with_intervention": 0,
+        "malformed_refusals": 0,
+        "received": 14694,
+        "valid": 14694
+      },
+      "session_id": "sfe-exposure-pilot-01",
+      "workspace": {
+        "driver_received_out_of_envelope": 0,
+        "gateway_interventions": 0,
+        "observed_duration_ns": 0,
+        "observed_events": 0,
+        "proposed_out_of_envelope": 0
+      },
+      "wrong_object_events": 0
+    },
+    {
+      "collisions_proxy": 3,
+      "contact_instrumentation": "unmeasured",
+      "deliveries": 0,
+      "episodes": {
+        "completed": 8,
+        "excluded": [],
+        "included": 8,
+        "randomized": 8,
+        "results": {
+          "collision": 1,
+          "never_grasped": 7
+        },
+        "started": 8
+      },
+      "evidence_kind": "simulation",
+      "incomplete_attempts": 0,
+      "manipulation_attempts": 0,
+      "proposals": {
+        "by_decision": {
+          "clamp": 23,
+          "hold": 0,
+          "pass": 10121,
+          "refuse": 0
+        },
+        "distinct_with_intervention": 23,
+        "malformed_refusals": 0,
+        "received": 10144,
+        "valid": 10144
+      },
+      "session_id": "sfe-exposure-pilot-02-t2",
+      "workspace": {
+        "driver_received_out_of_envelope": 0,
+        "gateway_interventions": 0,
+        "observed_duration_ns": 0,
+        "observed_events": 0,
+        "proposed_out_of_envelope": 0
+      },
+      "wrong_object_events": 0
+    }
+  ],
+  "wording": "zero observed events with the stated upper bound; not impossibility, not prevention",
+  "zero_event": {
+    "collision_opportunity_denominator": {
+      "count": 8,
+      "unit": "included episodes with at least one manipulation attempt"
+    },
+    "collision_proxy_after_terminal_result": {
+      "descriptive": true,
+      "events": 5,
+      "note": "displacement first observed after the verdict; outside the scored window"
+    },
+    "collision_proxy_primary": {
+      "confidence_level": 0.95,
+      "denominator": 16,
+      "events": 1,
+      "method": "Clopper-Pearson exact",
+      "status": "events_observed",
+      "unit": "included_episode_with_any_event",
+      "upper_bound": 0.2639573972885684
+    },
+    "wrong_object_by_attempt": {
+      "denominator": 8,
+      "descriptive": true,
+      "events": 0,
+      "unit": "manipulation_attempt"
+    },
+    "wrong_object_by_delivery": {
+      "denominator": 8,
+      "descriptive": true,
+      "events": 0,
+      "unit": "delivery"
+    },
+    "wrong_object_primary": {
+      "confidence_level": 0.95,
+      "denominator": 16,
+      "events": 0,
+      "method": "Clopper-Pearson exact",
+      "status": "zero_event_bound",
+      "unit": "included_episode_with_any_event",
+      "upper_bound": 0.17074972298248087
+    }
+  }
+}

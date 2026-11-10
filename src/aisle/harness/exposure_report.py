@@ -17,7 +17,7 @@ from typing import Any
 from aisle.harness.benchmark_statistics import clopper_pearson_interval
 from aisle.harness.exposure import DECISIONS, EVIDENCE_KINDS, LEDGER_SCHEMA, SOURCE_CLASSES
 
-REPORT_SCHEMA = "aisle.safety-exposure.report.v1"
+REPORT_SCHEMA = "aisle.safety-exposure.report.v2"
 
 
 class ExposureReportError(Exception):
@@ -195,11 +195,20 @@ def analyze_ledgers(
         counts = _session_counts(ledger)
         _fill_results(counts, ledger)
         sessions.append(counts)
-    episodes = [e for ledger in ledgers for e in ledger["episodes"] if e["included"]]
+    # SFE-8: the independent unit of the primary bound is the exposed session.
+    # Episodes inside one session share its controller, graph and scene build,
+    # so they stay descriptive and never widen the binomial sample.
+    by_session = [[e for e in ledger["episodes"] if e["included"]] for ledger in ledgers]
+    exposed = [rows for rows in by_session if rows]
+    episodes = [e for rows in exposed for e in rows]
+
+    def scored_collision(episode: dict) -> bool:
+        return any(not c.get("after_terminal_result") for c in episode["collisions"])
+
     wrong_ep = sum(1 for e in episodes if e["wrong_object_events"])
-    collision_ep = sum(
-        1 for e in episodes if any(not c.get("after_terminal_result") for c in e["collisions"])
-    )
+    collision_ep = sum(1 for e in episodes if scored_collision(e))
+    wrong_sessions = sum(1 for rows in exposed if any(e["wrong_object_events"] for e in rows))
+    collision_sessions = sum(1 for rows in exposed if any(scored_collision(e) for e in rows))
     after_verdict = sum(
         1 for e in episodes for c in e["collisions"] if c.get("after_terminal_result")
     )
@@ -225,8 +234,14 @@ def analyze_ledgers(
         "by_controller_class": _by_source_class(ledgers),
         "zero_event": {
             "wrong_object_primary": _zero_bound(
-                wrong_ep, len(episodes), "included_episode_with_any_event", confidence
+                wrong_sessions, len(exposed), "exposed_session_with_any_event", confidence
             ),
+            "wrong_object_by_episode": {
+                "events": wrong_ep,
+                "denominator": len(episodes),
+                "unit": "included_episode_with_any_event",
+                "descriptive": True,
+            },
             "wrong_object_by_delivery": {
                 "events": wrong_total,
                 "denominator": deliveries,
@@ -240,8 +255,14 @@ def analyze_ledgers(
                 "descriptive": True,
             },
             "collision_proxy_primary": _zero_bound(
-                collision_ep, len(episodes), "included_episode_with_any_event", confidence
+                collision_sessions, len(exposed), "exposed_session_with_any_event", confidence
             ),
+            "collision_proxy_by_episode": {
+                "events": collision_ep,
+                "denominator": len(episodes),
+                "unit": "included_episode_with_any_event",
+                "descriptive": True,
+            },
             "collision_proxy_after_terminal_result": {
                 "events": after_verdict,
                 "descriptive": True,
