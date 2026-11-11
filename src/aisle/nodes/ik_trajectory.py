@@ -955,6 +955,20 @@ class StagedPlan:
         return not self.error
 
 
+def plan_done_declared(turn_outputs: str) -> bool:
+    """HAR-3 with ADR-30: is `plan_done` among the outputs this graph
+    declared for the node?
+
+    The declared set is AISLE_TURN_OUTPUTS, which the typed host exports from
+    the graph's node config. Under lockstep `aisle.turns` rejects an
+    undeclared send with ProtocolError, and `expert_t0` does not declare
+    `plan_done`, so the retry-arming signal may only go out on graphs that
+    wired it. (Fix carried from #601, G1-F4.)"""
+    return "plan_done" in {
+        name.strip() for name in str(turn_outputs or "").split(",") if name.strip()
+    }
+
+
 class StageStreamer:
     """The proven per-joint_state streaming step over a Stage list —
     waypoint marching, gravity-sag integral correction, grip ramp, settle/
@@ -1257,7 +1271,9 @@ def main() -> None:
                 print(line, file=sys.stderr)
             if streamer.done:
                 streamer = None  # finished: idle until the next episode
-                if pending_read is None:
+                if pending_read is None and plan_done_declared(
+                    os.environ.get("AISLE_TURN_OUTPUTS", "")
+                ):
                     # a GRASP plan completed (read parks reply on
                     # move_done): tell the state machine so it can arm
                     # an in-context retry if no verdict lands (HAR-3)

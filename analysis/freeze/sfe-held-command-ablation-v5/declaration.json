@@ -1,0 +1,168 @@
+{
+  "analysis": {
+    "scripts": [
+      "src/aisle/harness/benchmark_statistics.py",
+      "src/aisle/harness/held_command.py",
+      "src/aisle/harness/safety_exposure.py"
+    ],
+    "seed": 470001
+  },
+  "artifacts": {
+    "budget_guard": "src/aisle/nodes/budget_guard.py",
+    "corpus": "analysis/safety-exposure/ablation/sfe-held-command-ablation-v2/corpus.json",
+    "embodiment": "src/aisle/embodiment.py",
+    "engine": "src/aisle/harness/held_command.py",
+    "guard_predicates": "src/aisle/mobility/guard.py",
+    "kinematics": "src/aisle/kinematics.py",
+    "limits": "env/limits.toml",
+    "spec": "specs/470-safety-exposure.md",
+    "validators": "src/aisle/harness/safety_exposure.py"
+  },
+  "budgets": {
+    "evidence_kind": "simulation_fake_driver",
+    "hardware": "hardware_pending",
+    "replay_wall_s_per_trace": 60,
+    "traces_per_family": 8
+  },
+  "campaign_id": "sfe-held-command-ablation-v5",
+  "commands": [
+    "uv run harness exposure corpus --embodiment franka --seed 470001 --output analysis/safety-exposure/ablation/sfe-held-command-ablation-v2/corpus.json",
+    "uv run harness exposure ablate --corpus analysis/safety-exposure/ablation/sfe-held-command-ablation-v2/corpus.json --analysis-seed 470001 --output analysis/safety-exposure/ablation/sfe-held-command-ablation-v2/result.json",
+    "uv run harness freeze check --manifest analysis/freeze/sfe-held-command-ablation-v4/freeze-manifest.json --allow-withheld-seeds"
+  ],
+  "decision_rules": {
+    "alpha": 0.05,
+    "equivalence_margin": {
+      "not_applicable": "superiority contrast on illegal traces; legal traces use an exact zero-intervention rule"
+    },
+    "multiplicity": "primary endpoint only is inferential",
+    "power": 0.9,
+    "smallest_effect": {
+      "measure": "paired risk difference in traces with at least one driver-received violation",
+      "value": 0.5
+    },
+    "stopping_rule": "fixed frozen corpus; no trace added or removed after registration"
+  },
+  "endpoints": {
+    "primary": [
+      {
+        "aggregation": "paired difference guard_on - guard_observe_only with session bootstrap",
+        "direction": "lower",
+        "id": "E-SFE-1",
+        "outcome": "driver_received_kinematic_violations",
+        "status": "inferential",
+        "unit": "trace"
+      }
+    ],
+    "secondary": [
+      {
+        "aggregation": "paired difference",
+        "direction": "lower",
+        "id": "E-SFE-2",
+        "outcome": "observed_out_of_envelope_duration_and_magnitude",
+        "status": "descriptive",
+        "unit": "trace"
+      },
+      {
+        "aggregation": "count",
+        "direction": "zero",
+        "id": "E-SFE-3",
+        "outcome": "intervention_false_positives_on_legal_traces",
+        "status": "inferential",
+        "unit": "trace"
+      },
+      {
+        "aggregation": "per-trace",
+        "direction": "within deadline",
+        "id": "E-SFE-4",
+        "outcome": "held_motion_watchdog_stop_latency",
+        "status": "descriptive",
+        "unit": "trace"
+      },
+      {
+        "aggregation": "count from trusted contact instrument or unmeasured",
+        "direction": "lower",
+        "id": "E-SFE-5",
+        "outcome": "collisions",
+        "status": "descriptive",
+        "unit": "trace"
+      }
+    ]
+  },
+  "exclusions": {
+    "deviation_policy": "any behaviour-affecting change after registration is a documented deviation record and a new campaign version id; confirmatory data never revises the registered protocol",
+    "infrastructure": [
+      "emergency-containment activation in either arm invalidates the pair (SFE-10)",
+      "replay timing-source mismatch between arms"
+    ],
+    "rerun_policy": "a permitted rerun receives a new randomized id; the original row is retained with its exclusion reason and never replaced in place",
+    "treatment_integrity": [
+      "proposal bytes or contract timestamps differ between arms (SFE-9)",
+      "observe-only authority observed inside a participant process"
+    ]
+  },
+  "hypotheses": [
+    {
+      "direction": "guard_on < guard_observe_only",
+      "id": "H-SFE-1",
+      "statement": "On kinematically illegal command traces, guard_on yields fewer driver-received kinematic violations per trace than guard_observe_only."
+    },
+    {
+      "direction": "guard_on == guard_observe_only",
+      "id": "H-SFE-0",
+      "statement": "On legal negative-control traces, guard_on forwards every proposal unchanged (zero interventions); any change blocks the study (SFE-11)."
+    }
+  ],
+  "instrument_set": {
+    "items": [
+      "legal_negative_control",
+      "joint_position_limit",
+      "joint_velocity_limit",
+      "workspace_envelope",
+      "gripper_limit",
+      "held_motion_watchdog_silence"
+    ],
+    "kind": "command_trace_family",
+    "note": "base keep-out and arm/base mutual exclusion are not applicable to the arm-only SO-101 embodiment and are recorded as not_applicable"
+  },
+  "integrity_checks": [
+    {
+      "gate": "CON-7 frozen set",
+      "kind": "machine_check",
+      "owner_role": "env_hash checker",
+      "record": "tools/env_hash.json",
+      "status": "passed"
+    },
+    {
+      "gate": "SFE-10 observe-only isolation",
+      "kind": "machine_check",
+      "owner_role": "ablation engine (fake driver only; decision logs identical across arms; containment identical)",
+      "record": "analysis/safety-exposure/ablation/sfe-held-command-ablation-v2/result.json",
+      "status": "passed"
+    },
+    {
+      "gate": "SFE-11 corpus coverage",
+      "kind": "machine_check",
+      "owner_role": "corpus builder (six families, legal controls, watchdog silence)",
+      "record": "analysis/safety-exposure/ablation/sfe-held-command-ablation-v2/corpus.json",
+      "status": "passed"
+    },
+    {
+      "gate": "CON-14 SPEC 470 approval",
+      "kind": "external_review",
+      "owner_role": "project owner",
+      "record": null,
+      "status": "pending"
+    }
+  ],
+  "issue": 351,
+  "purpose": "ablation",
+  "schema_version": "aisle.freeze.declaration.v1",
+  "seed_commitment": {
+    "rule": "the corpus seed is public by design (SFE-9 freezes trace bytes and hashes); the commitment exists for registry uniformity",
+    "salt_source": "~/aisle-private/freeze/sfe-held-command-ablation-v2/salt.bin",
+    "seeds_source": "~/aisle-private/freeze/sfe-held-command-ablation-v2/seeds.json"
+  },
+  "spec": "470",
+  "superseded": "sfe-held-command-ablation-v4 (the top-down grasp planner gained hand-body (palm) clearance (ADR-72): src/aisle/scenes/physics.toml declares the franka palm geometry, src/aisle/nodes/grasp_topdown.py raises a grasp whose palm would press on a taller same-level neighbour, src/aisle/nodes/ik_trajectory.py sends plan_done only on graphs that declare it, and the CON-7 environment hash and the monolithic treatment table were regenerated for those sources. The protocol, seed lineage, decision rules and pending gates are unchanged; Genesis remains the engine behind this campaign; no collection authorization)"
+}

@@ -542,11 +542,13 @@ class TestNeighbourConstraints:
         out = neighbour_constraints(rows, MED_NAMES[1], MED_NAMES, self.MEDS)
         assert len(out) == len(MED_NAMES) - 1
         assert [c[:2] for c in out] == [r for i, r in enumerate(rows) if i != 1]
-        assert [c[2:] for c in out] == [
+        assert [c[2:4] for c in out] == [
             [pytest.approx(0.02 + 0.005 * i), pytest.approx(0.015 + 0.005 * i)]
             for i in range(len(MED_NAMES))
             if i != 1
         ]
+        # the fifth column is the neighbour's own height (palm clearance)
+        assert [c[4] for c in out] == [0.08] * (len(MED_NAMES) - 1)
 
     def test_l1_refused_slot_is_omitted_from_constraints_not_unpacked(self):
         """A None row is a REFUSED neighbour (mask under the occlusion

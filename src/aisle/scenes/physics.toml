@@ -84,6 +84,19 @@ gripper_close_m = 0.0
 # on that axis (SCN-2: gripper geometry lives here, not inline)
 gripper_finger_clear_m = 0.008
 
+# hand-body clearance (grasp-planner-topdown, ADR-72): the Panda hand spans
+# half_length_m along the grip axis and half_width_m across it, and its
+# underside sits above_tcp_m over the fingertip TCP. A same-level neighbour
+# taller than the target inside that footprint is pressed on by the palm, so
+# the planner raises the grasp until the palm clears it by clear_m, keeping at
+# least min_grip_m of finger on the box.
+[embodiment.franka.palm]
+half_length_m = 0.102
+half_width_m = 0.032
+above_tcp_m = 0.037
+clear_m = 0.005
+min_grip_m = 0.020
+
 [embodiment.mobile]
 # SPEC 210 (T11, ADR-13): the franka arm on a kinematic differential-drive
 # base, reusing the pharmacy scene for the mobility CONTRACT tests (the

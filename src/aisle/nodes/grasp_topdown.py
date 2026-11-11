@@ -144,12 +144,50 @@ def _fingertip_clearance(box_xy, u, size_xyz, neighbours, finger_open) -> float:
         (box_xy[0] - finger_open * u[0], box_xy[1] - finger_open * u[1]),
     )
     best = math.inf
-    for nx, ny, nhx, nhy in neighbours:
+    for nx, ny, nhx, nhy, *_ in neighbours:
         for tx, ty in tips:
             dx = max(abs(tx - nx) - nhx, 0.0)
             dy = max(abs(ty - ny) - nhy, 0.0)
             best = min(best, math.hypot(dx, dy))
     return best
+
+
+def palm_lift(
+    box_xy,
+    box_bottom_z: float,
+    tcp_z: float,
+    yaw: float,
+    neighbours,
+    palm: dict,
+    grip: float,
+) -> float:
+    """How far to raise a top-down grasp so the hand body clears every
+    same-level neighbour standing under it.
+
+    The fingertip check in `_fingertip_clearance` treats the gripper as two
+    points. The hand itself spans `half_length_m` along the grip axis and
+    `half_width_m` across it, with its underside `above_tcp_m` over the TCP.
+    A neighbour taller than the target that stands inside that footprint is
+    pressed on by the palm during the descent (M0-1 on Nexus, episodes 4 and
+    29: cetirizine 9 cm from metformin along the only grippable axis). The
+    lift is capped so at least `min_grip_m` of finger stays on the box; a
+    capped lift is the best available plan, not a guarantee of clearance.
+
+    Rows without a height column (legacy four-value rows) are skipped."""
+    u = (-math.sin(yaw), math.cos(yaw))
+    need = 0.0
+    for row in neighbours or ():
+        if len(row) < 5:
+            continue
+        nx, ny, nhx, nhy, height = row
+        dx, dy = nx - box_xy[0], ny - box_xy[1]
+        along = abs(dx * u[0] + dy * u[1]) - (abs(u[0]) * nhx + abs(u[1]) * nhy)
+        across = abs(dx * u[1] - dy * u[0]) - (abs(u[1]) * nhx + abs(u[0]) * nhy)
+        if along >= palm["half_length_m"] or across >= palm["half_width_m"]:
+            continue
+        palm_bottom = tcp_z + palm["above_tcp_m"]
+        need = max(need, box_bottom_z + height + palm["clear_m"] - palm_bottom)
+    return min(max(need, 0.0), max(grip - palm["min_grip_m"], 0.0))
 
 
 def plan_grasp(
@@ -163,6 +201,7 @@ def plan_grasp(
     neighbours: list | None = None,
     finger_open: float | None = None,
     finger_clear: float | None = None,
+    palm: dict | None = None,
     topdown_approach: float = 0.15,
     radial_front: bool = False,
     front_clearance: float = FRONT_CLEARANCE,
@@ -204,7 +243,7 @@ def plan_grasp(
                 def fixed_side_clearance(sign: float) -> float:
                     fixed_dir = -sign * base_rotation[:2, 0]
                     clearances = []
-                    for nx, ny, nhx, nhy in neighbours:
+                    for nx, ny, nhx, nhy, *_ in neighbours:
                         delta = np.array([nx, ny], dtype=float) - target_xy
                         projected = float(np.dot(delta, fixed_dir))
                         if projected <= 0:
@@ -255,6 +294,18 @@ def plan_grasp(
     else:
         yaw = legacy_yaw
     z = float(pose[2]) + float(size_xyz[2]) / 2 - grip
+    if palm is not None and neighbours:
+        lift = palm_lift(
+            (float(pose[0]), float(pose[1])),
+            float(pose[2]) - float(size_xyz[2]) / 2,
+            z,
+            yaw,
+            neighbours,
+            palm,
+            grip,
+        )
+        z += lift
+        grip -= lift
     grasp = np.array([pose[0], pose[1], z, *topdown_quat(yaw)], dtype=np.float32)
     return grasp, float(topdown_approach), place_tcp_z(size_xyz, grip, tray_top_z)
 
@@ -269,8 +320,8 @@ def place_tcp_z(size_xyz, grip_from_top: float, tray_top_z: float) -> float:
 
 
 def neighbour_constraints(centres: list, target_med: str, med_names: list, meds: dict) -> list:
-    """(x, y, half_x, half_y) grip-axis constraints from a `neighbours`
-    payload: every box except the target.
+    """(x, y, half_x, half_y, height) grip-axis and palm-clearance
+    constraints from a `neighbours` payload: every box except the target.
 
     The payload is POSITIONAL — one row per med in scene-manifest order, so
     `strict=True` pins producer drift (a short list is a producer bug, not a
@@ -280,7 +331,13 @@ def neighbour_constraints(centres: list, target_med: str, med_names: list, meds:
     the refusal count travels in the metadata — never unpacked as a centre:
     at L0 every row is a real centre and this reduces to the old parse."""
     return [
-        [row[0], row[1], meds[name]["size"][0] / 2, meds[name]["size"][1] / 2]
+        [
+            row[0],
+            row[1],
+            meds[name]["size"][0] / 2,
+            meds[name]["size"][1] / 2,
+            meds[name]["size"][2],
+        ]
         for name, row in zip(med_names, centres, strict=True)
         if name != target_med and row is not None
     ]
@@ -313,6 +370,7 @@ def main() -> None:
     profile = physics["embodiment"][embodiment]
     finger_open = float(profile["gripper_open_m"])
     finger_clear = float(profile["gripper_finger_clear_m"])
+    palm = profile.get("palm")
     topdown_approach = float(profile.get("pregrasp_height_m", physics["ik"]["pregrasp_height_m"]))
     env_pin = env_pin_from_env(os.environ)
     node = Node()
@@ -349,6 +407,7 @@ def main() -> None:
                 neighbours=neighbours,
                 finger_open=finger_open,
                 finger_clear=finger_clear,
+                palm=palm,
                 topdown_approach=topdown_approach,
                 radial_front=bool(profile.get("force_front_grasp", False)),
                 front_clearance=float(profile.get("front_clearance_m", FRONT_CLEARANCE)),
