@@ -52,33 +52,33 @@ stayed outside it).
 
 | Graph | Scene/scenario | Embodiment | Perception | Engine | Nodes |
 |---|---|---|---|---|---:|
-| [graphs/agent_campaign.yaml](../../graphs/agent_campaign.yaml) | store / S3 | mobile | L0 (default) | genesis (default) | 8 |
-| [graphs/eval_hybrid_t1.yaml](../../graphs/eval_hybrid_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 11 |
-| [graphs/eval_ik_transfer_v2.yaml](../../graphs/eval_ik_transfer_v2.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 10 |
-| [graphs/eval_s1_driver_v2.yaml](../../graphs/eval_s1_driver_v2.yaml) | store / S1 | mobile | L0 (default) | genesis (default) | 10 |
-| [graphs/eval_s3_driver_v1.yaml](../../graphs/eval_s3_driver_v1.yaml) | store / S3 | mobile | L0 (default) | genesis (default) | 8 |
-| [graphs/eval_t2_stack.yaml](../../graphs/eval_t2_stack.yaml) | pharmacy (default) / — | franka (default) | L2 | genesis (default) | 11 |
-| [graphs/eval_vla_smolvla_so101.yaml](../../graphs/eval_vla_smolvla_so101.yaml) | pharmacy (default) / — | so101 | L1 | genesis (default) | 8 |
-| [graphs/eval_vla_smolvla_so101_lockstep.yaml](../../graphs/eval_vla_smolvla_so101_lockstep.yaml) | pharmacy (default) / — | so101 | L1 | genesis (default) | 8 |
-| [graphs/eval_vla_smolvla_t1.yaml](../../graphs/eval_vla_smolvla_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 8 |
-| [graphs/expert_s1.yaml](../../graphs/expert_s1.yaml) | store / S1 | mobile | L0 (default) | genesis (default) | 10 |
-| [graphs/expert_t0.yaml](../../graphs/expert_t0.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | genesis (default) | 10 |
-| [graphs/expert_t1.yaml](../../graphs/expert_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 10 |
-| [graphs/expert_t1_behavioral.yaml](../../graphs/expert_t1_behavioral.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 10 |
-| [graphs/expert_t1_l2.yaml](../../graphs/expert_t1_l2.yaml) | pharmacy (default) / — | franka (default) | L2 | genesis (default) | 10 |
-| [graphs/expert_t2.yaml](../../graphs/expert_t2.yaml) | pharmacy (default) / — | franka (default) | L2 | genesis (default) | 11 |
-| [graphs/expert_t3.yaml](../../graphs/expert_t3.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 10 |
-| [graphs/expert_t4.yaml](../../graphs/expert_t4.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 11 |
-| [graphs/expert_t4_inc2.yaml](../../graphs/expert_t4_inc2.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 12 |
-| [graphs/monolithic_t1.yaml](../../graphs/monolithic_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 7 |
-| [graphs/monolithic_t1_l2.yaml](../../graphs/monolithic_t1_l2.yaml) | pharmacy (default) / — | franka (default) | L2 | genesis (default) | 7 |
-| [graphs/pilot_t1_l2_monolithic.yaml](../../graphs/pilot_t1_l2_monolithic.yaml) | pharmacy (default) / — | franka (default) | L2 | genesis (default) | 8 |
-| [graphs/pilot_t1_l2_typed.yaml](../../graphs/pilot_t1_l2_typed.yaml) | pharmacy (default) / — | franka (default) | L2 | genesis (default) | 11 |
-| [graphs/shield_t0_none_adversary.yaml](../../graphs/shield_t0_none_adversary.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | genesis (default) | 12 |
-| [graphs/shield_t0_oracle.yaml](../../graphs/shield_t0_oracle.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | genesis (default) | 11 |
-| [graphs/shield_t0_oracle_adversary.yaml](../../graphs/shield_t0_oracle_adversary.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | genesis (default) | 12 |
-| [graphs/shield_t1_sensor.yaml](../../graphs/shield_t1_sensor.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 11 |
-| [graphs/shield_t1_sensor_adversary.yaml](../../graphs/shield_t1_sensor_adversary.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 12 |
+| [graphs/agent_campaign.yaml](../../graphs/agent_campaign.yaml) | store / S3 | mobile | L0 (default) | nexus (default) | 8 |
+| [graphs/eval_hybrid_t1.yaml](../../graphs/eval_hybrid_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 11 |
+| [graphs/eval_ik_transfer_v2.yaml](../../graphs/eval_ik_transfer_v2.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 10 |
+| [graphs/eval_s1_driver_v2.yaml](../../graphs/eval_s1_driver_v2.yaml) | store / S1 | mobile | L0 (default) | nexus (default) | 10 |
+| [graphs/eval_s3_driver_v1.yaml](../../graphs/eval_s3_driver_v1.yaml) | store / S3 | mobile | L0 (default) | nexus (default) | 8 |
+| [graphs/eval_t2_stack.yaml](../../graphs/eval_t2_stack.yaml) | pharmacy (default) / — | franka (default) | L2 | nexus (default) | 11 |
+| [graphs/eval_vla_smolvla_so101.yaml](../../graphs/eval_vla_smolvla_so101.yaml) | pharmacy (default) / — | so101 | L1 | nexus (default) | 8 |
+| [graphs/eval_vla_smolvla_so101_lockstep.yaml](../../graphs/eval_vla_smolvla_so101_lockstep.yaml) | pharmacy (default) / — | so101 | L1 | nexus (default) | 8 |
+| [graphs/eval_vla_smolvla_t1.yaml](../../graphs/eval_vla_smolvla_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 8 |
+| [graphs/expert_s1.yaml](../../graphs/expert_s1.yaml) | store / S1 | mobile | L0 (default) | nexus (default) | 10 |
+| [graphs/expert_t0.yaml](../../graphs/expert_t0.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | nexus (default) | 10 |
+| [graphs/expert_t1.yaml](../../graphs/expert_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 10 |
+| [graphs/expert_t1_behavioral.yaml](../../graphs/expert_t1_behavioral.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 10 |
+| [graphs/expert_t1_l2.yaml](../../graphs/expert_t1_l2.yaml) | pharmacy (default) / — | franka (default) | L2 | nexus (default) | 10 |
+| [graphs/expert_t2.yaml](../../graphs/expert_t2.yaml) | pharmacy (default) / — | franka (default) | L2 | nexus (default) | 11 |
+| [graphs/expert_t3.yaml](../../graphs/expert_t3.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 10 |
+| [graphs/expert_t4.yaml](../../graphs/expert_t4.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 11 |
+| [graphs/expert_t4_inc2.yaml](../../graphs/expert_t4_inc2.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 12 |
+| [graphs/monolithic_t1.yaml](../../graphs/monolithic_t1.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 7 |
+| [graphs/monolithic_t1_l2.yaml](../../graphs/monolithic_t1_l2.yaml) | pharmacy (default) / — | franka (default) | L2 | nexus (default) | 7 |
+| [graphs/pilot_t1_l2_monolithic.yaml](../../graphs/pilot_t1_l2_monolithic.yaml) | pharmacy (default) / — | franka (default) | L2 | nexus (default) | 8 |
+| [graphs/pilot_t1_l2_typed.yaml](../../graphs/pilot_t1_l2_typed.yaml) | pharmacy (default) / — | franka (default) | L2 | nexus (default) | 11 |
+| [graphs/shield_t0_none_adversary.yaml](../../graphs/shield_t0_none_adversary.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | nexus (default) | 12 |
+| [graphs/shield_t0_oracle.yaml](../../graphs/shield_t0_oracle.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | nexus (default) | 11 |
+| [graphs/shield_t0_oracle_adversary.yaml](../../graphs/shield_t0_oracle_adversary.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | nexus (default) | 12 |
+| [graphs/shield_t1_sensor.yaml](../../graphs/shield_t1_sensor.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 11 |
+| [graphs/shield_t1_sensor_adversary.yaml](../../graphs/shield_t1_sensor_adversary.yaml) | pharmacy (default) / — | franka (default) | L1 | nexus (default) | 12 |
 
 ### Graph node membership
 

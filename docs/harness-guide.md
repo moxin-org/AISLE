@@ -50,7 +50,7 @@ the run manifest; research agents run without them.
 
 `--sim-extra {sim,cuda}` picks the attested dependency/backend selection.
 `--sim-engine {genesis,nexus,rapier}` picks the physics engine realizing
-the scene (ADR-67, ADR-68); it defaults to `genesis` and is recorded in the
+the scene (ADR-67, ADR-68); it defaults to `nexus` (ADR-71) and is recorded in the
 manifest as `sim_engine`, beside a digest of the engine realization and the
 wheel's build receipt. `nexus` (GPU) and `rapier` (CPU, rendering through
 the Nexus viewer) refuse before launch when their wheels are not installed

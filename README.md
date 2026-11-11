@@ -32,11 +32,11 @@ Agentic auto-research for robot manipulation on open infrastructure:
 coding agents (Claude Code / Codex) compose and evolve **typed dora-rs
 dataflows** against a **Genesis** physics scene, with frozen
 verification/reset and scoped safety structure. The scene contract is
-engine neutral; two optional engines run the same graphs for development,
-[Nexus](docs/simulation-backends.md#nexus) on the GPU and
-[rapier](docs/simulation-backends.md#rapier) on the CPU (`--sim-engine nexus|rapier`),
-while Genesis stays the default and the only engine behind the measured
-record.
+engine neutral: [Nexus](docs/simulation-backends.md#nexus) on the GPU is
+the default engine since ADR-71, [rapier](docs/simulation-backends.md#rapier)
+on the CPU is the reproducibility cross-check, and Genesis stays selectable
+(`--sim-engine genesis`) and is the only engine behind the 2026-08-28
+measured record.
 <!-- claim:typed-dataflow-causal/readme -->
 The **UNRUN confirmatory claim under test** is whether a
 typed dataflow substrate makes agentic robotics faster, safer, more
@@ -232,9 +232,9 @@ ablation result**. The rows above are unchanged. What moved:
 | Item | State on 2026-11-10 |
 |---|---|
 | Execution order ([ADR-71](docs/decisions/ADR-71.md), tracking issue #604) | Amends ADR-66. Hardware order is now Unitree G1 EDU U2 (23 DOF), then G1 29-DOF, then SO-101. The G1 29-DOF right-arm profile is draft PR #601; the 23-DOF profile is not started and waits on the unit's end effector. The #347 pilot moves behind the engine switch below and stays owner-started |
-| Simulation engines (ADR-67, ADR-68, ADR-70) | Nexus and rapier run the same scene contract from the locked wheels. **Genesis is still the default and the only engine behind the measured record.** ADR-71 makes Nexus the intended default once the frozen baseline is re-established on it; the spec wording change (#609) and the baseline are owner-review items |
-| M0-1 on Nexus (development, unattested, `--env-baseline local`) | On `main`: **0.94** twice (47/50), the same three seeds failing, zero per-seed flips and identical episode end times across the pair. With the palm-clearance change proposed in ADR-72 (draft PR #610, frozen-set, not merged): **0.98** twice (49/50). These are engineering runs on the simulation Mac, not gate evidence and not comparable with the Genesis record |
-| #347 pilot | Still **zero sessions**. ADR-69's loopback relay confinement is merged (#602, #603); registrations are at CSE v29 and pilot v15 on `main`. Remaining before a session: requalify the conformance profile and run one attested loopback session |
+| Simulation engines (ADR-67, ADR-68, ADR-70) | All three engines run the same scene contract from the locked wheels. **Nexus is the default (ADR-71)**: the 50-seed M0 gate passes on it at 0.98, twice, with identical outcomes. **Genesis is still the only engine behind the measured record**; results are not comparable across engines, and no hypothesis has been measured on Nexus yet |
+| M0 gate on Nexus (unattested, `--env-baseline local`) | On `main` at `ed70b59`, after the palm-clearance change (ADR-72, #610): **0.98** twice (49/50), the same seed failing (33, a carry-phase `collision`), zero per-seed flips and identical episode end times across the pair. Before #610 it was 0.94 twice. T1 expert on Nexus, 50 seeds, development only: L1 46/50, L2 37/50; the L2 rung never attempts ibuprofen on either engine (identity-margin refusal). None of this is comparable with the Genesis record ([ADR-73](docs/decisions/ADR-73.md)) |
+| #347 pilot | Still **zero sessions**. ADR-69's loopback relay confinement is merged (#602, #603); registrations are at CSE v31 and pilot v17 on `main`, with calibrations still Genesis-derived. Remaining before a session: requalify the conformance profile and run one attested loopback session |
 | CI | Local unit suite repaired on the simulation Mac (#598 closed: a polluted base interpreter and a sandbox symlink bug, #607). New daily `sim-nexus` workflow runs the Nexus and rapier sim tests on hosted macOS and Linux (#608). The Genesis `nightly` workflow stays manual: hosted runners have no GPU for it |
 | Open owner-side gates | Unchanged: #483, #484, #485, #486. Added: review of #609 (spec wording) and #610 (frozen set) |
 
@@ -255,22 +255,22 @@ uv run --extra sim --locked python tools/quickstart.py --runtime-prefix "$AISLE_
 
 ### Choose a simulation backend
 
-The `sim` extra installs Genesis, the default, and the optional Nexus and
-rapier engines (on macOS arm64, Linux x86_64 and aarch64, and Windows x64).
+The `sim` extra installs Nexus, the default, plus rapier and Genesis (the
+Nexus and rapier wheels exist for macOS arm64, Linux x86_64 and aarch64, and Windows x64).
 Choose one with the same rollout flag:
 
 ```bash
-# Default, measured backend
+# Engine behind the 2026-08-28 measured record
 uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local \
     --sim-engine genesis
 
-# Optional GPU backend
+# Default GPU engine (same as omitting the flag)
 uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local \
     --sim-engine nexus
 
-# Optional CPU solver with the Nexus renderer
+# CPU solver with the Nexus renderer (reproducibility cross-check)
 uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
     --episodes 2 --seeds 0..1 --no-idea-gate --env-baseline local \
     --sim-engine rapier

@@ -367,7 +367,7 @@ def test_graph_table_names_the_physics_engine(tmp_path: Path):
 
     rows = {row["path"].name: row for row in inventory_module()._graph_inventory(tmp_path, None)}
     assert rows["nexus.yaml"]["engine"] == "nexus"
-    assert rows["default.yaml"]["engine"] == "genesis (default)"
+    assert rows["default.yaml"]["engine"] == "nexus (default)"
     # no bridge => no engine declaration to report
     assert rows["bridgeless.yaml"]["engine"] == "—"
 

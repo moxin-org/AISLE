@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:5cf1da2ab30e987269e1342c62064f6438393fe13fa21ca611fd76e5ab3a6d61",
+  "immutable_id": "sha256:dd309b18e949506a0a41f6401c655296eca632cb427642c28792fe4acbbd176d",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -80,7 +80,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/nodes/monolith_broker.py#sha256:872741da1be8cfa0c89a4ee77ee4fb8a457f130a48228d39ebb8e09a84ee3d46",
       "surface": "trusted controller (bridge, reset, verifier, rollout client, turn barrier)",
-      "typed": "src/aisle/nodes/dora_genesis.py#sha256:1d2bfb3aaecf60e664649ed2ee9b09deded448080b7efcdc9b655af4c70fb3aa"
+      "typed": "src/aisle/nodes/dora_genesis.py#sha256:024c82370b997b513261b48b33a0d6e3d7d312bed0f136a93b6800c9ed2e23c8"
     },
     {
       "analysis": "excluded from task authority (MON-4); no analysis treatment",
@@ -116,7 +116,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "episode budget, seeds, reset semantics, evaluator",
-      "typed": "src/aisle/harness/rollout.py#sha256:a80fae7cc78bf2776f60c29bde358964b0820b967e98ee6c9568a6aa59eb8fc2"
+      "typed": "src/aisle/harness/rollout.py#sha256:7805650cb56ceb65fe5ce73cbbe9f1ec35c9c1ae5ae877a37e51e59f607f6fa3"
     },
     {
       "analysis": "infrastructure-invalid records excluded in both arms; confinement status in the MON-8 tuple",

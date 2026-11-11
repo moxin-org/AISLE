@@ -32,6 +32,7 @@ import aisle  # noqa: E402
 from aisle.harness.cli import build_parser as build_harness_parser  # noqa: E402
 from aisle.harness.registry import build_parser as build_registry_parser
 from aisle.harness.validate import load_graph
+from aisle.sim import DEFAULT_ENGINE  # noqa: E402
 
 DEFAULT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = Path("docs/generated/project-inventory.md")
@@ -112,9 +113,11 @@ def _graph_inventory(root: Path, tracked: set[str] | None) -> list[dict]:
                 ),
                 # ADR-67: the engine is declared on the bridge like the rung,
                 # and a run on another engine is another environment; without
-                # this column every graph reads as Genesis.
+                # this column every graph reads as one engine.
                 "engine": (
-                    env.get("AISLE_SIM_ENGINE", "genesis (default)") if env is not None else "—"
+                    env.get("AISLE_SIM_ENGINE", f"{DEFAULT_ENGINE} (default)")
+                    if env is not None
+                    else "—"
                 ),
                 "nodes": node_ids,
             }
