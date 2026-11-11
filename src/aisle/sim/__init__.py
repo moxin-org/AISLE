@@ -26,7 +26,9 @@ from collections.abc import Mapping
 from typing import Any
 
 ENGINES: tuple[str, ...] = ("genesis", "nexus", "rapier")
-DEFAULT_ENGINE = "genesis"
+# ADR-71 section 2: Nexus is the default once the ADR-67 conditions are met.
+# Genesis stays selectable and remains the engine behind the 2026-08-28 record.
+DEFAULT_ENGINE = "nexus"
 ENGINE_ENV_VAR = "AISLE_SIM_ENGINE"
 
 # Backend names each engine accepts through AISLE_SIM_BACKEND (BRG-6).
@@ -60,7 +62,7 @@ def normalize_engine(name: str | None) -> str:
 
 
 def select_engine(env: Mapping[str, str] | None = None) -> str:
-    """The engine named by ``AISLE_SIM_ENGINE`` (default ``genesis``)."""
+    """The engine named by ``AISLE_SIM_ENGINE`` (default ``nexus``, ADR-71)."""
     env = os.environ if env is None else env
     return normalize_engine(env.get(ENGINE_ENV_VAR))
 

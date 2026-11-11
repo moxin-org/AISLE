@@ -203,7 +203,7 @@ def test_bridge_config_from_env():
         parse_bridge_config({"AISLE_SIM_BACKEND": "auto"})
     # ADR-67: the engine is graph-declared like the rung; unknown names and
     # backends the engine cannot run are refused, never defaulted
-    assert parse_bridge_config({}).sim_engine == "genesis"
+    assert parse_bridge_config({}).sim_engine == "nexus"  # ADR-71 default
     assert parse_bridge_config({"AISLE_SIM_ENGINE": "nexus"}).sim_engine == "nexus"
     nexus_cfg = parse_bridge_config({"AISLE_SIM_ENGINE": "nexus", "AISLE_SIM_BACKEND": "webgpu"})
     assert (nexus_cfg.sim_engine, nexus_cfg.sim_backend) == ("nexus", "webgpu")
