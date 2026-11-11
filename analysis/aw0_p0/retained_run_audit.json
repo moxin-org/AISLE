@@ -1,0 +1,259 @@
+{
+  "audit": {
+    "artifacts_sha256": {
+      "authored-graph.yaml": "023eef3fb51f41e0fbe78f0b430989c4a326c617b39dd01ea5662b445aaa350c",
+      "episodes.jsonl": "eea6c34f32db733e049e3b4451e67c9c9e404d549e914127e35adaa426304f23",
+      "graph.yaml": "2035d7ce9afd916bb6c297e4695b3c63d8b67fa241a471f49e208cd204886dd9",
+      "manifest.json": "3f410d969bdb6c420b425d81af83428e52ffab3c452b392e9fdbba8b44fdef02",
+      "traces/budget-guard__gripper_cmd_safe.arrow": "b7affb479d413270fbe10efd57b080439835ce9c58d138518e195cd55f85eadf",
+      "traces/budget-guard__guard_stats.arrow": "43f27ed38a5848e37c631a629907c964af8ce59a994aa718b3396fb1111690ac",
+      "traces/budget-guard__joint_cmd_safe.arrow": "c4adbbbaec9fe3dfe8a717933c1fbc94e9881a8bc4abbdc79e67b82f4516cf2b",
+      "traces/budget-guard__turn_done.arrow": "16f10593c3c7b0dfccd257b6a03402b45fcc22ccaed7fe55a0741da607532242",
+      "traces/detected-pose__target_pose.arrow": "0ee23f8a504ae96998a4746626f726506940aac37a1e992978623930d12acae0",
+      "traces/detected-pose__turn_done.arrow": "5db9c0cc930adbe12b8c6c734f46173056931a5c974bae8db8f72267ca055e4a",
+      "traces/dora-genesis__bridge_info.arrow": "e8d2445f36074f70fe574d4546505223970a99f1155ca679da2cbfad76c52bfb",
+      "traces/dora-genesis__depth_overhead.arrow": "41324d2f924bd1f866ef75d5da9a58c460e820c2de5de86b06ac65a4b55c2eab",
+      "traces/dora-genesis__gripper_state.arrow": "d13a935e9805ad75fbce168200891a1ba35a558415f131b9db086c9603485277",
+      "traces/dora-genesis__joint_state.arrow": "c80af7f0a481c21a39f357efb639d91ce933a287df6391bb011d6e615a3fc6e1",
+      "traces/dora-genesis__oracle_state.arrow": "2a4af20cb15a53442c7264174a426d0a78a6d6a8e0ea8f89215d4497b3dc572f",
+      "traces/dora-genesis__reset_done.arrow": "bc4c15b87023640d316ba8f05b113896c91980f05c1ef219ced1ae5011f533af",
+      "traces/dora-genesis__rgb_overhead.arrow": "11c3366d2f75f3f1809e12977d39f950349e804f2a320d770f3274b37ab25094",
+      "traces/dora-genesis__rgb_wrist.arrow": "11c3366d2f75f3f1809e12977d39f950349e804f2a320d770f3274b37ab25094",
+      "traces/dora-genesis__sim_turn.arrow": "ca513e133f145ac3e7269f7b88c2cb4806e8ea3ab3f6e882465e15ae698f6a39",
+      "traces/grasp-planner-topdown__grasp_pose.arrow": "c2d8618bb2405b368daa14f422311d634a1c9586b3617841d463f922025009af",
+      "traces/grasp-planner-topdown__turn_done.arrow": "1efb8c5502a2a8d572aab5dee812bcc00fdb64fac410829c8b4d494c019289f3",
+      "traces/ik-trajectory__gripper_cmd.arrow": "b7affb479d413270fbe10efd57b080439835ce9c58d138518e195cd55f85eadf",
+      "traces/ik-trajectory__joint_cmd.arrow": "c4adbbbaec9fe3dfe8a717933c1fbc94e9881a8bc4abbdc79e67b82f4516cf2b",
+      "traces/ik-trajectory__turn_done.arrow": "16f10593c3c7b0dfccd257b6a03402b45fcc22ccaed7fe55a0741da607532242",
+      "traces/overhead.mp4": "a7df1cd04c4fad9fa803a92f5ea255d7cd3f3c1a5f2da8d5fa0dfd9bcaf02582",
+      "traces/reset__bridge_reset.arrow": "7060ddccd29ebab1427d5240ce1dd0d672b4e9d7c88e13a2849608c6d1665455",
+      "traces/reset__reset_done.arrow": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+      "traces/reset__turn_done.arrow": "96e7a99d9c7baf2bb34c4ce5c619256fa8c4308ac9a52031dba351c99da04162",
+      "traces/rollout-client__episode_goal.arrow": "3332b265963dc8c6fe6dd46650606833a4b8e5d61c3ae41d32c9725e45aeac1e",
+      "traces/rollout-client__reset.arrow": "7060ddccd29ebab1427d5240ce1dd0d672b4e9d7c88e13a2849608c6d1665455",
+      "traces/rollout-client__turn_done.arrow": "eedf0e686abe8d6af274768e83fe4c64023dda0851072e1c61c94ec8ff881c47",
+      "traces/task-state-machine__episode_feedback.arrow": "8b677392ffaac50335d4d7a367f7bf19852c4c7b13ad982c7db8c25be867a162",
+      "traces/task-state-machine__target_request.arrow": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+      "traces/task-state-machine__turn_done.arrow": "2728178a32929c45abfbddbf464554ec703a445f41a1ce1190eee90f00bde0fc",
+      "traces/turn-barrier__turn.arrow": "a349122393cab1c7ab446b62b08dbff2200c3607aced88cf453d232b1f17132c",
+      "traces/turn-barrier__turn_commit.arrow": "6143f0038c8aa25056d5e9c76c2513ce1dbdaeefe7a45e331b1bd4fa3a2398db",
+      "traces/verifier-oracle__episode_result.arrow": "5182929e3c5c3f34a6018fa1e35744947de6f6267cbfacf7673e2ef7e1f03705",
+      "traces/verifier-oracle__turn_done.arrow": "2728178a32929c45abfbddbf464554ec703a445f41a1ce1190eee90f00bde0fc"
+    },
+    "authored_graph_hash_matches": true,
+    "camera_rows": 10205,
+    "duplicate_camera_timestamps": 0,
+    "episodes": [
+      {
+        "command_widths": [
+          9
+        ],
+        "commands": 2084,
+        "commands_without_episode_frame": 0,
+        "commands_without_prior_gripper": 411,
+        "commands_without_prior_state": 0,
+        "episode": 0,
+        "episode_record_has_target_med": false,
+        "examples": [
+          {
+            "command_ns": 70000000,
+            "command_row_in_episode": 0,
+            "frame_index_assumed_by_exporter": 1,
+            "frame_ns": 70000000,
+            "gripper_row": -1,
+            "state_row": 6
+          },
+          {
+            "command_ns": 20900000000,
+            "command_row_in_episode": 2083,
+            "frame_index_assumed_by_exporter": 626,
+            "frame_ns": 20900000000,
+            "gripper_row": 49,
+            "state_row": 2089
+          }
+        ],
+        "exporter_keeps_status": true,
+        "legacy_command_index_mismatches": 0,
+        "legacy_cross_episode_frame_pairs": 0,
+        "loader_probe": {
+          "exported_samples": 2084,
+          "first_loaded": {
+            "action": [
+              0.4776996076107025,
+              0.24261483550071716,
+              -0.6158043742179871,
+              -1.6341835260391235,
+              0.1371743083000183,
+              0.03999999910593033
+            ],
+            "frame_idx": 124,
+            "state6": [
+              0.47782057523727417,
+              0.24941511452198029,
+              -0.61531662940979,
+              -1.635506272315979,
+              0.13695237040519714,
+              1.841994285583496
+            ],
+            "task": "pick the requested box from the shelf and place it in the tray"
+          },
+          "last_loaded": {
+            "action": [
+              -0.0007817478035576642,
+              -0.829091489315033,
+              -0.017293792217969894,
+              -2.3591229915618896,
+              -0.013442926108837128,
+              0.0
+            ],
+            "frame_idx": 626,
+            "state6": [
+              -0.0008727561216801405,
+              -0.7937405705451965,
+              -0.12169497460126877,
+              -2.3647260665893555,
+              -0.014390279538929462,
+              1.549864649772644
+            ],
+            "task": "pick the requested box from the shelf and place it in the tray"
+          },
+          "loaded_samples_stride_1": 1673,
+          "status": "loaded_without_training",
+          "target_request_examples": [
+            "{\"target_med\": \"amoxicillin\"}"
+          ]
+        },
+        "recorded_failure": null,
+        "recorded_status": "success",
+        "seed": 0,
+        "state_widths": [
+          9
+        ],
+        "window_ns": [
+          0,
+          20910000000
+        ]
+      },
+      {
+        "command_widths": [
+          9
+        ],
+        "commands": 1,
+        "commands_without_episode_frame": 1,
+        "commands_without_prior_gripper": 1,
+        "commands_without_prior_state": 0,
+        "episode": 1,
+        "episode_record_has_target_med": false,
+        "examples": [
+          {
+            "command_ns": 20910000000,
+            "command_row_in_episode": 0,
+            "frame_index_assumed_by_exporter": 626,
+            "frame_ns": 20900000000,
+            "gripper_row": -1,
+            "state_row": 0
+          }
+        ],
+        "exporter_keeps_status": false,
+        "legacy_command_index_mismatches": 0,
+        "legacy_cross_episode_frame_pairs": 1,
+        "loader_probe": {
+          "status": "excluded_by_exporter_status_filter"
+        },
+        "recorded_failure": "never_grasped",
+        "recorded_status": "fail",
+        "seed": 1,
+        "state_widths": [
+          9
+        ],
+        "window_ns": [
+          20910000000,
+          80960000000
+        ]
+      }
+    ],
+    "limitations": [
+      "Episode status is the retained verifier verdict, not independent re-verification.",
+      "Skill reference is not execution attribution; source and stage identity need separate evidence.",
+      "Trace queries retain complete Arrow batches; this audit does not certify truncated tails.",
+      "Matching video counts does not establish image identity or same-timestamp event ordering."
+    ],
+    "provenance": {
+      "embodiment": "franka",
+      "env_attested": true,
+      "env_baseline": "local",
+      "env_fingerprint": "4b2964ba10d497df1ecc2cff5b75b62bb765579df9c2ac54cc4c1a3f0f6fab89",
+      "env_hash": "0d649385e66aa1c66b0def729c7e3065e10a993b9feb23c3a32c7429be0737c9",
+      "git_sha": "baef84c2f919bab32934ef5d4e61426f80a5b423",
+      "graph_hash": "023eef3fb51f41e0fbe78f0b430989c4a326c617b39dd01ea5662b445aaa350c",
+      "perception": "L2",
+      "post_run_audit": null,
+      "sim_engine": "genesis"
+    },
+    "raw_capture_files": 0,
+    "requested_skill_referenced": false,
+    "run": "runs/t1-genesis-l2-spot",
+    "video": {
+      "container_frames": 10205,
+      "decoded_frames": 10205,
+      "fps": 10.0,
+      "pixel_source_identity": "unverified_without_capture_mapping",
+      "samples": [
+        {
+          "decoded_bgr_sha256": "6cb59be68a6a51ff7b9a4bd07a5ac828230790565981ccea1035c8ab65728060",
+          "index": 1,
+          "shape": [
+            480,
+            640,
+            3
+          ]
+        },
+        {
+          "decoded_bgr_sha256": "73f96e1b695ec6bfcf2c94a773a771e80ed6038b4906a7e98b5454e15dab59b8",
+          "index": 626,
+          "shape": [
+            480,
+            640,
+            3
+          ]
+        }
+      ],
+      "status": "decoded"
+    }
+  },
+  "current_source_sha256": {
+    "graphs/eval_ik_transfer_v2.yaml": "ed3e64a589d5ddcd660be570b57b0c940c88f545c20fbb864ee791ae70690ed5",
+    "skills/ik-transfer-v2/eval.yaml": "fa07ae34471d5b635c4e216193ed3d73145141bbc00dc67d2d86a52a08c11f9d",
+    "skills/ik-transfer-v2/ik_transfer_v2.py": "3f91bd7eee8084f7c13781fcdc5b6d7794570f4f94c65518f5f5300500414f4d",
+    "skills/ik-transfer-v2/skill.yaml": "184b38648cffabd52afa638a3c2864f452030fa77f57046032bf5b93cab3331a",
+    "src/aisle/harness/skill.py": "6f7f1d6de2efe611617cbc70c0d73ccc88bead6dda090577b946e8e3964308f8",
+    "src/aisle/harness/trace_recorder.py": "ee4ef99b47b13eb0e64c64f0f1ceb34c99d2d787acff6555b8582aaef0935884",
+    "src/aisle/harness/traces.py": "c2e6a717a56ce47e296bdc0115b15de9361b72084638b4f3bc66f7e7d032546b",
+    "src/aisle/nodes/ik_trajectory.py": "1c7c8aee8129a45acac4e825a7028c26b97d1720d6346faf793fc01e0dba66fc",
+    "tools/audit_skill_data.py": "da1045fc424030b6bf1963dbec625badb7151bcd3f4589488c4c96cf4764420c",
+    "tools/demo_export.py": "ceba882ef82b9ec298381c3ed8879df7491c4b43830e2864c339f265cf27faeb",
+    "tools/finetune_smolvla.py": "acc947d3bfa7f5cbf2b6188beee82981d20a08716a33a0b7e3b7345639751804"
+  },
+  "evidence_kind": "read_only_audit_not_certification",
+  "inventory": [
+    {
+      "episode_files": 19,
+      "exists": true,
+      "root": "runs",
+      "skill_runs": []
+    },
+    {
+      "episode_files": 34,
+      "exists": true,
+      "root": "analysis",
+      "skill_runs": []
+    },
+    {
+      "episode_files": 0,
+      "exists": false,
+      "root": "/Users/yonghe/src/aisle",
+      "skill_runs": []
+    }
+  ],
+  "ok": true
+}
