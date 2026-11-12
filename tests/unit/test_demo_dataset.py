@@ -393,3 +393,128 @@ def test_statistics_are_required_and_validated_before_training(recorded, tmp_pat
     ds.write_json(out / "manifest.json", data["manifest"])
     with pytest.raises(ValueError, match="statistics"):
         trainer.load_tuples(out, recorded, 1, None)
+
+
+def rehash_artifact(out, name):
+    manifest = json.loads((out / "manifest.json").read_text())
+    manifest["artifacts_sha256"][name] = ds.sha256(out / name)
+    ds.write_json(out / "manifest.json", manifest)
+
+
+def test_missing_initial_reset_cannot_shift_success_labels(recorded, tmp_path):
+    """CON-5, HAR-6: losing reset zero must not label the next failure a success."""
+    topic(recorded, "reset__reset_done", [100, 200], [[1], [1]])
+    with pytest.raises(ValueError, match="initial reset"):
+        export(recorded, tmp_path)
+    assert not (tmp_path / "dataset").exists()
+
+
+def test_reader_rechecks_initial_reset_from_bundled_source(recorded, tmp_path):
+    """CON-5, HAR-4: a rehashed bundle cannot hide missing reset evidence."""
+    out, _ = export(recorded, tmp_path)
+    topic(out / "source", "reset__reset_done", [100, 200], [[1], [1]])
+    rehash_artifact(out, "source/traces/reset__reset_done.arrow")
+    with pytest.raises(ValueError, match="initial reset"):
+        trainer.load_tuples(out, None, 1, None)
+
+
+@pytest.mark.parametrize("mismatch", ["reset", "seed"])
+def test_goal_evidence_cannot_contradict_episode_mapping(recorded, tmp_path, mismatch):
+    """HAR-4/6: use retained reset/seed evidence to refuse shifted episode attribution."""
+    path = recorded / "episodes.jsonl"
+    records = [json.loads(x) for x in path.read_text().splitlines()]
+    for i, record in enumerate(records):
+        record["seed"] = i
+    path.write_text("\n".join(map(json.dumps, records)))
+    goals = [dict(reset_sim_ns=0, seed=0), dict(reset_sim_ns=100, seed=1)]
+    goals[1]["reset_sim_ns" if mismatch == "reset" else "seed"] = 999
+    topic(recorded, "rollout__episode_goal", [1, 101], texts=list(map(json.dumps, goals)))
+    with pytest.raises(ValueError, match="goal.*(reset|seed)"):
+        export(recorded, tmp_path)
+
+
+@pytest.mark.parametrize("channel", ["frame", "state", "gripper", "instruction"])
+def test_later_command_excludes_reset_stamped_observation(recorded, tmp_path, channel):
+    """HAR-6: a command after reset cannot establish the order of boundary observations."""
+    if channel == "frame":
+        topic(recorded, "camera__rgb_overhead", [20, 90, 100])
+        np.savez(
+            recorded / "traces/frames/overhead/00000000000000000100.npz",
+            rgb=np.full((2, 3, 3), 100, dtype=np.uint8),
+        )
+    elif channel == "state":
+        topic(recorded, "bridge__joint_state", [25, 100], [[9.0] * 6, [8.0] * 6])
+    elif channel == "gripper":
+        topic(recorded, "guard__gripper_cmd_safe", [2, 100], [[0], [1]])
+    else:
+        topic(
+            recorded,
+            "task__target_request",
+            [1, 100],
+            texts=['{"target_med":"amoxicillin"}', '{"target_med":"ibuprofen"}'],
+        )
+    _, data = export(recorded, tmp_path)
+    sample = data["episodes"][1]["samples"][1]
+    assert sample["forwarded"]["sim_time_ns"] == 130
+    assert sample[channel] is None
+    assert f"missing_{channel}" in sample["exclusions"]
+    assert not sample["eligible"]
+
+
+def test_reader_rejects_reset_stamped_state_after_rehash(recorded, tmp_path):
+    """HAR-6: readback must independently enforce the strict reset lower bound."""
+    topic(recorded, "bridge__joint_state", [25, 100], [[9.0] * 6, [8.0] * 6])
+    out, data = export(recorded, tmp_path)
+    sample = data["episodes"][1]["samples"][1]
+    sample["state"] = ds.strict_stream(out / "source/traces/bridge__joint_state.arrow", out)[1]
+    sample.update(eligible=True, exclusions=[])
+    ds.write_json(out / "episodes.json", data["episodes"])
+    rehash_artifact(out, "episodes.json")
+    with pytest.raises(ValueError, match="noncausal"):
+        ds.read_dataset(out)
+
+
+@pytest.mark.parametrize("channel", ["forwarded", "state"])
+def test_reader_rejects_proposed_row_in_other_channel(recorded, tmp_path, channel):
+    """HAR-4/6, TC-5: valid row hashes do not authorize changing channel roles."""
+    out, data = export(recorded, tmp_path)
+    sample = data["episodes"][0]["samples"][1]
+    sample[channel], sample["proposed"] = sample["proposed"], sample[channel]
+    ds.write_json(out / "episodes.json", data["episodes"])
+    rehash_artifact(out, "episodes.json")
+    with pytest.raises(ValueError, match="channel endpoint"):
+        trainer.load_tuples(out, None, 1, None)
+
+
+def test_reader_rejects_same_topic_from_unselected_producer(recorded, tmp_path):
+    """HAR-4/6: endpoint binding includes the selected producer, not just the topic."""
+    out, data = export(recorded, tmp_path)
+    path = topic(out / "source", "other__joint_cmd_safe", [30], [[2.0] * 6])
+    rehash_artifact(out, str(path.relative_to(out)))
+    data["episodes"][0]["samples"][1]["forwarded"] = ds.strict_stream(path, out)[0]
+    ds.write_json(out / "episodes.json", data["episodes"])
+    rehash_artifact(out, "episodes.json")
+    with pytest.raises(ValueError, match="channel endpoint"):
+        trainer.load_tuples(out, None, 1, None)
+
+
+def test_reader_binds_outcome_and_window_to_source_episode(recorded, tmp_path):
+    """HAR-4/6: a rehashed derived outcome cannot promote a source failure to success."""
+    out, data = export(recorded, tmp_path)
+    data["episodes"][1]["outcome"]["status"] = "success"
+    ds.write_json(out / "episodes.json", data["episodes"])
+    rehash_artifact(out, "episodes.json")
+    with pytest.raises(ValueError, match="episode.*source"):
+        trainer.load_tuples(out, None, 1, None)
+
+
+def test_reader_checks_reset_endpoint_topic(recorded, tmp_path):
+    """HAR-4/6: the attribution validator cannot reinterpret gripper rows as resets."""
+    out, _ = export(recorded, tmp_path)
+    path = topic(out / "source", "other__gripper_cmd_safe", [0, 100, 200], [[1]] * 3)
+    rehash_artifact(out, str(path.relative_to(out)))
+    manifest = json.loads((out / "manifest.json").read_text())
+    manifest["endpoints"]["reset_done"] = "traces/other__gripper_cmd_safe.arrow"
+    ds.write_json(out / "manifest.json", manifest)
+    with pytest.raises(ValueError, match="channel endpoint"):
+        ds.read_dataset(out)

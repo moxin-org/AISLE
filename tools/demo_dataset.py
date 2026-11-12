@@ -48,6 +48,14 @@ TOPICS = (
     "target_request",
     "episode_goal",
 )
+CHANNEL_TOPICS = {
+    "forwarded": "joint_cmd_safe",
+    "proposed": "joint_cmd",
+    "proposed_gripper": "gripper_cmd",
+    "state": "joint_state",
+    "gripper": "gripper_cmd_safe",
+    "frame": "rgb_overhead",
+}
 
 
 def sha256(path: Path) -> str:
@@ -267,13 +275,17 @@ def instruction(row: dict | None) -> dict | None:
     }
 
 
-def build_episodes(
-    streams: dict, records: list, source_manifest: dict, contract, pixels: dict
-) -> list:
+def episode_windows(streams: dict, records: list) -> list:
+    """Validate attribution before either exporting or admitting derived records.
+
+    CON-5's initial reset is at simulation time zero. A later first row cannot
+    stand in for it, even if the remaining reset count resembles an open tail.
+    Goal reset/seed fields are attribution evidence only, never policy inputs.
+    """
     out, ordinals = [], Counter()
     if not all(isinstance(r, dict) and type(r.get("episode")) is int for r in records):
         raise ValueError("episode records require integer episode identities")
-    envs = {r["env_id"] for r in streams["reset_done"]}
+    envs = {r["env_id"] for r in streams["reset_done"] if r["data"] == [1.0]}
     if len({(r.get("env_id", 0), r["episode"]) for r in records}) != len(records):
         raise ValueError("duplicate episode identity")
     for record in records:
@@ -285,10 +297,42 @@ def build_episodes(
         ordinals[env] += 1
         if record["episode"] != ordinal:
             raise ValueError("episode order must be contiguous from zero per environment")
-        if ordinal >= len(resets):
+        if not resets or resets[0]["sim_time_ns"] != 0:
             raise ValueError("missing initial reset; episode attribution unavailable")
+        if ordinal >= len(resets):
+            raise ValueError("missing episode reset; episode attribution unavailable")
         start = resets[ordinal]["sim_time_ns"]
         end = resets[ordinal + 1]["sim_time_ns"] if ordinal + 1 < len(resets) else None
+        for goal_row in streams["episode_goal"]:
+            if (
+                goal_row["env_id"] != env
+                or goal_row["sim_time_ns"] < start
+                or (end is not None and goal_row["sim_time_ns"] >= end)
+            ):
+                continue
+            try:
+                goal = json.loads(goal_row["text"])
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(goal, dict):
+                continue
+            if "reset_sim_ns" in goal and goal["reset_sim_ns"] != start:
+                raise ValueError("goal reset evidence conflicts with episode window")
+            if "seed" in goal and "seed" in record and goal["seed"] != record["seed"]:
+                raise ValueError("goal seed evidence conflicts with episode outcome")
+        out.append((record, env, start, end))
+    for env, count in ordinals.items():
+        resets = [r for r in streams["reset_done"] if r["env_id"] == env and r["data"] == [1.0]]
+        if len(resets) not in (count, count + 1):
+            raise ValueError("reset count conflicts with episode outcomes")
+    return out
+
+
+def build_episodes(
+    streams: dict, records: list, source_manifest: dict, contract, pixels: dict
+) -> list:
+    out = []
+    for record, env, start, end in episode_windows(streams, records):
         family = record.get("task_family") or source_manifest.get("task_family") or "unknown"
         split = split_for(family)
         episode = {
@@ -315,9 +359,11 @@ def build_episodes(
         request_times = set(times["target_request"])
         grip_times = set(times["gripper_cmd_safe"])
 
-        def prior(topic, stamp, times=times, windows=windows):
+        def prior(topic, stamp, times=times, windows=windows, start=start):
             i = bisect_left(times[topic], stamp) - 1
-            return windows[topic][i] if i >= 0 else None
+            # Boundary rows remain archived but their pre/post-reset order is
+            # unknown. A later command does not resolve that ambiguity.
+            return windows[topic][i] if i >= 0 and times[topic][i] > start else None
 
         for cmd in windows["joint_cmd_safe"]:
             stamp = cmd["sim_time_ns"]
@@ -490,7 +536,7 @@ def export_dataset(run: Path, out: Path, contract=None, endpoints=None) -> dict:
                 name: sha256(Path(__file__).with_name(name))
                 for name in ("demo_dataset.py", "demo_export.py", "finetune_smolvla.py")
             },
-            "episode_mapping": "contiguous_episode_ordinal_to_successful_reset",
+            "episode_mapping": "zero_anchored_reset_ordinal_with_goal_evidence_checks",
             "endpoints": {k: str(v.relative_to(run)) if v else None for k, v in chosen.items()},
             "join_policy": "strictly_earlier_same_episode_and_environment",
             "split_policy": "sha256_task_family_80_10_10_before_samples",
@@ -535,7 +581,7 @@ def read_dataset(root: Path) -> dict:
     ):
         raise ValueError("unsupported dataset format/version; re-export the source run")
     artifacts = manifest.get("artifacts_sha256", {})
-    if "episodes.json" not in artifacts or "source/manifest.json" not in artifacts:
+    if not {"episodes.json", "source/manifest.json", "source/episodes.jsonl"} <= artifacts.keys():
         raise ValueError("missing dataset artifact hashes")
     for name, digest in artifacts.items():
         artifact = root / name
@@ -549,35 +595,62 @@ def read_dataset(root: Path) -> dict:
     sources = {}
     pixel_digests = {}
 
-    def verify_row(row):
+    def source_rows(topic):
+        endpoint = manifest["endpoints"].get(topic)
+        if endpoint is None:
+            return []
+        endpoint_path = Path(endpoint)
+        if (
+            endpoint_path.parent != Path("traces")
+            or endpoint_path.suffix != ".arrow"
+            or endpoint_path.stem.rsplit("__", 1)[-1] != topic
+        ):
+            raise ValueError(f"invalid channel endpoint: {topic}")
+        name = f"source/{endpoint}"
+        if name not in artifacts:
+            raise ValueError("channel endpoint missing from artifact hashes")
+        if name not in sources:
+            sources[name] = strict_stream(root / name, root)
+            if any(row["topic"] != topic for row in sources[name]):
+                raise ValueError(f"source topic does not match channel endpoint: {topic}")
+        return sources[name]
+
+    records = [
+        json.loads(line)
+        for line in (root / "source/episodes.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    layout = episode_windows(
+        {topic: source_rows(topic) for topic in ("reset_done", "episode_goal")}, records
+    )
+    if len(episodes) != len(layout):
+        raise ValueError("episode count differs from source outcomes")
+
+    def verify_row(row, topic):
         if row is None:
             return
         name = row["source"]
-        if name not in artifacts:
-            raise ValueError("source row missing from artifact hashes")
-        if name not in sources:
-            sources[name] = strict_stream(root / name, root)
+        endpoint = manifest["endpoints"].get(topic)
+        if endpoint is None or name != f"source/{endpoint}" or row["topic"] != topic:
+            raise ValueError(f"row does not match channel endpoint: {topic}")
+        rows = source_rows(topic)
         index = row["row"]
-        if (
-            not isinstance(index, int)
-            or not 0 <= index < len(sources[name])
-            or sources[name][index] != row
-        ):
+        if not isinstance(index, int) or not 0 <= index < len(rows) or rows[index] != row:
             raise ValueError("source row identity/value mismatch")
 
-    for episode in episodes:
+    for episode, (record, env, start, end) in zip(episodes, layout, strict=True):
+        if (
+            episode["outcome"] != record
+            or episode["episode"] != record["episode"]
+            or episode["env_id"] != env
+            or episode["window_ns"] != [start, end]
+        ):
+            raise ValueError("episode identity/window/outcome differs from source evidence")
         for sample in episode["samples"]:
-            for channel in (
-                "forwarded",
-                "proposed",
-                "proposed_gripper",
-                "state",
-                "gripper",
-                "frame",
-            ):
-                verify_row(sample[channel])
+            for channel, topic in CHANNEL_TOPICS.items():
+                verify_row(sample[channel], topic)
             if sample["instruction"] is not None:
-                verify_row(sample["instruction"]["evidence"])
+                verify_row(sample["instruction"]["evidence"], "target_request")
                 if instruction(sample["instruction"]["evidence"]) != sample["instruction"]:
                     raise ValueError("instruction revision mismatch")
             pixel = sample.get("pixels")
@@ -617,7 +690,7 @@ def read_dataset(root: Path) -> dict:
                     sample["instruction"]["evidence"],
                 ):
                     if (
-                        not start <= row["sim_time_ns"] < command["sim_time_ns"]
+                        not start < row["sim_time_ns"] < command["sim_time_ns"]
                         or row["env_id"] != episode["env_id"]
                     ):
                         raise ValueError("noncausal or cross-environment sample")

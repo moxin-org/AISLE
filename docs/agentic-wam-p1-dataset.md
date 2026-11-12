@@ -31,7 +31,8 @@ hashes record the transformation implementation. Hashes establish content
 identity, not independent attestation or authenticity.
 
 `demo_dataset.read_dataset(Path(...))` verifies the version, artifact hashes,
-source row identities and values, causal bounds and split consistency. A
+source row identities and values, declared channel endpoints, source episode
+outcomes/windows, causal bounds and split consistency. A
 bundle can be exported again from its `source/` directory with the same
 contract and endpoint selections; it needs no original run directory.
 Assets with privileged depth/segmentation data remain in the source archive
@@ -92,16 +93,24 @@ The bundled streams retain all proposal rows, including equal-time rows.
 Forwarded targets are never described as achieved physical states.
 
 Episodes map contiguous per-environment episode ordinals to successful
-reset-service boundaries. Shuffled, missing initial or ambiguous environment
-identities are refused. The final episode without a closing reset remains
+reset-service boundaries. The first successful reset must be at simulation
+time zero (CON-5); a later reset cannot substitute for a missing initial row.
+The reset count must match the episode count, with at most one closing reset.
+Available `episode_goal.reset_sim_ns` and seed fields must agree with the
+assigned window and source outcome. These fields validate attribution only;
+they never become policy instructions. Shuffled, missing initial or ambiguous
+environment identities are refused. The final episode without a closing reset remains
 in the analysis bundle but is excluded. Commands outside all recorded
 episode windows are counted as unassigned and retained in the source stream.
 This is the existing reset-ordinal convention, not recovered request-ID
 metadata; a historical run with unrecorded internal resets needs recapture.
 
 All joins stay in one episode and environment, and use observations strictly
-earlier than the command. Independent producers have no recorded total
-ordering at equal timestamps. Commands at reset boundaries are excluded;
+after the reset and strictly earlier than the command. Independent producers
+have no recorded total ordering at equal timestamps. Observations, requests
+and proposals exactly at the reset stay in the source archive but cannot be
+joined to a later command; missing-data exclusions apply until a strictly
+post-reset row is available. Commands at reset boundaries are excluded;
 same-time instruction or gripper changes are explicitly ambiguous. No
 future state or previous-episode frame is used as a fallback.
 
@@ -185,7 +194,7 @@ missing streams/reset, malformed and partial files, duplicate/nonmonotonic
 timestamps, failed decode/resolution changes, legacy/video mapping rejection,
 hash and row identity checks, all-outcome retention and grouped splits.
 
-Validation completed on 2026-11-11:
+Initial validation completed on 2026-11-11:
 
 - Manual diff review covered causal joins, source and pixel identity,
   instruction leakage, action interpretation, partial files and compatibility.
@@ -203,6 +212,18 @@ The full gate used the documented lean unit environment outside the sandbox
 because existing process-cleanup tests need `/bin/ps`. No test was disabled
 or weakened. No simulation, training, paid campaign, GPU allocation or runtime
 instrumentation was part of this work.
+
+Review follow-up on 2026-11-12 fixes the three findings in
+[PR #616's review](https://github.com/moxin-org/AISLE/pull/616#pullrequestreview-5878095952):
+missing initial resets, reset-stamped observations, and valid rows assigned
+to the wrong channel. Both export and readback now enforce the attribution
+rules. Readback also compares episode outcomes/windows to their source and
+binds every row to the selected producer/topic endpoint, including reset and
+goal evidence. Fourteen additional regression cases were written first and
+confirmed the gaps before their fixes. All 55 focused tests and regenerated
+retained/synthetic evidence pass. The follow-up full unit gate passed with
+4,633 tests passed and 419 deselected in 1,636.67 seconds (exit 0), using the
+same lean environment and process permissions as the initial gate.
 
 The next capture change remains separately reviewed: explicit
 camera-row identity plus versioned skill invocation/stage events. P2 can

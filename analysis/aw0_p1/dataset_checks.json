@@ -1,7 +1,7 @@
 {
   "evidence_kind": "offline_dataset_checks_not_policy_or_skill_evaluation",
   "exporter_sha256": {
-    "demo_dataset.py": "ebcf8ce17f3c223bfaeff78026685ed641032f4f1fe1983f8f5dc89bc58035bd",
+    "demo_dataset.py": "087bfba9fa5cc1fee5db3919f0c9dd091f99894f22030ff83143396a256672fb",
     "demo_export.py": "1ac19ae9a99309e52ecaec60b7eb95dc6d7047b237eeb194e4ea88a22ad26689",
     "finetune_smolvla.py": "508e11677ec1dc413fb49b2181a43d165e62e71db22fd7593cb2fa50d2f2fbf0"
   },
@@ -208,7 +208,7 @@
       }
     ],
     "identical_repeat_export": true,
-    "manifest_sha256": "84c7bd8ae0bc9954b832056560734374688ba848527cf4e3256d3bcc62214506",
+    "manifest_sha256": "c419c1a6dfa45865e97fa703c7443223b504fc358a905b95c46fee4dc7f622c6",
     "source": "runs/t1-genesis-l2-spot",
     "source_artifacts_sha256": {
       "authored-graph.yaml": "023eef3fb51f41e0fbe78f0b430989c4a326c617b39dd01ea5662b445aaa350c",
@@ -279,7 +279,7 @@
       9.0,
       9.0
     ],
-    "manifest_sha256": "0dd4cd888f71bbf730c23c9dcccd31efeef963b5293c3433e86d95021c1f11e5",
+    "manifest_sha256": "46bb4ad9038025a4d45f799109682d166b073ca020af84b9f6b853e4fcde9614",
     "physical_execution": false,
     "rgb_shape": [
       2,
