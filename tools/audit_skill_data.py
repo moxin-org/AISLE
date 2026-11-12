@@ -11,13 +11,13 @@ import hashlib
 import json
 from bisect import bisect_right
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from aisle.harness.traces import episode_window, query
 
 SOURCE_FILES = (
     "tools/audit_skill_data.py",
     "tools/demo_export.py",
+    "tools/demo_dataset.py",
     "tools/finetune_smolvla.py",
     "src/aisle/harness/traces.py",
     "src/aisle/harness/trace_recorder.py",
@@ -31,29 +31,17 @@ SOURCE_FILES = (
 
 
 def loader_probe(run: Path, record: dict) -> dict:
-    """Call the actual export/loader path in temporary storage, without training."""
-    from demo_export import episode_tuples
-    from finetune_smolvla import load_tuples
+    """Keep P0 diagnostics readable after retiring the unsafe unversioned loader.
 
-    if record.get("status") != "success":
-        return {"status": "excluded_by_exporter_status_filter"}
-    exported = episode_tuples(run, record["episode"])
-    if exported is None:
-        return {"status": "no_commands"}
-    with TemporaryDirectory(prefix="aisle-p0-") as directory:
-        dataset = Path(directory)
-        (dataset / "ep_0000.json").write_text(json.dumps({**record, **exported}))
-        loaded = load_tuples(dataset, run, stride=1, limit=None)
+    The committed P0 report retains its original probe. Current callers use the
+    P1 exporter/manifest for coverage; do not mislabel legacy behavior as current.
+    """
     try:
         requests = query(run, "target_request", episode=record["episode"]).get("text", [])
     except FileNotFoundError:
         requests = []
     return {
-        "status": "loaded_without_training",
-        "exported_samples": exported["n_actions"],
-        "loaded_samples_stride_1": len(loaded),
-        "first_loaded": loaded[0] if loaded else None,
-        "last_loaded": loaded[-1] if loaded else None,
+        "status": "legacy_probe_retired_use_versioned_demo_export",
         "target_request_examples": requests[:1],
     }
 
@@ -191,7 +179,7 @@ def inspect_run(run: Path, episodes: list[int], decode_video=True, skill="ik-tra
                     bisect_right(grip_times, t) == 0 for t in times
                 ),
                 "episode_record_has_target_med": "target_med" in rec,
-                "exporter_keeps_status": rec.get("status") == "success",
+                "legacy_exporter_keeps_status": rec.get("status") == "success",
                 "examples": examples,
                 "loader_probe": loader_probe(run, rec),
             }

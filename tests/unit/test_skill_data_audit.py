@@ -9,7 +9,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import audit_skill_data as audit  # noqa: E402
-import demo_export as exporter  # noqa: E402
 import finetune_smolvla as trainer  # noqa: E402
 
 pytestmark = pytest.mark.unit
@@ -67,32 +66,37 @@ def test_audit_detects_alignment_and_provenance_gaps(synthetic_run):
 
 
 def test_characterizes_export_loader_index_loss(synthetic_run, tmp_path):
-    """P0/HAR-6: reproduce current index loss; this is not desired P1 behavior."""
-    record = exporter.episode_tuples(synthetic_run, 0)
-    assert record["action_ts"] == [30]
+    """P1/HAR-6: legacy compacted indices now fail closed, never mislabel commands."""
     dataset = tmp_path / "dataset"
     dataset.mkdir()
-    (dataset / "ep_0000.json").write_text(json.dumps({"episode": 0, **record}))
-    loaded = trainer.load_tuples(dataset, synthetic_run, stride=1, limit=None)
-    # At t=30 the command is 1, but dropping t=10 loses its source row index.
-    assert loaded[0]["action"][:5] == [0] * 5
+    (dataset / "ep_0000.json").write_text(
+        json.dumps({"episode": 0, "action_ts": [30], "frame_indices": [0], "n_actions": 1})
+    )
+    with pytest.raises(ValueError, match="version"):
+        trainer.load_tuples(dataset, synthetic_run, stride=1, limit=None)
 
 
 def test_characterizes_previous_episode_frame(synthetic_run):
-    """P0/HAR-6: the all-run frame query can retain an earlier episode's image."""
-    assert exporter.episode_tuples(synthetic_run, 1)["frame_indices"] == [1, 2]
+    """P1/HAR-6: prior-episode imagery is excluded by the versioned exporter."""
+    import demo_dataset as ds
+
+    out = synthetic_run / "../boundary-dataset"
+    ds.export_dataset(synthetic_run, out)
+    sample = ds.read_dataset(out)["episodes"][1]["samples"][0]
+    assert sample["frame"] is None
+    assert "missing_frame" in sample["exclusions"]
 
 
 def test_characterizes_future_state_fallback(synthetic_run, tmp_path):
-    """P0/HAR-6: a missing preceding state currently selects the first future state."""
+    """P1/HAR-6: a missing preceding state stays missing, never future or zeros."""
+    import demo_dataset as ds
+
     write_topic(synthetic_run, "camera__rgb_overhead", [0, 90, 120], [None] * 3)
-    record = exporter.episode_tuples(synthetic_run, 0)
-    dataset = tmp_path / "dataset"
-    dataset.mkdir()
-    (dataset / "ep_0000.json").write_text(json.dumps({"episode": 0, **record}))
-    loaded = trainer.load_tuples(dataset, synthetic_run, stride=1, limit=None)
-    # First command is at 10; the selected state was captured at 25.
-    assert loaded[0]["state6"] == [9] * 6
+    dataset = tmp_path / "../future-dataset"
+    ds.export_dataset(synthetic_run, dataset)
+    sample = ds.read_dataset(dataset)["episodes"][0]["samples"][0]
+    assert sample["state"] is None
+    assert "missing_state" in sample["exclusions"]
 
 
 def test_nonmonotonic_camera_refused(synthetic_run):

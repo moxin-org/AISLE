@@ -13,107 +13,80 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
 
-def frame_for(run_dir: Path, frame_idx: int, cap_cache: dict):
-    import cv2
+def build_frame_cache(dataset: Path, frame_paths: set):
+    """Read only verified lossless RGB assets; no video seek or size-only cache."""
     import numpy as np
+    from demo_dataset import read_dataset
 
-    cap = cap_cache.get(run_dir)
-    if cap is None:
-        cap = cv2.VideoCapture(str(run_dir / "traces" / "overhead.mp4"))
-        cap_cache[run_dir] = cap
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-    ok, bgr = cap.read()
-    return np.asarray(bgr[:, :, ::-1], dtype=np.uint8) if ok else None
-
-
-def build_frame_cache(run_dir: Path, frame_indices: set, size: int = 256):
-    """ADR-45 pre-decode: ONE sequential pass over the mp4, keeping only
-    the training frames, downscaled to the training size — the recorded
-    33 h wall was a random seek per step. Disk-cached under the run,
-    keyed by the video and the sorted index set (a ladder's doses share
-    one cache). Returns {frame_idx: uint8 (size,size,3)}."""
-    import hashlib
-
-    import cv2
-    import numpy as np
-
-    video = run_dir / "traces" / "overhead.mp4"
-    wanted = sorted(frame_indices)
-    key = hashlib.sha256(
-        (f"{video.stat().st_size}:{size}:" + ",".join(map(str, wanted))).encode()
-    ).hexdigest()[:16]
-    cache_path = run_dir / "traces" / f"frame_cache_{key}.npz"
-    if cache_path.exists():
-        data = np.load(cache_path)
-        return {int(k): data[k] for k in data.files}
-    cap = cv2.VideoCapture(str(video))
-    out: dict = {}
-    want = set(wanted)
-    idx, last = 0, wanted[-1]
-    while idx <= last:
-        ok, bgr = cap.read()
-        if not ok:
-            break
-        if idx in want:
-            rgb = np.asarray(bgr[:, :, ::-1], dtype=np.uint8)
-            out[idx] = cv2.resize(rgb, (size, size), interpolation=cv2.INTER_AREA)
-        idx += 1
-    cap.release()
-    np.savez_compressed(cache_path, **{str(k): v for k, v in out.items()})
-    print(
-        f"[finetune] frame cache: {len(out)}/{len(wanted)} frames -> {cache_path.name}",
-        file=sys.stderr,
-    )
+    manifest = read_dataset(dataset)["manifest"]
+    out = {}
+    for name in sorted(frame_paths):
+        if name not in manifest["artifacts_sha256"]:
+            raise ValueError(f"unverified frame asset: {name}")
+        with np.load(dataset / name, allow_pickle=False) as data:
+            out[name] = data["rgb"].copy()
     return out
 
 
-def load_tuples(dataset: Path, run_dir: Path, stride: int, limit: int | None):
-    """(frame, action) pairs subsampled by stride across all episodes."""
-    from aisle.harness.traces import query
+def load_tuples(dataset: Path, run_dir: Path | None, stride: int, limit: int | None):
+    """Versioned SO-101 view. run_dir is retained only for caller compatibility."""
+    from demo_dataset import SO101_CONTRACT, read_dataset, training_samples, valid_vector
 
+    if stride < 1 or (limit is not None and limit < 1):
+        raise ValueError("stride and limit must be positive")
+    data = read_dataset(dataset)
+    manifest = data["manifest"]
+    if manifest["embodiment"] != "so101":
+        raise ValueError("SO-101 trainer refuses other embodiments, including Franka")
+    if manifest["contract"] != SO101_CONTRACT:
+        raise ValueError("SO-101 training requires the supported explicit action contract")
+    selected = training_samples(data["episodes"])[::stride]
+    if selected:
+        if "stats.json" not in manifest["artifacts_sha256"]:
+            raise ValueError("training statistics missing from artifact hashes")
+        stats = json.loads((dataset / "stats.json").read_text())
+        for key in ("state_mean", "state_std", "action_mean", "action_std"):
+            values = stats.get(key) if isinstance(stats, dict) else None
+            if (
+                not isinstance(values, list)
+                or len(values) != 6
+                or not all(
+                    isinstance(x, (float, int))
+                    and math.isfinite(x)
+                    and (not key.endswith("std") or x > 0)
+                    for x in values
+                )
+            ):
+                raise ValueError(f"invalid training statistics: {key}")
     out = []
-    for ep_file in sorted(dataset.glob("ep_*.json")):
-        rec = json.loads(ep_file.read_text())
-        cmds = query(run_dir, "joint_cmd_safe", episode=int(rec["episode"]))
-        grips = query(run_dir, "gripper_cmd_safe", episode=int(rec["episode"]))
-        grip_ts = grips["sim_time_ns"]
-        states = query(run_dir, "joint_state", episode=int(rec["episode"]))
-        sts, sdata = states["sim_time_ns"], states["data"]
-        for i in range(0, rec["n_actions"], stride):
-            ts = rec["action_ts"][i]
-            gi = max((j for j, g in enumerate(grip_ts) if g <= ts), default=None)
-            if gi is None or cmds["data"][i] is None:
-                continue
-            out.append(
-                {
-                    "frame_idx": rec["frame_indices"][i],
-                    "state6": [
-                        float(x)
-                        for x in (
-                            (
-                                sdata[max((j for j, s in enumerate(sts) if s <= ts), default=0)]
-                                or [0.0] * 6
-                            )[:6]
-                        )
-                    ],
-                    "action": list(cmds["data"][i])[:5] + [float(grips["data"][gi][0])],
-                    "task": f"pick the {rec.get('target_med', 'requested')} box "
-                    "from the shelf and place it in the tray",
-                }
-            )
-            if limit and len(out) >= limit:
-                return out
+    for sample in selected[:limit]:
+        if not all(
+            valid_vector(sample[name], width)
+            for name, width in (("forwarded", 6), ("state", 6), ("gripper", 1))
+        ):
+            raise ValueError("invalid SO-101 vector dimensions or values")
+        out.append(
+            {
+                "frame_path": sample["pixels"]["path"],
+                "state6": sample["state"]["data"],
+                "action": sample["forwarded"]["data"][:5] + sample["gripper"]["data"],
+                "task": sample["instruction"]["text"],
+                "source_command": sample["forwarded"],
+                "goal_revision": sample["instruction"]["revision"],
+            }
+        )
     return out
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, required=True)
-    parser.add_argument("--run", type=Path, required=True, help="the demos' run dir (frames)")
+    parser.add_argument("--run", type=Path, help="deprecated: datasets now bundle their sources")
     parser.add_argument("--out", type=Path, required=True, help="adapter output dir")
     parser.add_argument("--steps", type=int, default=800)
     parser.add_argument(
@@ -127,6 +100,17 @@ def main() -> int:
     parser.add_argument("--lr", type=float, default=1e-4)
     args = parser.parse_args()
 
+    # Reject legacy/incompatible/incomplete datasets BEFORE importing a model.
+    try:
+        tuples = load_tuples(args.dataset, args.run, args.stride, args.limit)
+        if not tuples:
+            raise ValueError("no eligible training tuples")
+        stats = json.loads((args.dataset / "stats.json").read_text())
+        frame_cache = build_frame_cache(args.dataset, {row["frame_path"] for row in tuples})
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return 1
+
     import numpy as np
     import torch
     from peft import LoraConfig, get_peft_model
@@ -137,7 +121,6 @@ def main() -> int:
     device = "cpu"  # MPS crashes at load (backend fence); CPU fallback per protocol
     print(f"[finetune] device={device}", file=sys.stderr)
     policy = load_smolvla()
-    stats = json.loads((args.dataset / "stats.json").read_text())
     mods = dict(policy.named_modules())
     with torch.no_grad():
         si = mods["normalize_inputs.buffer_observation_state"]
@@ -163,14 +146,8 @@ def main() -> int:
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[finetune] trainable params: {trainable:,}", file=sys.stderr)
 
-    tuples = load_tuples(args.dataset, args.run, args.stride, args.limit)
     print(f"[finetune] tuples: {len(tuples)}", file=sys.stderr)
-    if not tuples:
-        print(json.dumps({"ok": False, "error": "no training tuples"}))
-        return 1
-
     opt = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad), lr=args.lr)
-    frame_cache = build_frame_cache(args.run, {row["frame_idx"] for row in tuples})
     rng = np.random.default_rng(0)
     losses = []
     start_step = 0
@@ -205,9 +182,7 @@ def main() -> int:
 
     for step in range(start_step, args.steps):
         row = tuples[int(rng.integers(len(tuples)))]
-        frame = frame_cache.get(row["frame_idx"])
-        if frame is None:
-            continue
+        frame = frame_cache[row["frame_path"]]
         import torch.nn.functional as F
 
         img = torch.from_numpy(frame.copy()).permute(2, 0, 1).float().unsqueeze(0) / 255.0
@@ -249,6 +224,8 @@ def main() -> int:
                 "loss_last": sum(losses[-20:]) / max(1, len(losses[-20:])),
                 "device": device,
                 "lr": args.lr,
+                "target_semantics": "single_forwarded_target_repeated_across_chunk",
+                "dataset_format_version": 1,
             }
         )
     )

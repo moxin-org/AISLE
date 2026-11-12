@@ -1,0 +1,346 @@
+{
+  "evidence_kind": "offline_dataset_checks_not_policy_or_skill_evaluation",
+  "exporter_sha256": {
+    "demo_dataset.py": "087bfba9fa5cc1fee5db3919f0c9dd091f99894f22030ff83143396a256672fb",
+    "demo_export.py": "1ac19ae9a99309e52ecaec60b7eb95dc6d7047b237eeb194e4ea88a22ad26689",
+    "finetune_smolvla.py": "508e11677ec1dc413fb49b2181a43d165e62e71db22fd7593cb2fa50d2f2fbf0"
+  },
+  "limitations": [
+    "Real recording has no verified video-to-row mapping or declared action contract.",
+    "Skill invocation/version/branch labels remain unknown in both datasets.",
+    "Synthetic data demonstrates format behavior, not robot or learned-policy performance.",
+    "Hashes are integrity evidence, not independent runtime attestation."
+  ],
+  "ok": true,
+  "retained_recording": {
+    "bundled_source_rows_verified": true,
+    "controller": "stock_controller_not_ik_transfer_v2",
+    "coverage": {
+      "commands": 15864,
+      "eligible": 0,
+      "episodes": 12,
+      "exclusions": {
+        "ambiguous_gripper_order": 450,
+        "missing_final_reset": 1,
+        "missing_frame": 9,
+        "missing_gripper": 3159,
+        "missing_instruction": 9,
+        "missing_state": 9,
+        "pixels_missing": 9,
+        "pixels_unverified_ordinal": 15855,
+        "reset_boundary": 9,
+        "unknown_action_contract": 15864
+      },
+      "source_commands": 15864,
+      "training_samples": 0,
+      "unassigned_commands": 0
+    },
+    "episodes": [
+      {
+        "commands": 2084,
+        "eligible": 0,
+        "episode": 0,
+        "episode_exclusions": [],
+        "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          0,
+          20910000000
+        ]
+      },
+      {
+        "commands": 1,
+        "eligible": 0,
+        "episode": 1,
+        "episode_exclusions": [],
+        "instruction": null,
+        "split": "train",
+        "status": "fail",
+        "task_family": "unknown",
+        "window_ns": [
+          20910000000,
+          80960000000
+        ]
+      },
+      {
+        "commands": 1341,
+        "eligible": 0,
+        "episode": 2,
+        "episode_exclusions": [],
+        "instruction": "pick the cetirizine box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          80960000000,
+          94440000000
+        ]
+      },
+      {
+        "commands": 2119,
+        "eligible": 0,
+        "episode": 3,
+        "episode_exclusions": [],
+        "instruction": "pick the omeprazole box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          94440000000,
+          115690000000
+        ]
+      },
+      {
+        "commands": 1315,
+        "eligible": 0,
+        "episode": 4,
+        "episode_exclusions": [],
+        "instruction": "pick the metformin box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          115690000000,
+          128900000000
+        ]
+      },
+      {
+        "commands": 2069,
+        "eligible": 0,
+        "episode": 5,
+        "episode_exclusions": [],
+        "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          128900000000,
+          149650000000
+        ]
+      },
+      {
+        "commands": 1,
+        "eligible": 0,
+        "episode": 6,
+        "episode_exclusions": [],
+        "instruction": null,
+        "split": "train",
+        "status": "fail",
+        "task_family": "unknown",
+        "window_ns": [
+          149650000000,
+          209700000000
+        ]
+      },
+      {
+        "commands": 1351,
+        "eligible": 0,
+        "episode": 7,
+        "episode_exclusions": [],
+        "instruction": "pick the cetirizine box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          209700000000,
+          223280000000
+        ]
+      },
+      {
+        "commands": 2105,
+        "eligible": 0,
+        "episode": 8,
+        "episode_exclusions": [],
+        "instruction": "pick the omeprazole box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          223280000000,
+          244390000000
+        ]
+      },
+      {
+        "commands": 1485,
+        "eligible": 0,
+        "episode": 9,
+        "episode_exclusions": [],
+        "instruction": "pick the metformin box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          244390000000,
+          259300000000
+        ]
+      },
+      {
+        "commands": 1992,
+        "eligible": 0,
+        "episode": 10,
+        "episode_exclusions": [],
+        "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+        "split": "train",
+        "status": "success",
+        "task_family": "unknown",
+        "window_ns": [
+          259300000000,
+          280280000000
+        ]
+      },
+      {
+        "commands": 1,
+        "eligible": 0,
+        "episode": 11,
+        "episode_exclusions": [
+          "missing_final_reset"
+        ],
+        "instruction": null,
+        "split": "train",
+        "status": "fail",
+        "task_family": "unknown",
+        "window_ns": [
+          280280000000,
+          null
+        ]
+      }
+    ],
+    "identical_repeat_export": true,
+    "manifest_sha256": "c419c1a6dfa45865e97fa703c7443223b504fc358a905b95c46fee4dc7f622c6",
+    "source": "runs/t1-genesis-l2-spot",
+    "source_artifacts_sha256": {
+      "authored-graph.yaml": "023eef3fb51f41e0fbe78f0b430989c4a326c617b39dd01ea5662b445aaa350c",
+      "episodes.jsonl": "eea6c34f32db733e049e3b4451e67c9c9e404d549e914127e35adaa426304f23",
+      "graph.yaml": "2035d7ce9afd916bb6c297e4695b3c63d8b67fa241a471f49e208cd204886dd9",
+      "manifest.json": "3f410d969bdb6c420b425d81af83428e52ffab3c452b392e9fdbba8b44fdef02",
+      "traces/budget-guard__gripper_cmd_safe.arrow": "b7affb479d413270fbe10efd57b080439835ce9c58d138518e195cd55f85eadf",
+      "traces/budget-guard__joint_cmd_safe.arrow": "c4adbbbaec9fe3dfe8a717933c1fbc94e9881a8bc4abbdc79e67b82f4516cf2b",
+      "traces/dora-genesis__joint_state.arrow": "c80af7f0a481c21a39f357efb639d91ce933a287df6391bb011d6e615a3fc6e1",
+      "traces/dora-genesis__rgb_overhead.arrow": "11c3366d2f75f3f1809e12977d39f950349e804f2a320d770f3274b37ab25094",
+      "traces/ik-trajectory__gripper_cmd.arrow": "b7affb479d413270fbe10efd57b080439835ce9c58d138518e195cd55f85eadf",
+      "traces/ik-trajectory__joint_cmd.arrow": "c4adbbbaec9fe3dfe8a717933c1fbc94e9881a8bc4abbdc79e67b82f4516cf2b",
+      "traces/overhead.mp4": "a7df1cd04c4fad9fa803a92f5ea255d7cd3f3c1a5f2da8d5fa0dfd9bcaf02582",
+      "traces/reset__reset_done.arrow": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+      "traces/rollout-client__episode_goal.arrow": "3332b265963dc8c6fe6dd46650606833a4b8e5d61c3ae41d32c9725e45aeac1e",
+      "traces/task-state-machine__target_request.arrow": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243"
+    },
+    "trainer_rejection": "SO-101 trainer refuses other embodiments, including Franka",
+    "video": {
+      "camera_rows": 10205,
+      "container_frames": 10205,
+      "decoded_frames": 10205,
+      "mapping": "unverified_ordinal",
+      "shape": [
+        480,
+        640,
+        3
+      ],
+      "status": "decoded"
+    }
+  },
+  "source_baseline": "e7f81398801fe6592abb51742226d27c33123237",
+  "synthetic_fixture": {
+    "coverage": {
+      "commands": 4,
+      "eligible": 2,
+      "episodes": 2,
+      "exclusions": {
+        "invalid_gripper_vector": 1,
+        "invalid_state_vector": 2,
+        "missing_frame": 2,
+        "missing_gripper": 1,
+        "missing_instruction": 1,
+        "missing_state": 2,
+        "pixels_missing": 2,
+        "reset_boundary": 1
+      },
+      "source_commands": 4,
+      "training_samples": 1,
+      "unassigned_commands": 0
+    },
+    "goal_revision": "source/traces/task__target_request.arrow:0:0",
+    "identical_reexport_from_bundled_sources": true,
+    "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+    "loaded_action": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      0.0
+    ],
+    "loaded_state": [
+      9.0,
+      9.0,
+      9.0,
+      9.0,
+      9.0,
+      9.0
+    ],
+    "manifest_sha256": "46bb4ad9038025a4d45f799109682d166b073ca020af84b9f6b853e4fcde9614",
+    "physical_execution": false,
+    "rgb_shape": [
+      2,
+      3,
+      3
+    ],
+    "rgb_values_equal_source": true,
+    "source": "tests/unit/test_demo_dataset.py::recorded",
+    "source_command": {
+      "data": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "env_id": 0,
+      "producer": "guard",
+      "row": 1,
+      "seq": 1,
+      "sim_time_ns": 30,
+      "source": "source/traces/guard__joint_cmd_safe.arrow",
+      "text": null,
+      "topic": "joint_cmd_safe"
+    },
+    "stats": {
+      "action_mean": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0
+      ],
+      "action_std": [
+        1e-06,
+        1e-06,
+        1e-06,
+        1e-06,
+        1e-06,
+        1e-06
+      ],
+      "samples": 1,
+      "split": "train",
+      "state_mean": [
+        9.0,
+        9.0,
+        9.0,
+        9.0,
+        9.0,
+        9.0
+      ],
+      "state_std": [
+        1e-06,
+        1e-06,
+        1e-06,
+        1e-06,
+        1e-06,
+        1e-06
+      ]
+    }
+  }
+}
