@@ -73,6 +73,38 @@ FLUSH_EVERY_S = 5.0
 # not a trace budget. The arithmetic above is what justifies the routing.)
 IMAGE_ENDPOINTS = ("__rgb_overhead", "__rgb_wrist", "__depth_overhead", "__seg_overhead")
 
+# Low-rate identity evidence. Preserve the existing Arrow schema for historical
+# readers; the sidecar binds these metadata to the exact captured row instead.
+IDENTITY_TOPICS = {
+    "reset_done",
+    "episode_goal",
+    "episode_result",
+    "target_request",
+    "read_move",
+    "move_done",
+    "plan_done",
+}
+
+
+def trace_row_digest(row: dict) -> str:
+    """HAR-4: hash the five stored Arrow fields, independent of metadata extras."""
+    captured = {name: row[name] for name in TRACE_SCHEMA.names}
+    return hashlib.sha256(
+        json.dumps(captured, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    ).hexdigest()
+
+
+def trace_identity(endpoint: str, index: int, row: dict, metadata: dict) -> dict:
+    """TC-6/7: retain observed correlation IDs; never synthesize a missing ID."""
+    return {
+        "format": "aisle_trace_identity",
+        "version": 1,
+        "endpoint": endpoint,
+        "row": index,
+        "trace_row_sha256": trace_row_digest(row),
+        "metadata": {key: metadata[key] for key in ("goal_id", "request_id") if key in metadata},
+    }
+
 
 def is_image_endpoint(topic: str) -> bool:
     """Whether this endpoint's row is PAYLOAD-FREE (ADR-11, TC-9; seg rows
@@ -312,6 +344,7 @@ def main() -> None:
     schema = TRACE_SCHEMA
     writers: dict = {}
     buffers: dict[str, list] = {}
+    row_counts: dict[str, int] = {}
 
     def flush(topic: str) -> None:
         rows = buffers.get(topic)
@@ -334,15 +367,22 @@ def main() -> None:
         buffers[topic] = []
 
     def buffer_row(topic, metadata, data, text) -> None:
-        buffers.setdefault(topic, []).append(
-            (
-                int(metadata.get("sim_time_ns", 0)),
-                int(metadata.get("env_id", 0)),
-                int(metadata.get("seq", 0)),
-                data,
-                text,
-            )
+        row = (
+            int(metadata.get("sim_time_ns", 0)),
+            int(metadata.get("env_id", 0)),
+            int(metadata.get("seq", 0)),
+            data,
+            text,
         )
+        index = row_counts.get(topic, 0)
+        row_counts[topic] = index + 1
+        if topic.rsplit("__", 1)[-1] in IDENTITY_TOPICS:
+            evidence = trace_identity(
+                topic, index, dict(zip(schema.names, row, strict=True)), metadata
+            )
+            identities.write(json.dumps(evidence, sort_keys=True, allow_nan=False) + "\n")
+            identities.flush()
+        buffers.setdefault(topic, []).append(row)
         if len(buffers[topic]) >= BATCH_ROWS:
             flush(topic)
 
@@ -359,6 +399,7 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))  # run finally
     node = Node()
+    identities = (trace_dir / "identities.jsonl").open("w")
     try:
         for event in node:
             now = time.monotonic()
@@ -417,6 +458,7 @@ def main() -> None:
             values = np.asarray(value.to_numpy(zero_copy_only=False), dtype=np.float64).reshape(-1)
             buffer_row(topic, metadata, values.tolist(), None)
     finally:
+        identities.close()
         for topic in list(buffers):
             flush(topic)
         for writer in writers.values():
