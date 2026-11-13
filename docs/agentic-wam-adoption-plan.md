@@ -7,10 +7,11 @@ It verifies the shared pipeline using retained stock-controller recordings
 and documents the missing skill-specific recordings. P1's offline contract
 repair merged in [PR #616](https://github.com/moxin-org/AISLE/pull/616): see the
 [dataset report](agentic-wam-p1-dataset.md).
-P2's offline execution ledger is implemented and validated for review: see
+P2's offline execution ledger merged in [PR #617](https://github.com/moxin-org/AISLE/pull/617): see
 the [ledger report](agentic-wam-p2-ledger.md).
 Runtime capture/skill-span instrumentation remains a separate follow-up;
-P3–P6 remain proposed.
+P3's [readiness audit](agentic-wam-p3-readiness.md) records a no-go for collection
+and a bounded repair/pilot draft. The measured P3 pilot is unrun; P4–P6 remain proposed.
 
 Start with execution-aligned skill evidence and explicit memory. Test their
 value before building a controller selector, and require a competent learned
