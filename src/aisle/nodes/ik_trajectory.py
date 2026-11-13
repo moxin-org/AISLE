@@ -1142,6 +1142,7 @@ def main() -> None:
         node = Node()
     send = make_sender(node, env_pin)
     streamer: StageStreamer | None = None
+    grasp_identity: dict = {}
     # while a read move runs: {request_id, face, attempts: [(q, range_m)],
     # attempt_idx} — the executor walks the ladder until one attempt TRACKS
     pending_read: dict | None = None
@@ -1184,6 +1185,7 @@ def main() -> None:
             # first live run a stale stream fought the post-reset guard
             # reference until the wall timeout froze everything
             streamer = None
+            grasp_identity = {}
             pending_read = None
             parked_at_read = False
         elif event["id"] == "read_move":
@@ -1227,6 +1229,7 @@ def main() -> None:
                 "attempt_idx": offset,
             }
             start_read_attempt(pending_read)
+            grasp_identity = {}
             if capture:
                 capture.accept(invocation)
         elif event["id"] == "grasp_pose" or (
@@ -1296,6 +1299,9 @@ def main() -> None:
                 embodiment=embodiment,
                 max_waypoints=plan_waypoint_cap(stages) if h6_fault == "traj_short" else None,
             )
+            grasp_identity = {
+                key: metadata[key] for key in ("goal_id", "request_id") if key in metadata
+            }
             if capture:
                 capture.accept(invocation)
             print(f"plan ready: {len(stages)} stages", file=sys.stderr)
@@ -1328,7 +1334,17 @@ def main() -> None:
                     # a GRASP plan completed (read parks reply on
                     # move_done): tell the state machine so it can arm
                     # an in-context retry if no verdict lands (HAR-3)
-                    send("plan_done", pa.array([json.dumps({"ok": True})]), metadata)
+                    completion_meta = {
+                        key: value
+                        for key, value in metadata.items()
+                        if key not in ("goal_id", "request_id")
+                    }
+                    send(
+                        "plan_done",
+                        pa.array([json.dumps({"ok": True})]),
+                        {**completion_meta, **grasp_identity},
+                    )
+                    grasp_identity = {}
                 if pending_read is not None:
                     q_read, range_m, pitch, _ = pending_read["attempts"][
                         pending_read["attempt_idx"]

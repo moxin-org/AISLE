@@ -409,7 +409,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 81
+    assert len(manifests) == 83
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -632,12 +632,18 @@ def test_palm_clearance_successors_preserve_protocol_and_gates(previous_id, curr
     # CSE's later P3 capture successor now binds the live controller bytes;
     # the palm-clearance registration above remains historical evidence.
     successor_id = {
-        "cse-causal-study-v30": "cse-causal-study-v31",
-        "cse-causal-study-pilot-v16": "cse-causal-study-pilot-v17",
+        "cse-causal-study-v30": "cse-causal-study-v32",
+        "cse-causal-study-pilot-v16": "cse-causal-study-pilot-v18",
     }.get(current_id)
     if successor_id:
         successor = json.loads((root / successor_id / "freeze-manifest.json").read_text())
-        assert successor["declaration"]["superseded"].startswith(f"{current_id} (")
+        immediate = {
+            "cse-causal-study-v30": "cse-causal-study-v31",
+            "cse-causal-study-pilot-v16": "cse-causal-study-pilot-v17",
+        }[current_id]
+        predecessor = json.loads((root / immediate / "freeze-manifest.json").read_text())
+        assert predecessor["declaration"]["superseded"].startswith(f"{current_id} (")
+        assert successor["declaration"]["superseded"].startswith(f"{immediate} (")
         assert check_manifest(REPO_ROOT, successor, require_seed_sources=False)["ok"] is True
     else:
         assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
@@ -678,7 +684,13 @@ def test_p3_capture_successors_preserve_protocol_and_pending_gates(previous_id, 
         for command in old["commands"]
     ]
     assert current["artifact_hashes"][f"matched_source:{helper}"] == hash_path(REPO_ROOT, helper)
-    assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
+    latest_id = {
+        "cse-causal-study-v31": "cse-causal-study-v32",
+        "cse-causal-study-pilot-v17": "cse-causal-study-pilot-v18",
+    }[current_id]
+    latest = json.loads((root / latest_id / "freeze-manifest.json").read_text())
+    assert latest["declaration"]["superseded"].startswith(f"{current_id} (")
+    assert check_manifest(REPO_ROOT, latest, require_seed_sources=False)["ok"] is True
     drift = check_manifest(REPO_ROOT, previous, require_seed_sources=False)
     assert drift["ok"] is False
     assert {entry.split(": sha256:", 1)[0] for entry in drift["drift"]} == {
@@ -687,3 +699,34 @@ def test_p3_capture_successors_preserve_protocol_and_pending_gates(previous_id, 
         "artifact_hashes.public_observation_source:analysis/monolithic-control/treatment-table-t1-l2-v1.json",
         "artifact_hashes.treatment_table",
     }
+
+
+@pytest.mark.parametrize(
+    ("previous_id", "current_id"),
+    [
+        ("cse-causal-study-v31", "cse-causal-study-v32"),
+        ("cse-causal-study-pilot-v17", "cse-causal-study-pilot-v18"),
+    ],
+)
+def test_p3_sequence_successors_preserve_study_and_pending_gates(previous_id, current_id):
+    """CSE-15/CON-5: sequencing source updates never rewrite a historical registration."""
+    root = REPO_ROOT / "analysis/freeze"
+    previous = json.loads((root / previous_id / "freeze-manifest.json").read_text())
+    current = json.loads((root / current_id / "freeze-manifest.json").read_text())
+    old, new = previous["declaration"], current["declaration"]
+    for key in ("seed_commitment", "pending_gates", "gate_record_hashes", "analysis_script_hashes"):
+        assert current[key] == previous[key], key
+    assert current["status"] == "registered_pending_review"
+    assert current["frozen"] is False and current["timestamp"] is None
+    assert new["superseded"].startswith(f"{previous_id} (")
+    for key in set(old) - {"campaign_id", "superseded", "seed_commitment", "artifacts", "commands"}:
+        assert new[key] == old[key], key
+    predecessor = f"analysis/freeze/{previous_id}/freeze-manifest.json"
+    assert new["seed_commitment"] == old["seed_commitment"] | {"inherited_from": predecessor}
+    assert new["artifacts"] == old["artifacts"] | {"seed_commitment_predecessor": predecessor}
+    assert new["commands"] == [
+        command.replace(old["seed_commitment"]["inherited_from"], predecessor)
+        for command in old["commands"]
+    ]
+    assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
+    assert check_manifest(REPO_ROOT, previous, require_seed_sources=False)["ok"] is False

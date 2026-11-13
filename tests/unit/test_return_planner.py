@@ -71,6 +71,7 @@ def test_carried_request_metadata_drops_the_stale_turn_stamp():
 
     request_meta = {
         "goal_id": "ep-0001r",
+        "request_id": "ep-0001r/return_request/1",
         "env_id": 0,
         "seq": 7,
         "turn_epoch": 1,
@@ -79,6 +80,7 @@ def test_carried_request_metadata_drops_the_stale_turn_stamp():
     }
     carried = carry_request_meta(request_meta, [0.31, -0.18])
     assert carried["goal_id"] == "ep-0001r"
+    assert carried["request_id"] == "ep-0001r/return_request/1"
     assert carried["env_id"] == 0
     assert carried["place_xy"] == [0.31, -0.18]
     for stale in ("turn_epoch", "turn_id", "sim_time_ns", "seq"):

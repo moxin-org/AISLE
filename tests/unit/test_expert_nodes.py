@@ -595,7 +595,13 @@ class TestT4Dialogue:
         machine = self._machine()
         self._open(machine)
         out = machine.on_human_msg({"kind": "confirm_reply", "med": "ibuprofen"}, "ep-1")
-        assert out == [("target_request", {"target_med": "ibuprofen"}, {"goal_id": "ep-1"})]
+        assert out == [
+            (
+                "target_request",
+                {"target_med": "ibuprofen"},
+                {"goal_id": "ep-1", "request_id": "ep-1/target_request/1"},
+            )
+        ]
 
     def test_correction_switches_target_and_reconfirms_once(self):
         """ADR-32 §2: a pre-delivery correction switches the active
@@ -608,7 +614,13 @@ class TestT4Dialogue:
         ]
         assert machine.goal["target_med"] == "cetirizine"
         out = machine.on_human_msg({"kind": "confirm_reply", "med": "cetirizine"}, "ep-1")
-        assert out == [("target_request", {"target_med": "cetirizine"}, {"goal_id": "ep-1"})]
+        assert out == [
+            (
+                "target_request",
+                {"target_med": "cetirizine"},
+                {"goal_id": "ep-1", "request_id": "ep-1/target_request/1"},
+            )
+        ]
 
     def test_second_correction_is_ignored(self):
         """ADR-32 §2: the machine re-confirms ONCE — a second correction
@@ -662,14 +674,18 @@ class TestT4Dialogue:
         machine = self._machine()
         self._open(machine)
         machine.on_human_msg({"kind": "correction", "med": "cetirizine"}, "ep-1")
-        machine.on_human_msg({"kind": "confirm_reply", "med": "cetirizine"}, "ep-1")
-        machine.on_plan_done()
+        request = machine.on_human_msg({"kind": "confirm_reply", "med": "cetirizine"}, "ep-1")[0]
+        machine.on_plan_done(**request[2])
         out = []
         for _ in range(RETRY_GRACE_TICKS + 1):
             out = machine.on_tick()
             if out and out[0][0] == "target_request":
                 break
-        assert out[0] == ("target_request", {"target_med": "cetirizine"}, {"goal_id": "ep-1"})
+        assert out[0] == (
+            "target_request",
+            {"target_med": "cetirizine"},
+            {"goal_id": "ep-1", "request_id": "ep-1/target_request/2"},
+        )
 
     def test_result_resets_dialogue_state(self):
         """The next episode's request starts a clean exchange."""
@@ -729,8 +745,8 @@ class TestHybridFallback:
 
 class TestReturnItemFlow:
     """T4 inc-2: a request carrying return_med makes the confirmed
-    machine emit return_request BEFORE target_request — the executor's
-    one-plan-at-a-time rule serializes the return ahead of delivery."""
+    machine wait for return execution before requesting delivery. The
+    executor rejects overlapping requests; it does not queue them."""
 
     def test_confirm_reply_emits_return_then_delivery(self):
         machine = TaskStateMachine(tier="T4")
@@ -740,6 +756,9 @@ class TestReturnItemFlow:
         out = machine.on_human_msg({"kind": "confirm_reply", "med": "amoxicillin"}, "g")
         assert [(e[0], e[1]) for e in out] == [
             ("return_request", {"return_med": "metformin"}),
+        ]
+        delivery = machine.on_plan_done(**out[0][2])
+        assert [(e[0], e[1]) for e in delivery] == [
             ("target_request", {"target_med": "amoxicillin"}),
         ]
 
