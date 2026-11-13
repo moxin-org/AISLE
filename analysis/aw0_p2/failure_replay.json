@@ -1,0 +1,210 @@
+{
+  "active": [
+    {
+      "entries": [
+        {
+          "completion": {
+            "kind": "joint_position",
+            "names": [
+              "joint_a",
+              "joint_b"
+            ],
+            "target": [
+              1.0,
+              2.0
+            ],
+            "tolerance": 0.01
+          },
+          "delivery_completion": "unknown",
+          "env_id": 0,
+          "episode": 0,
+          "establishes": "execution_reported_failure",
+          "evidence": [
+            {
+              "row": 2,
+              "sha256": "77453127748b63dffb46acc91ad5921f6cc0eb6588ec47929a22055b0c6233df",
+              "source": "records"
+            },
+            {
+              "row": 3,
+              "sha256": "88fff85df0cfe58ef688b1593fe98aae6d2503d539668132fe3a7fcfd85867ec",
+              "source": "records"
+            },
+            {
+              "row": 4,
+              "sha256": "dca92be00dc66d05ec05b2c789dc5e87c19bba824be7ef98e13d47cd6d2e4058",
+              "source": "records"
+            }
+          ],
+          "goal_revision": "g1",
+          "intent_current": false,
+          "invocation_id": "a",
+          "parameters": {},
+          "proposed_ns": 2,
+          "reason": "execution_failed",
+          "skill": {
+            "name": "fixture-reach",
+            "version": "sha256:fixture-v1"
+          },
+          "started_ns": 3,
+          "status": "failed",
+          "updated_ns": 4
+        },
+        {
+          "completion": {
+            "kind": "joint_position",
+            "names": [
+              "joint_a",
+              "joint_b"
+            ],
+            "target": [
+              1.0,
+              2.0
+            ],
+            "tolerance": 0.01
+          },
+          "delivery_completion": "unknown",
+          "env_id": 0,
+          "episode": 0,
+          "establishes": "intent_only",
+          "evidence": [
+            {
+              "row": 7,
+              "sha256": "a8c853ab98698b122659b3b05991fcad6e10f92eb2d9e2b20407b7a599ca3229",
+              "source": "records"
+            }
+          ],
+          "goal_revision": "g2",
+          "intent_current": true,
+          "invocation_id": "unknown",
+          "parameters": {},
+          "proposed_ns": 7,
+          "reason": "missing_skill_identity",
+          "skill": {
+            "name": null,
+            "version": null
+          },
+          "started_ns": null,
+          "status": "unconfirmed",
+          "updated_ns": 7
+        }
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_evidence": {
+        "row": 6,
+        "sha256": "3cf3bbd51f72233687851c7b6254c69540b1789a942b4f9ea51b750585c4015b",
+        "source": "records"
+      },
+      "goal_revision": "g2",
+      "instruction": "reach the local joint target",
+      "reset_evidence": {
+        "row": 0,
+        "sha256": "db14df269564afb549346dcff5ceebff153320488c9ea329e27b26d48c3476d3",
+        "source": "records"
+      },
+      "reset_ns": 0,
+      "skill_attribution": "explicit_event_evidence"
+    }
+  ],
+  "duplicates": 0,
+  "format": "aisle_execution_ledger",
+  "histories": [],
+  "limits": {
+    "max_events": 10000,
+    "max_invocations_per_episode": 128
+  },
+  "provenance": "synthetic",
+  "source_sha256": "b84003e16db80d3b17f4fc2c99b07935368a72f268db769c90954ab11c7ad847",
+  "timeline": [
+    {
+      "decision": "applied",
+      "event_id": "0:0:reset:0:a",
+      "evidence": {
+        "row": 0,
+        "sha256": "db14df269564afb549346dcff5ceebff153320488c9ea329e27b26d48c3476d3",
+        "source": "records"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:goal:1:a",
+      "evidence": {
+        "row": 1,
+        "sha256": "6ebef4555a1818f286337781c9325aa6b9df8f923e553891189f567fcf3430a2",
+        "source": "records"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:proposed:2:a",
+      "evidence": {
+        "row": 2,
+        "sha256": "77453127748b63dffb46acc91ad5921f6cc0eb6588ec47929a22055b0c6233df",
+        "source": "records"
+      },
+      "kind": "proposed",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:started:3:a",
+      "evidence": {
+        "row": 3,
+        "sha256": "88fff85df0cfe58ef688b1593fe98aae6d2503d539668132fe3a7fcfd85867ec",
+        "source": "records"
+      },
+      "kind": "started",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:failed:4:a",
+      "evidence": {
+        "row": 4,
+        "sha256": "dca92be00dc66d05ec05b2c789dc5e87c19bba824be7ef98e13d47cd6d2e4058",
+        "source": "records"
+      },
+      "kind": "failed",
+      "reason": null
+    },
+    {
+      "decision": "rejected",
+      "event_id": "0:0:observed:5:a",
+      "evidence": {
+        "row": 5,
+        "sha256": "456e7e06f83956658b602094b1cf70cd78bf185476247e1729c380e2d6811c5f",
+        "source": "records"
+      },
+      "kind": "observed",
+      "reason": "terminal_or_obsolete_invocation"
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:goal:6:a",
+      "evidence": {
+        "row": 6,
+        "sha256": "3cf3bbd51f72233687851c7b6254c69540b1789a942b4f9ea51b750585c4015b",
+        "source": "records"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:proposed:7:unknown",
+      "evidence": {
+        "row": 7,
+        "sha256": "a8c853ab98698b122659b3b05991fcad6e10f92eb2d9e2b20407b7a599ca3229",
+        "source": "records"
+      },
+      "kind": "proposed",
+      "reason": null
+    }
+  ],
+  "version": 1
+}

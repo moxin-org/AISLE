@@ -5,10 +5,12 @@ Status: proposed work breakdown, 2026-11-11. Repository baseline: `ed70b59`.
 P0 completed on 2026-11-11: see the [data audit](agentic-wam-p0-audit.md).
 It verifies the shared pipeline using retained stock-controller recordings
 and documents the missing skill-specific recordings. P1's offline contract
-repair is implemented and validated for review: see the
+repair merged in [PR #616](https://github.com/moxin-org/AISLE/pull/616): see the
 [dataset report](agentic-wam-p1-dataset.md).
+P2's offline execution ledger is implemented and validated for review: see
+the [ledger report](agentic-wam-p2-ledger.md).
 Runtime capture/skill-span instrumentation remains a separate follow-up;
-P2–P6 remain proposed.
+P3–P6 remain proposed.
 
 Start with execution-aligned skill evidence and explicit memory. Test their
 value before building a controller selector, and require a competent learned

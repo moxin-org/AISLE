@@ -1,0 +1,173 @@
+{
+  "format": "aisle_execution_events",
+  "provenance": "synthetic",
+  "records": [
+    {
+      "env_id": 0,
+      "episode": 0,
+      "id": "0:0:reset:0:a",
+      "kind": "reset",
+      "sim_time_ns": 0
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:goal:1:a",
+      "instruction": "reach the local joint target",
+      "kind": "goal",
+      "sim_time_ns": 1
+    },
+    {
+      "completion": {
+        "kind": "joint_position",
+        "names": [
+          "joint_a",
+          "joint_b"
+        ],
+        "target": [
+          1.0,
+          2.0
+        ],
+        "tolerance": 0.01
+      },
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:proposed:2:a",
+      "invocation_id": "a",
+      "kind": "proposed",
+      "parameters": {},
+      "sim_time_ns": 2,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      }
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:started:3:a",
+      "invocation_id": "a",
+      "kind": "started",
+      "sim_time_ns": 3,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      }
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:interrupted:4:a",
+      "invocation_id": "a",
+      "kind": "interrupted",
+      "sim_time_ns": 4,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      }
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "frame": "joint",
+      "goal_revision": "g1",
+      "id": "0:0:observed:5:a",
+      "invocation_id": "a",
+      "kind": "observed",
+      "names": [
+        "joint_a",
+        "joint_b"
+      ],
+      "positions": [
+        1.0,
+        2.0
+      ],
+      "sim_time_ns": 5,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      },
+      "units": "rad"
+    },
+    {
+      "completion": {
+        "kind": "joint_position",
+        "names": [
+          "joint_a",
+          "joint_b"
+        ],
+        "target": [
+          1.0,
+          2.0
+        ],
+        "tolerance": 0.01
+      },
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:proposed:6:recovery",
+      "invocation_id": "recovery",
+      "kind": "proposed",
+      "parameters": {},
+      "sim_time_ns": 6,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      }
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:started:7:recovery",
+      "invocation_id": "recovery",
+      "kind": "started",
+      "sim_time_ns": 7,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      }
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "0:0:returned:8:recovery",
+      "invocation_id": "recovery",
+      "kind": "returned",
+      "sim_time_ns": 8,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      }
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "frame": "joint",
+      "goal_revision": "g1",
+      "id": "0:0:observed:9:recovery",
+      "invocation_id": "recovery",
+      "kind": "observed",
+      "names": [
+        "joint_a",
+        "joint_b"
+      ],
+      "positions": [
+        1.0,
+        2.0
+      ],
+      "sim_time_ns": 9,
+      "skill": {
+        "name": "fixture-reach",
+        "version": "sha256:fixture-v1"
+      },
+      "units": "rad"
+    }
+  ],
+  "version": 1
+}

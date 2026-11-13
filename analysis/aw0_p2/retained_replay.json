@@ -1,0 +1,659 @@
+{
+  "active": [
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 11,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 11,
+        "seq": 12,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 280290000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:11:12",
+      "instruction": "pick the ibuprofen box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 11,
+        "seq": 12,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 280280000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 280280000000,
+      "skill_attribution": "unknown"
+    }
+  ],
+  "coverage": {
+    "episodes": 12,
+    "identified_invocations": 0,
+    "reason": "missing_versioned_invocation_events",
+    "skill_attribution": "unknown"
+  },
+  "duplicates": 0,
+  "format": "aisle_execution_ledger",
+  "histories": [
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 0,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 0,
+        "seq": 1,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 10000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:0:1",
+      "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 0,
+        "seq": 1,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 0,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 0,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 1,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 1,
+        "seq": 2,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 20920000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:1:2",
+      "instruction": "pick the ibuprofen box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 1,
+        "seq": 2,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 20910000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 20910000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 2,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 2,
+        "seq": 3,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 80970000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:2:3",
+      "instruction": "pick the cetirizine box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 2,
+        "seq": 3,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 80960000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 80960000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 3,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 3,
+        "seq": 4,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 94450000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:3:4",
+      "instruction": "pick the omeprazole box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 3,
+        "seq": 4,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 94440000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 94440000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 4,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 4,
+        "seq": 5,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 115700000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:4:5",
+      "instruction": "pick the metformin box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 4,
+        "seq": 5,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 115690000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 115690000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 5,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 5,
+        "seq": 6,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 128910000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:5:6",
+      "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 5,
+        "seq": 6,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 128900000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 128900000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 6,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 6,
+        "seq": 7,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 149660000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:6:7",
+      "instruction": "pick the ibuprofen box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 6,
+        "seq": 7,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 149650000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 149650000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 7,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 7,
+        "seq": 8,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 209710000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:7:8",
+      "instruction": "pick the cetirizine box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 7,
+        "seq": 8,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 209700000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 209700000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 8,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 8,
+        "seq": 9,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 223290000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:8:9",
+      "instruction": "pick the omeprazole box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 8,
+        "seq": 9,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 223280000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 223280000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 9,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 9,
+        "seq": 10,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 244400000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:9:10",
+      "instruction": "pick the metformin box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 9,
+        "seq": 10,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 244390000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 244390000000,
+      "skill_attribution": "unknown"
+    },
+    {
+      "entries": [],
+      "env_id": 0,
+      "episode": 10,
+      "goal_evidence": {
+        "env_id": 0,
+        "row": 10,
+        "seq": 11,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 259310000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "goal_revision": "source/traces/task-state-machine__target_request.arrow:10:11",
+      "instruction": "pick the amoxicillin box from the shelf and place it in the tray",
+      "reset_evidence": {
+        "env_id": 0,
+        "row": 10,
+        "seq": 11,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 259300000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "reset_ns": 259300000000,
+      "skill_attribution": "unknown"
+    }
+  ],
+  "limits": {
+    "max_events": 10000,
+    "max_invocations_per_episode": 128
+  },
+  "provenance": "retained_dataset",
+  "source_sha256": "c419c1a6dfa45865e97fa703c7443223b504fc358a905b95c46fee4dc7f622c6",
+  "timeline": [
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:0:1",
+      "evidence": {
+        "env_id": 0,
+        "row": 0,
+        "seq": 1,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 0,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:0:1",
+      "evidence": {
+        "env_id": 0,
+        "row": 0,
+        "seq": 1,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 10000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:1:2",
+      "evidence": {
+        "env_id": 0,
+        "row": 1,
+        "seq": 2,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 20910000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:1:2",
+      "evidence": {
+        "env_id": 0,
+        "row": 1,
+        "seq": 2,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 20920000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:2:3",
+      "evidence": {
+        "env_id": 0,
+        "row": 2,
+        "seq": 3,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 80960000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:2:3",
+      "evidence": {
+        "env_id": 0,
+        "row": 2,
+        "seq": 3,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 80970000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:3:4",
+      "evidence": {
+        "env_id": 0,
+        "row": 3,
+        "seq": 4,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 94440000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:3:4",
+      "evidence": {
+        "env_id": 0,
+        "row": 3,
+        "seq": 4,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 94450000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:4:5",
+      "evidence": {
+        "env_id": 0,
+        "row": 4,
+        "seq": 5,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 115690000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:4:5",
+      "evidence": {
+        "env_id": 0,
+        "row": 4,
+        "seq": 5,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 115700000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:5:6",
+      "evidence": {
+        "env_id": 0,
+        "row": 5,
+        "seq": 6,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 128900000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:5:6",
+      "evidence": {
+        "env_id": 0,
+        "row": 5,
+        "seq": 6,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 128910000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:6:7",
+      "evidence": {
+        "env_id": 0,
+        "row": 6,
+        "seq": 7,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 149650000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:6:7",
+      "evidence": {
+        "env_id": 0,
+        "row": 6,
+        "seq": 7,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 149660000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:7:8",
+      "evidence": {
+        "env_id": 0,
+        "row": 7,
+        "seq": 8,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 209700000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:7:8",
+      "evidence": {
+        "env_id": 0,
+        "row": 7,
+        "seq": 8,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 209710000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:8:9",
+      "evidence": {
+        "env_id": 0,
+        "row": 8,
+        "seq": 9,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 223280000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:8:9",
+      "evidence": {
+        "env_id": 0,
+        "row": 8,
+        "seq": 9,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 223290000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:9:10",
+      "evidence": {
+        "env_id": 0,
+        "row": 9,
+        "seq": 10,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 244390000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:9:10",
+      "evidence": {
+        "env_id": 0,
+        "row": 9,
+        "seq": 10,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 244400000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:10:11",
+      "evidence": {
+        "env_id": 0,
+        "row": 10,
+        "seq": 11,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 259300000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:10:11",
+      "evidence": {
+        "env_id": 0,
+        "row": 10,
+        "seq": 11,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 259310000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/reset__reset_done.arrow:11:12",
+      "evidence": {
+        "env_id": 0,
+        "row": 11,
+        "seq": 12,
+        "sha256": "ec5c90544a3e0a1bb158041c78353a41fb26fada41ffcdd59e3ef87eced86554",
+        "sim_time_ns": 280280000000,
+        "source": "source/traces/reset__reset_done.arrow"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "source/traces/task-state-machine__target_request.arrow:11:12",
+      "evidence": {
+        "env_id": 0,
+        "row": 11,
+        "seq": 12,
+        "sha256": "f28e2d2443c9dd0f9e692ae38561e322d73cef0fd004d54cde7b7a4bf9253243",
+        "sim_time_ns": 280290000000,
+        "source": "source/traces/task-state-machine__target_request.arrow"
+      },
+      "kind": "goal",
+      "reason": null
+    }
+  ],
+  "version": 1
+}
