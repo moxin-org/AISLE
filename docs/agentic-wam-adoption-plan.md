@@ -11,7 +11,10 @@ P2's offline execution ledger merged in [PR #617](https://github.com/moxin-org/A
 the [ledger report](agentic-wam-p2-ledger.md).
 Runtime capture/skill-span instrumentation remains a separate follow-up;
 P3's [readiness audit](agentic-wam-p3-readiness.md) records a no-go for collection
-and a bounded repair/pilot draft. The measured P3 pilot is unrun; P4–P6 remain proposed.
+and a bounded repair/pilot draft. The measured P3 pilot is unrun.
+P4's [offline shadow-selector prototype](agentic-wam-p4-shadow.md) prepares
+synthetic interface checks; useful candidate policies and runtime acceptance
+remain outstanding. Full P4 and P5–P6 remain proposed.
 
 Start with execution-aligned skill evidence and explicit memory. Test their
 value before building a controller selector, and require a competent learned
@@ -190,6 +193,10 @@ absent in both arms, or provenance is incomplete, repair the task/instrument
 instead of claiming a treatment effect. Report null and negative outcomes.
 
 ## P4 Select controllers in shadow mode
+
+Preparatory implementation: [offline prototype and remaining gates](agentic-wam-p4-shadow.md).
+It has no actuation authority and does not satisfy the useful-policy or live
+guard-traversal prerequisites below.
 
 Build a selector that proposes either a registered skill or a learned action
 chunk, initially without actuation authority. Inputs include applicability,
