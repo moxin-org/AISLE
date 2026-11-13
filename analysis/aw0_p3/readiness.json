@@ -1,0 +1,112 @@
+{
+  "artifacts_sha256": {
+    "local_inventory.json": "e3b6d3b0c61957bc29f460fcc3602617288f7ec29d7e9539cf4eb77acc8dd370",
+    "pilot_design_draft.json": "42cee794ef88bab92fd979f03ef0a207cb63d0dbb66db5325e9964bee6e8e28d",
+    "program_snapshot.json": "9ee8cbe6af5693760b14d84e27fb1bdd33cad81b30763245762e224d623f04f8"
+  },
+  "baseline_commit": "9f0d9a76f2b659af2d93d9b0475e8dcab0eab3ab",
+  "blockers": [
+    "missing_versioned_invocation_capture",
+    "p1_format_rejects_chained_goal_records",
+    "candidate_policy_boundary_exposes_segmentation_and_oracle_verdicts",
+    "current_recovery_completion_and_variation_unqualified",
+    "existing_campaign_arms_are_different_treatments",
+    "engine_work_slot_model_and_funded_launch_not_frozen"
+  ],
+  "collection_ready": false,
+  "decision": "repair_capture_and_policy_isolation_before_collection",
+  "document_kind": "p3_readiness_audit",
+  "effect_estimate": null,
+  "measured_p3_complete": false,
+  "p1_chain_probe": {
+    "accepted": false,
+    "call": "demo_dataset.episode_windows",
+    "error": "duplicate episode identity",
+    "evidence_kind": "synthetic_schema_probe",
+    "input": "Two outcome records with episode=0, goal_id ep-0000/ep-0000r, recovery=true on the second; one reset window.",
+    "interpretation": "Current format limitation, not evidence of measured recovery or permission to weaken validation.",
+    "records": [
+      {
+        "episode": 0,
+        "goal_id": "ep-0000"
+      },
+      {
+        "episode": 0,
+        "goal_id": "ep-0000r",
+        "recovery": true
+      }
+    ],
+    "streams": {
+      "episode_goal": [],
+      "reset_done": [
+        {
+          "data": [
+            1.0
+          ],
+          "env_id": 0,
+          "sim_time_ns": 0
+        },
+        {
+          "data": [
+            1.0
+          ],
+          "env_id": 0,
+          "sim_time_ns": 100
+        }
+      ]
+    }
+  },
+  "scope_limitations": [
+    "Local evidence search only; remote host archives may exist.",
+    "Textual references and filename scans do not prove execution or absence of every possible event.",
+    "Historical counts motivate candidate calibration, not a current session success estimate.",
+    "No launches, random assignments, private seed generation, simulation, training or GPU allocation."
+  ],
+  "selected_task": null,
+  "sessions": {
+    "history": {
+      "assigned": 0,
+      "scored": 0,
+      "started": 0,
+      "success": null,
+      "tokens": null,
+      "wall_seconds": null
+    },
+    "trace": {
+      "assigned": 0,
+      "scored": 0,
+      "started": 0,
+      "success": null,
+      "tokens": null,
+      "wall_seconds": null
+    }
+  },
+  "source_sha256": {
+    "analysis/a3/a3_findings.md": "88f3b44ba440dc32f99e08ac902ca51e154e04d19f998883f8b15af394d46dcc",
+    "analysis/aw0_p2/replay_checks.json": "e14e8081cc9f18e92b9abba2ac1804fff2c4f545fe84a6735d619820d17bb07d",
+    "analysis/h3/t2_differential/findings.md": "b5ce97e4121bdc0fde4abb3aa60458ae10c70c483846c810b42e8a350aac385b",
+    "analysis/t4_inc2/findings.md": "40894089c1d6f11968fbd4059c0dba87fb2b45f3034e0598664659b24c462a0b",
+    "docs/agentic-wam-adoption-plan.md": "fa0115bfa068ec119ac1d3dc1062cd4970ec9afc0917c07f7a99db76b3998c05",
+    "docs/agentic-wam-p2-ledger.md": "18d5bc13c4683de2aaa74f8ab154a731354c9985b01f555fadf428b6fca9dfa0",
+    "docs/decisions/ADR-71.md": "475f2e618cec1f98b7ac3b95ccc0212fd4e6b38bd518d86a8bb2e7160367abed",
+    "graphs/expert_t4_inc2.yaml": "d2e002cd6bb70f0df3bc1264c767a8ab1423ab1f6401088737099dd559a0d4a7",
+    "harness/budget.toml": "bcbb79aa146afed1d877da18093175ae144b4607db50119022ef4f8173122cda",
+    "skills/ik-transfer-v2/ik_transfer_v2.py": "3f91bd7eee8084f7c13781fcdc5b6d7794570f4f94c65518f5f5300500414f4d",
+    "skills/ik-transfer-v2/skill.yaml": "184b38648cffabd52afa638a3c2864f452030fa77f57046032bf5b93cab3331a",
+    "src/aisle/harness/matched_session.py": "79caedf2780a3c8551f09c126211e836b7ad85a49d1dbf85a14108cd271ba8bc",
+    "src/aisle/harness/pilot_records.py": "68ac7ef9afd449d8527e2ffe99a9ef926e06253c466f3421bc1848e9aa094b70",
+    "src/aisle/harness/rollout.py": "f0a409ef088af34e089b282747e0293fea84b6706b71dd8d0fdfe899776ff177",
+    "src/aisle/harness/rollout_client.py": "18808db0aa2df356d1a7cc9a538585aa9dcc653abd120e761649f1dff2c27c31",
+    "src/aisle/harness/treatment_randomization.py": "f5af4dc3fcc25ea2a4dcb675e42a48c183a0593ce60ee9b78d2cb3c81db59e58",
+    "src/aisle/nodes/human_sim.py": "0cf39091ee7f6626c94ca1dcd311620a373e1e996a0cee6d29f87be21f96d809",
+    "src/aisle/nodes/ik_trajectory.py": "1c7c8aee8129a45acac4e825a7028c26b97d1720d6346faf793fc01e0dba66fc",
+    "src/aisle/sim/__init__.py": "8e2b312832da73eda1ac7c6b87843c9462885d28ef8e4cc2ddfd79fc614eab31",
+    "tools/audit_skill_data.py": "be0d547b82e1948bf0e2d9bb9557a51727b6ded661a8531529d4bcf5413bbe5a",
+    "tools/demo_dataset.py": "087bfba9fa5cc1fee5db3919f0c9dd091f99894f22030ff83143396a256672fb",
+    "tools/execution_ledger.py": "cd82ba06cc4f6fec9ec05a70bed8dd99aa0fb42aaffd4b6a257b39c079c29de5",
+    "tools/h3_campaign.py": "11ad1f25b649cbe40180d8707a45b926985f063cd61f6d3ede9bc38a69cc00eb",
+    "tools/matched_campaign.py": "e3f56fa0918310f2d7975610281053f3191b5cd81de0c520f8e87fc333c63ffd",
+    "tools/pilot_assignments.py": "bafcfdf4f79d5d0abd7442355454ea7ca476928afd57ed7c83f38da0c3726cc8"
+  },
+  "version": 1
+}

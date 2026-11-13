@@ -1,0 +1,460 @@
+{
+  "additional_candidate_searches": {
+    "expert_t4_inc2": [
+      {
+        "episode_files": 19,
+        "exists": true,
+        "root": "runs",
+        "skill_runs": []
+      },
+      {
+        "episode_files": 34,
+        "exists": true,
+        "root": "analysis",
+        "skill_runs": []
+      }
+    ],
+    "return-planner": [
+      {
+        "episode_files": 19,
+        "exists": true,
+        "root": "runs",
+        "skill_runs": []
+      },
+      {
+        "episode_files": 34,
+        "exists": true,
+        "root": "analysis",
+        "skill_runs": []
+      }
+    ],
+    "t2-scan-pose": [
+      {
+        "episode_files": 19,
+        "exists": true,
+        "root": "runs",
+        "skill_runs": []
+      },
+      {
+        "episode_files": 34,
+        "exists": true,
+        "root": "analysis",
+        "skill_runs": []
+      }
+    ],
+    "t2-scan-tsm": [
+      {
+        "episode_files": 19,
+        "exists": true,
+        "root": "runs",
+        "skill_runs": []
+      },
+      {
+        "episode_files": 34,
+        "exists": true,
+        "root": "analysis",
+        "skill_runs": []
+      }
+    ]
+  },
+  "inventory": [
+    {
+      "episode_files": 19,
+      "exists": true,
+      "root": "runs",
+      "skill_runs": []
+    },
+    {
+      "episode_files": 34,
+      "exists": true,
+      "root": "analysis",
+      "skill_runs": []
+    }
+  ],
+  "runs": [
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 5,
+      "episodes_sha256": "40b1687f5bf27caf3cd4fe697c89449d3d73d73a5b4fc7c9bbce170122d8349a",
+      "failure_classes": {
+        "collision": 1
+      },
+      "manifest_sha256": "fd8bdb9dc8e150a2a397e390c57e969fd162f3f599cba081e200aa5b71ffc5f9",
+      "outcomes": {
+        "fail": 1,
+        "success": 4
+      },
+      "post_run_audit": null,
+      "run": "runs/20261110-151648-5ce9ee",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "genesis",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 2,
+      "episodes_sha256": "b2249b7ab9bd60404adb90b76452c5b96da1da2ec5f91df08532d3bf5d137dd3",
+      "failure_classes": {},
+      "manifest_sha256": "bfa68a1bb73809bac27ea566c298cfca778f3d45d8ef4acca33773c532149d66",
+      "outcomes": {
+        "success": 2
+      },
+      "post_run_audit": null,
+      "run": "runs/hist-probe-genesis",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 2,
+      "episodes_sha256": "b2249b7ab9bd60404adb90b76452c5b96da1da2ec5f91df08532d3bf5d137dd3",
+      "failure_classes": {},
+      "manifest_sha256": "026d7f97c7e59b8e2d94feaa1eb000d6ed032fc6354c9842f1630841fce9edb0",
+      "outcomes": {
+        "success": 2
+      },
+      "post_run_audit": null,
+      "run": "runs/hist-probe-nexus",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "genesis",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 5,
+      "episodes_sha256": "c73713a88d4463ae5f8d459b69a064241f42d9160e563faec396aba638b0a085",
+      "failure_classes": {},
+      "manifest_sha256": "f1bcf26791272647ffe770617d636a9c31307ccd3139be5adba586ec37839bb3",
+      "outcomes": {
+        "success": 5
+      },
+      "post_run_audit": null,
+      "run": "runs/hist5-genesis-3",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "7b7d072a2a952b386298fe9bcd5f7fac5097e26105c164fb323617732bbe6808",
+      "failure_classes": {
+        "collision": 3
+      },
+      "manifest_sha256": "ad81d3b5311dfc733dc4bc239001d3f892cba84496533601a9b6e68447e0405a",
+      "outcomes": {
+        "fail": 3,
+        "success": 47
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-1-nexus-a",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "dfd727b1314f249f4a137a6368896837b84b3d17a68dbbc829d9956f976cd98f",
+      "failure_classes": {
+        "collision": 1
+      },
+      "manifest_sha256": "53768c0b20672e29448fa0c4d1dee0d67c5525c72443638a82f7df7018604f52",
+      "outcomes": {
+        "fail": 1,
+        "success": 49
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-1-nexus-main",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "7b7d072a2a952b386298fe9bcd5f7fac5097e26105c164fb323617732bbe6808",
+      "failure_classes": {
+        "collision": 3
+      },
+      "manifest_sha256": "2374f4dddc81292e926c74bd1c9db8a7fb470097d50c8d477d64c93bc3991fc3",
+      "outcomes": {
+        "fail": 3,
+        "success": 47
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-1-nexus-mesh",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "dfd727b1314f249f4a137a6368896837b84b3d17a68dbbc829d9956f976cd98f",
+      "failure_classes": {
+        "collision": 1
+      },
+      "manifest_sha256": "b77e51a857fdafac96cb5b503d8ca0c7fa5b228eea51d20a9fa02c8e671b8809",
+      "outcomes": {
+        "fail": 1,
+        "success": 49
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-1-nexus-palm",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "7b7d072a2a952b386298fe9bcd5f7fac5097e26105c164fb323617732bbe6808",
+      "failure_classes": {
+        "collision": 3
+      },
+      "manifest_sha256": "163beaf5bbd7d544e72c58ad03439ed25384bbe74c31b66528c5a1c350f8e566",
+      "outcomes": {
+        "fail": 3,
+        "success": 47
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-2-nexus-b",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "dfd727b1314f249f4a137a6368896837b84b3d17a68dbbc829d9956f976cd98f",
+      "failure_classes": {
+        "collision": 1
+      },
+      "manifest_sha256": "5105563b388cae5652996f1e24bc581e3c834c6c08d66963ced6135c2623ee29",
+      "outcomes": {
+        "fail": 1,
+        "success": 49
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-2-nexus-main",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": null,
+      "engine": null,
+      "env_attested": null,
+      "env_baseline": null,
+      "episodes": 20,
+      "episodes_sha256": "05d64d1426c043807442bf73d84e55075797fb08fcc06565f608ced757062873",
+      "failure_classes": {
+        "collision": 1
+      },
+      "manifest_sha256": null,
+      "outcomes": {
+        "fail": 1,
+        "success": 19
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-2-nexus-mesh",
+      "skill_named_files": [],
+      "tier": null
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "dfd727b1314f249f4a137a6368896837b84b3d17a68dbbc829d9956f976cd98f",
+      "failure_classes": {
+        "collision": 1
+      },
+      "manifest_sha256": "c3a470c09db1a734e485b11673a43c211f2fb5782e15f81c0edfede7088528b6",
+      "outcomes": {
+        "fail": 1,
+        "success": 49
+      },
+      "post_run_audit": null,
+      "run": "runs/m0-2-nexus-palm",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 3,
+      "episodes_sha256": "41cd5dc332df6f4d4ea940793540fb92a019e13561506c347b9591c95e8d0e45",
+      "failure_classes": {},
+      "manifest_sha256": "eda9ecffdfc900a104c739ed988adaece1a51e4c41c5b2a495cbe1565bce701e",
+      "outcomes": {
+        "success": 3
+      },
+      "post_run_audit": null,
+      "run": "runs/nexus-hull-off-probe",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "genesis",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 5,
+      "episodes_sha256": "697917c9ae2b1a62a3e8193049d805fa54cb419a2dc401ce7f033305ee63b805",
+      "failure_classes": {},
+      "manifest_sha256": "5810778d30dbe5989c913616b30ea2c66a0b1304fae124c6ae4eca348897dd7c",
+      "outcomes": {
+        "success": 5
+      },
+      "post_run_audit": null,
+      "run": "runs/palm-genesis-5",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 5,
+      "episodes_sha256": "53b648f6e80249f897fee8d452059401e75180fbe5b320002b37b06ed0fe7cc8",
+      "failure_classes": {},
+      "manifest_sha256": "ca65b080c76b6a22b8e77c9e406304ea2b8542afc8f12c07fbaf6cc4411b469d",
+      "outcomes": {
+        "success": 5
+      },
+      "post_run_audit": null,
+      "run": "runs/palm-probe-5b",
+      "skill_named_files": [],
+      "tier": "T0"
+    },
+    {
+      "arrow_files": 33,
+      "embodiment": "franka",
+      "engine": "genesis",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 12,
+      "episodes_sha256": "eea6c34f32db733e049e3b4451e67c9c9e404d549e914127e35adaa426304f23",
+      "failure_classes": {
+        "never_grasped": 3
+      },
+      "manifest_sha256": "3f410d969bdb6c420b425d81af83428e52ffab3c452b392e9fdbba8b44fdef02",
+      "outcomes": {
+        "fail": 3,
+        "success": 9
+      },
+      "post_run_audit": null,
+      "run": "runs/t1-genesis-l2-spot",
+      "skill_named_files": [],
+      "tier": "T1"
+    },
+    {
+      "arrow_files": 35,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "5b4008bdf3e7720a4f8c54f0b035dd91d7b8f3ca734ff590363dae2ce9f75a51",
+      "failure_classes": {
+        "collision": 1,
+        "dropped": 2,
+        "timeout": 1
+      },
+      "manifest_sha256": "77be67addbdf2cce91572e0734b2226c9719a2c46af778edc62b3354d74d73a3",
+      "outcomes": {
+        "fail": 4,
+        "success": 46
+      },
+      "post_run_audit": null,
+      "run": "runs/t1-nexus-expert_t1-palm",
+      "skill_named_files": [],
+      "tier": "T1"
+    },
+    {
+      "arrow_files": 34,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 50,
+      "episodes_sha256": "44925bcece881a19f54d1bfbef31f43bba6fbbcc945e39187e93aeefd2b2674a",
+      "failure_classes": {
+        "collision": 2,
+        "never_grasped": 11
+      },
+      "manifest_sha256": "50a7e792ae1e3f5069489fbca6a20060e264748ca69b1889d103215c80c49c60",
+      "outcomes": {
+        "fail": 13,
+        "success": 37
+      },
+      "post_run_audit": null,
+      "run": "runs/t1-nexus-expert_t1_l2-palm",
+      "skill_named_files": [],
+      "tier": "T1"
+    },
+    {
+      "arrow_files": 27,
+      "embodiment": "franka",
+      "engine": "nexus",
+      "env_attested": true,
+      "env_baseline": "local",
+      "episodes": 2,
+      "episodes_sha256": "f46f4bdd9f6fd6e1e3db5b707b930092ba6d9fe09cbe7b6722107562cf996bae",
+      "failure_classes": {
+        "never_grasped": 2
+      },
+      "manifest_sha256": "88c6da224986d97f0280c70e4c513e1e31f96431207b1d54e0e7027606610ea5",
+      "outcomes": {
+        "fail": 2
+      },
+      "post_run_audit": null,
+      "run": "runs/t1-nexus-l2-main-spot",
+      "skill_named_files": [],
+      "tier": "T1"
+    }
+  ],
+  "scope": "local retained episode files, including ignored runs; no remote storage search"
+}

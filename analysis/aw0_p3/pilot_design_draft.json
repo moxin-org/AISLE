@@ -1,0 +1,153 @@
+{
+  "acceptance_proposal": {
+    "minimum_accepted_chains_of_8": 6,
+    "review_required_before_freeze": true,
+    "scripted_initial_delivery": "classified by frozen recovery-task rule, not conflated with an unintended wrong-object incident",
+    "unintended_wrong_object_events": 0
+  },
+  "arms": [
+    "history",
+    "trace"
+  ],
+  "budgets": {
+    "dollar_cost": null,
+    "per_session": {
+      "development_verdict_records": 40,
+      "heldout_chains": 8,
+      "max_records_per_heldout_chain": 2,
+      "provider_reported_tokens": 400000,
+      "wall_hours_including_acceptance": 2.5
+    },
+    "proposal_only": true,
+    "twelve_sessions": {
+      "development_verdict_records": 480,
+      "heldout_chains": 96,
+      "heldout_verdict_records": 192,
+      "provider_reported_tokens": 4800000,
+      "wall_hours": 30
+    },
+    "with_calibration": {
+      "max_host_hours": 32,
+      "max_reset_episodes": 600,
+      "max_verdict_records": 720
+    }
+  },
+  "calibration": {
+    "candidates_in_order": [
+      {
+        "development_seeds": [
+          200,
+          204,
+          208,
+          212,
+          216,
+          220,
+          224,
+          228,
+          232,
+          236,
+          240,
+          244
+        ],
+        "id": "t4_return_redeliver",
+        "seed_stratum": "is_corrected(seed): seed % 4 == 0"
+      },
+      {
+        "development_seeds": [
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53
+        ],
+        "id": "t2_fixed_scan_composition"
+      }
+    ],
+    "max_chains_per_candidate": 12,
+    "max_chains_total": 24,
+    "max_verdict_records_total": 48,
+    "max_wall_hours": 2,
+    "no_candidate_action": "stop and report no eligible task",
+    "selection": "First candidate with >=2 successes and >=2 failures in 12 complete chains, complete invocation provenance and reviewer-reconstructable partial execution/recovery. Perception-only refusals do not qualify recovery. Instrument failure stops calibration.",
+    "status": "proposed_requires_repaired_instrument"
+  },
+  "collection_authorized": false,
+  "document_kind": "p3_pilot_design_draft",
+  "effect_estimate": null,
+  "engine": null,
+  "engine_qualification": null,
+  "estimand": "Effect of structured access to the same allowed execution evidence; fixed library in both arms.",
+  "independent_unit": "session; compare matched blocks; episodes and commands are nested",
+  "instrument_commit": null,
+  "interpretation": "exploratory cost/variance pilot, not powered or confirmatory",
+  "library_hashes": null,
+  "matched_fields": [
+    "model",
+    "model_settings",
+    "common_prompt",
+    "library_hashes",
+    "raw_policy_visible_events",
+    "action_edit_surface",
+    "task_distribution",
+    "engine",
+    "scorer",
+    "resource_budgets"
+  ],
+  "missingness": "Retain every assignment; distinguish unstarted, incomplete and unscorable. Missing telemetry and outcomes are null, not zero.",
+  "model": null,
+  "model_settings": null,
+  "owner_launch_authorization": null,
+  "prompt_sha256": null,
+  "provider": null,
+  "provider_cost_cap": null,
+  "randomization_primitive": "aisle.harness.treatment_randomization.create_sealed_plan",
+  "readiness_prerequisites": [
+    "P1 per-goal verdict representation within one physical episode; no fake resets or dropped verdicts",
+    "Real lifecycle capture and non-oracle policy isolation",
+    "Task/budget/acceptance feasibility before freeze; chain calibration alone is insufficient for session success variation"
+  ],
+  "replacement_sessions": false,
+  "seed_commitments": null,
+  "seed_roles": [
+    "calibration_public_development_only",
+    "pilot_development",
+    "pilot_hidden_acceptance",
+    "future_confirmatory_disjoint",
+    "T4 recovery sets restricted to corrected-seed stratum in every role"
+  ],
+  "seed_values_generated": false,
+  "selected_task": null,
+  "session_metrics": [
+    "session_success",
+    "provider_tokens",
+    "wall_seconds",
+    "rollout_count",
+    "episode_count",
+    "repeated_failed_attempts",
+    "verified_skill_reuse",
+    "physical_failure_classes",
+    "safety_incidents"
+  ],
+  "sessions_assigned": 0,
+  "sessions_per_arm": 6,
+  "sessions_scored": 0,
+  "sessions_started": 0,
+  "status": "not_frozen_not_executable",
+  "stop_rules": [
+    "6 sessions per arm",
+    "hard resource cap",
+    "unintended wrong-object event",
+    "guard bypass",
+    "provenance or policy-isolation failure"
+  ],
+  "temporal_blocks": 6,
+  "treatment_difference": "history receives a derived ledger interface; trace receives the existing trace interface. No privileged source information is added.",
+  "version": 1
+}

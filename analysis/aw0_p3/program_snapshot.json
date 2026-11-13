@@ -1,0 +1,41 @@
+{
+  "checked_at_utc": "2026-11-13",
+  "issue_614": {
+    "number": 614,
+    "state": "OPEN",
+    "title": "Nexus: Metal pipeline preload fails after Genesis is initialized in the same process (draft for the Nexus author)",
+    "url": "https://github.com/moxin-org/AISLE/issues/614"
+  },
+  "program_status": "Default switch on hold; Genesis remains default; engine loop stopped at owner request.",
+  "program_status_source": "https://github.com/moxin-org/AISLE/issues/604#issuecomment-6803885527",
+  "pull_requests": [
+    {
+      "mergeCommit": {
+        "oid": "ed70b5927455e127bdc5e58a2a5abc231df60e93"
+      },
+      "mergedAt": "2026-11-11T13:56:41Z",
+      "number": 609,
+      "state": "MERGED",
+      "title": "spec: engine-neutral wording for the scene and bridge contracts",
+      "url": "https://github.com/moxin-org/AISLE/pull/609"
+    },
+    {
+      "mergeCommit": {
+        "oid": "8879023a8b6193eef9fda25b7138213bba73d9b7"
+      },
+      "mergedAt": "2026-11-11T13:56:36Z",
+      "number": 610,
+      "state": "MERGED",
+      "title": "feat(nodes): palm clearance in the top-down grasp plan (ADR-72)",
+      "url": "https://github.com/moxin-org/AISLE/pull/610"
+    },
+    {
+      "headRefOid": "c598ae49bda2379b7d4a28b3a099ddd21b5bbe88",
+      "isDraft": true,
+      "number": 613,
+      "state": "OPEN",
+      "title": "feat(sim): make Nexus the default simulation engine (ADR-71, ADR-73)",
+      "url": "https://github.com/moxin-org/AISLE/pull/613"
+    }
+  ]
+}
