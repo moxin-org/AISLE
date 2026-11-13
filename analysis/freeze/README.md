@@ -263,3 +263,11 @@ BND, FLT and SFE), and the CSE pair also binds the regenerated treatment table
 for the `grasp_topdown.py` and `ik_trajectory.py` changes. Seed commitments are
 inherited, every pending gate is preserved, and no registration authorizes
 collection.
+
+CSE v31 and pilot v17 supersede v30 and pilot v16 after P3's opt-in executor
+capture hook changed the shared rollout source and the indexed recovery-input
+repair changed generated current-source treatment/expert records. The optional
+capture helper is now explicitly bound. Study rules, instrument sets, budgets,
+seed commitments, analysis and all pending gates are preserved. These pending
+successors do not authorize CSE or P3 collection, establish physical outcomes,
+or replace the separate P3 calibration and matched-pilot protocols.

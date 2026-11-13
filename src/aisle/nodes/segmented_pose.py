@@ -232,6 +232,7 @@ def main() -> None:  # pragma: no cover — dora runtime
         ),
     )
 
+    request_identity = {}
     for event in node:
         if event["type"] != "INPUT":
             continue
@@ -245,7 +246,12 @@ def main() -> None:  # pragma: no cover — dora runtime
                     f"target_request refused: unknown med {request.get('target_med')!r}",
                     file=sys.stderr,
                 )
+            else:
+                request_identity = {
+                    k: metadata[k] for k in ("goal_id", "request_id") if k in metadata
+                }
         elif topic == "reset_done":
+            request_identity = {}
             session.on_reset_done()
         elif topic in ("depth_overhead", "seg_overhead"):
             h, w = int(metadata.get("h", 0)), int(metadata.get("w", 0))
@@ -280,7 +286,12 @@ def main() -> None:  # pragma: no cover — dora runtime
                 "target_pose",
                 pa.array(np.asarray(out["pos"] + [0.0, 0.0, 0.0, 1.0], dtype=np.float32)),
                 {
-                    **{k: v for k, v in metadata.items() if k not in ("enc", "h", "w")},
+                    **{
+                        k: v
+                        for k, v in metadata.items()
+                        if k not in ("enc", "h", "w", "goal_id", "request_id")
+                    },
+                    **request_identity,
                     "target_med": out["target_med"],
                     "neighbours": json.dumps(out["neighbours"]),
                     "neighbours_refused": out["neighbours_refused"],

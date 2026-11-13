@@ -80,6 +80,9 @@ IDENTITY_TOPICS = {
     "episode_goal",
     "episode_result",
     "target_request",
+    "target_pose",
+    "grasp_pose",
+    "return_request",
     "read_move",
     "move_done",
     "plan_done",
@@ -102,7 +105,19 @@ def trace_identity(endpoint: str, index: int, row: dict, metadata: dict) -> dict
         "endpoint": endpoint,
         "row": index,
         "trace_row_sha256": trace_row_digest(row),
-        "metadata": {key: metadata[key] for key in ("goal_id", "request_id") if key in metadata},
+        "metadata": {
+            key: metadata[key]
+            for key in (
+                "goal_id",
+                "request_id",
+                "invocation_id",
+                "skill_name",
+                "skill_version",
+                "command_origin_endpoint",
+                "command_origin_seq",
+            )
+            if key in metadata
+        },
     }
 
 
@@ -376,7 +391,7 @@ def main() -> None:
         )
         index = row_counts.get(topic, 0)
         row_counts[topic] = index + 1
-        if topic.rsplit("__", 1)[-1] in IDENTITY_TOPICS:
+        if topic.rsplit("__", 1)[-1] in IDENTITY_TOPICS or "invocation_id" in metadata:
             evidence = trace_identity(
                 topic, index, dict(zip(schema.names, row, strict=True)), metadata
             )

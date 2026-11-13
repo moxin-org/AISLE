@@ -908,6 +908,8 @@ def instrumented_graph(
             *typed_stage, authored_bytes=text.encode("utf-8"), graph=graph, controller_root=root
         )
     doc = yaml.safe_load(text)
+    if any("AISLE_EXECUTION_CAPTURE_CONFIG" in (node.get("env") or {}) for node in doc["nodes"]):
+        raise RuntimeError("authored execution capture configuration is forbidden")
     for node in doc["nodes"]:
         node["path"] = str((graph.parent / node["path"]).resolve())
     # issue #128 (TC-9): the recorder subscribes to declared endpoints, but a
@@ -968,6 +970,14 @@ def instrumented_graph(
                     f"but the run requested engine {sim_engine!r} (ADR-67)"
                 )
             node["env"] = {**env, "AISLE_SIM_ENGINE": sim_engine}
+    capture_flag = os.environ.get("AISLE_EXECUTION_CAPTURE", "0")
+    if capture_flag not in {"0", "1"}:
+        raise RuntimeError("AISLE_EXECUTION_CAPTURE must be 0 or 1")
+    if capture_flag == "1":
+        from aisle.harness.execution_capture import bind_executors
+
+        capture_traces = trace_dir if trace_dir else run_dir / "traces"
+        bind_executors(doc, root, capture_traces, f"{run_dir.name}:{capture_traces.name}")
     forbidden = FORBIDDEN_BY_RUNG.get(rung, ())
     # HAR-4: EVERY declared endpoint, keyed <producer>__<topic> so two
     # producers of the same topic name (e.g. reset_done from both the
