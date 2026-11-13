@@ -5,7 +5,7 @@
       "author": "AISLE maintainers; projected graph derived from the existing typed L2 graph with full repository access",
       "blind": false,
       "path": "graphs/pilot_t1_l2_typed.yaml",
-      "sha256": "c447ca4fa3b75c9cfab894d2a2cc0925d2e6dc3cf991e905e75a3575f040e427"
+      "sha256": "08e55f2413e658ac1bffc9e29933d71e4b5fe847f92e6a1504103abc412005b9"
     },
     {
       "arm": "monolithic",

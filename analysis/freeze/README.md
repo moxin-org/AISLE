@@ -271,3 +271,10 @@ capture helper is now explicitly bound. Study rules, instrument sets, budgets,
 seed commitments, analysis and all pending gates are preserved. These pending
 successors do not authorize CSE or P3 collection, establish physical outcomes,
 or replace the separate P3 calibration and matched-pilot protocols.
+
+CSE v32 and pilot v18 preserve v31 and pilot v17 after the separate P3
+recovery-sequencing repair updates generated current-source treatment/expert
+identities. Only source bindings and predecessor lineage move; study rules,
+instruments, budgets, seed commitments, analysis and every pending gate remain
+unchanged. The completed T4 calibration at `3738fe0` remains historical,
+ineligible development evidence. These registrations authorize no new study.
