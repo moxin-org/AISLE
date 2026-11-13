@@ -409,7 +409,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 79
+    assert len(manifests) == 81
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -629,4 +629,61 @@ def test_palm_clearance_successors_preserve_protocol_and_gates(previous_id, curr
         for name, path in previous["declaration"]["artifacts"].items()
         if name not in lineage
     }
+    # CSE's later P3 capture successor now binds the live controller bytes;
+    # the palm-clearance registration above remains historical evidence.
+    successor_id = {
+        "cse-causal-study-v30": "cse-causal-study-v31",
+        "cse-causal-study-pilot-v16": "cse-causal-study-pilot-v17",
+    }.get(current_id)
+    if successor_id:
+        successor = json.loads((root / successor_id / "freeze-manifest.json").read_text())
+        assert successor["declaration"]["superseded"].startswith(f"{current_id} (")
+        assert check_manifest(REPO_ROOT, successor, require_seed_sources=False)["ok"] is True
+    else:
+        assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("previous_id", "current_id"),
+    [
+        ("cse-causal-study-v30", "cse-causal-study-v31"),
+        ("cse-causal-study-pilot-v16", "cse-causal-study-pilot-v17"),
+    ],
+)
+def test_p3_capture_successors_preserve_protocol_and_pending_gates(previous_id, current_id):
+    """CSE-15/CON-5: capture source drift needs a pending successor, never a rewritten freeze."""
+    root = REPO_ROOT / "analysis/freeze"
+    previous = json.loads((root / previous_id / "freeze-manifest.json").read_text())
+    current = json.loads((root / current_id / "freeze-manifest.json").read_text())
+    old, new = previous["declaration"], current["declaration"]
+    assert current["seed_commitment"] == previous["seed_commitment"]
+    assert current["pending_gates"] == previous["pending_gates"]
+    assert current["gate_record_hashes"] == previous["gate_record_hashes"]
+    assert current["analysis_script_hashes"] == previous["analysis_script_hashes"]
+    assert current["status"] == "registered_pending_review"
+    assert current["frozen"] is False
+    assert current["timestamp"] is None
+    assert new["superseded"].startswith(f"{previous_id} (")
+    for key in set(old) - {"campaign_id", "superseded", "seed_commitment", "artifacts", "commands"}:
+        assert new[key] == old[key], key
+    predecessor = f"analysis/freeze/{previous_id}/freeze-manifest.json"
+    assert new["seed_commitment"] == old["seed_commitment"] | {"inherited_from": predecessor}
+    helper = "src/aisle/harness/execution_capture.py"
+    assert new["artifacts"] == old["artifacts"] | {
+        "seed_commitment_predecessor": predecessor,
+        f"matched_source:{helper}": helper,
+    }
+    assert new["commands"] == [
+        command.replace(old["seed_commitment"]["inherited_from"], predecessor)
+        for command in old["commands"]
+    ]
+    assert current["artifact_hashes"][f"matched_source:{helper}"] == hash_path(REPO_ROOT, helper)
     assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
+    drift = check_manifest(REPO_ROOT, previous, require_seed_sources=False)
+    assert drift["ok"] is False
+    assert {entry.split(": sha256:", 1)[0] for entry in drift["drift"]} == {
+        "artifact_hashes.matched_source:src/aisle/harness/rollout.py",
+        "artifact_hashes.public_observation_source:analysis/monolithic-control/experts-t1-l2-v1.json",
+        "artifact_hashes.public_observation_source:analysis/monolithic-control/treatment-table-t1-l2-v1.json",
+        "artifact_hashes.treatment_table",
+    }
