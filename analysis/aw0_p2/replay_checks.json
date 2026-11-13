@@ -1,0 +1,56 @@
+{
+  "format": "aisle_p2_replay_checks",
+  "implementation_sha256": {
+    "demo_dataset.py": "087bfba9fa5cc1fee5db3919f0c9dd091f99894f22030ff83143396a256672fb",
+    "execution_ledger.py": "cd82ba06cc4f6fec9ec05a70bed8dd99aa0fb42aaffd4b6a257b39c079c29de5"
+  },
+  "retained": {
+    "closed_histories": 11,
+    "coverage": {
+      "episodes": 12,
+      "identified_invocations": 0,
+      "reason": "missing_versioned_invocation_events",
+      "skill_attribution": "unknown"
+    },
+    "dataset_manifest_sha256": "c419c1a6dfa45865e97fa703c7443223b504fc358a905b95c46fee4dc7f622c6",
+    "deterministic_repeat": true,
+    "events": {
+      "goal": 12,
+      "reset": 12
+    },
+    "interpretation": "Request/reset reconstruction only; no identified skill execution or delivery confirmation.",
+    "open_histories": 1,
+    "report": "analysis/aw0_p2/retained_replay.json",
+    "report_sha256": "52489af897194e75a55019da218f185de9619ab80fb6f0920fee6c343f5a464a",
+    "source_run": "runs/t1-genesis-l2-spot"
+  },
+  "synthetic": {
+    "failure": {
+      "delivery_completion": "unknown",
+      "deterministic_repeat": true,
+      "events": 8,
+      "final_states": [
+        "failed",
+        "unconfirmed"
+      ],
+      "fixture": "tests/fixtures/execution_ledger/failure.json",
+      "fixture_sha256": "d7ffd5782fd9cd8215ebd8c144a029c75badf5ab2f277b73fb9d7f9dca529958",
+      "report": "analysis/aw0_p2/failure_replay.json",
+      "report_sha256": "3cdc7fdc980d8d7bafa073650c9b21cc7f5aad6bd20af38710f38c7572738876"
+    },
+    "success_recovery": {
+      "delivery_completion": "unknown",
+      "deterministic_repeat": true,
+      "events": 10,
+      "final_states": [
+        "interrupted",
+        "completed"
+      ],
+      "fixture": "tests/fixtures/execution_ledger/success_recovery.json",
+      "fixture_sha256": "d8c9866f35d4ea7bffc4851376a6263a05591f7d6c955206c4899f9f91a74633",
+      "report": "analysis/aw0_p2/success_recovery_replay.json",
+      "report_sha256": "ffbca26afb07156e22186024823a138bd2e74fe9681f755c56a82426a76ff4ad"
+    }
+  },
+  "version": 1
+}

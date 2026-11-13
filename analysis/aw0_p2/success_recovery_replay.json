@@ -1,0 +1,247 @@
+{
+  "active": [
+    {
+      "entries": [
+        {
+          "completion": {
+            "kind": "joint_position",
+            "names": [
+              "joint_a",
+              "joint_b"
+            ],
+            "target": [
+              1.0,
+              2.0
+            ],
+            "tolerance": 0.01
+          },
+          "delivery_completion": "unknown",
+          "env_id": 0,
+          "episode": 0,
+          "establishes": "execution_reported_interruption",
+          "evidence": [
+            {
+              "row": 2,
+              "sha256": "77453127748b63dffb46acc91ad5921f6cc0eb6588ec47929a22055b0c6233df",
+              "source": "records"
+            },
+            {
+              "row": 3,
+              "sha256": "88fff85df0cfe58ef688b1593fe98aae6d2503d539668132fe3a7fcfd85867ec",
+              "source": "records"
+            },
+            {
+              "row": 4,
+              "sha256": "d9c59b206ed73b767c59da3841d88682bc40db5415dd972a485e61dae675e744",
+              "source": "records"
+            }
+          ],
+          "goal_revision": "g1",
+          "intent_current": true,
+          "invocation_id": "a",
+          "parameters": {},
+          "proposed_ns": 2,
+          "reason": "execution_interrupted",
+          "skill": {
+            "name": "fixture-reach",
+            "version": "sha256:fixture-v1"
+          },
+          "started_ns": 3,
+          "status": "interrupted",
+          "updated_ns": 4
+        },
+        {
+          "completion": {
+            "kind": "joint_position",
+            "names": [
+              "joint_a",
+              "joint_b"
+            ],
+            "target": [
+              1.0,
+              2.0
+            ],
+            "tolerance": 0.01
+          },
+          "delivery_completion": "unknown",
+          "env_id": 0,
+          "episode": 0,
+          "establishes": "joint_configuration_within_tolerance",
+          "evidence": [
+            {
+              "row": 6,
+              "sha256": "4537f511e351e458ee214b1e187e36b2ad3b0a0ccbd820c60547ac9bfef2c06a",
+              "source": "records"
+            },
+            {
+              "row": 7,
+              "sha256": "bcbc06e85659669f99e691d7ca5ee379ba4e1b273f385d382c0adec1f7e3bd3a",
+              "source": "records"
+            },
+            {
+              "row": 8,
+              "sha256": "4e94fdd5a5b80027f270bf2ba23e1dae49d581f9a10f0b4c0a6f4a9ee0b0f268",
+              "source": "records"
+            },
+            {
+              "row": 9,
+              "sha256": "920ed0e3ed10d5c38eb1dceff4b8604af4fef0034704636b53093464047faf3d",
+              "source": "records"
+            }
+          ],
+          "goal_revision": "g1",
+          "intent_current": true,
+          "invocation_id": "recovery",
+          "parameters": {},
+          "proposed_ns": 6,
+          "reason": "local_condition_observed",
+          "skill": {
+            "name": "fixture-reach",
+            "version": "sha256:fixture-v1"
+          },
+          "started_ns": 7,
+          "status": "completed",
+          "updated_ns": 9
+        }
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_evidence": {
+        "row": 1,
+        "sha256": "6ebef4555a1818f286337781c9325aa6b9df8f923e553891189f567fcf3430a2",
+        "source": "records"
+      },
+      "goal_revision": "g1",
+      "instruction": "reach the local joint target",
+      "reset_evidence": {
+        "row": 0,
+        "sha256": "db14df269564afb549346dcff5ceebff153320488c9ea329e27b26d48c3476d3",
+        "source": "records"
+      },
+      "reset_ns": 0,
+      "skill_attribution": "explicit_event_evidence"
+    }
+  ],
+  "duplicates": 0,
+  "format": "aisle_execution_ledger",
+  "histories": [],
+  "limits": {
+    "max_events": 10000,
+    "max_invocations_per_episode": 128
+  },
+  "provenance": "synthetic",
+  "source_sha256": "eef3b12fca45dd5ecbfb7b1c41769c45e634c05e3dee4d4e6c432172034ff304",
+  "timeline": [
+    {
+      "decision": "applied",
+      "event_id": "0:0:reset:0:a",
+      "evidence": {
+        "row": 0,
+        "sha256": "db14df269564afb549346dcff5ceebff153320488c9ea329e27b26d48c3476d3",
+        "source": "records"
+      },
+      "kind": "reset",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:goal:1:a",
+      "evidence": {
+        "row": 1,
+        "sha256": "6ebef4555a1818f286337781c9325aa6b9df8f923e553891189f567fcf3430a2",
+        "source": "records"
+      },
+      "kind": "goal",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:proposed:2:a",
+      "evidence": {
+        "row": 2,
+        "sha256": "77453127748b63dffb46acc91ad5921f6cc0eb6588ec47929a22055b0c6233df",
+        "source": "records"
+      },
+      "kind": "proposed",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:started:3:a",
+      "evidence": {
+        "row": 3,
+        "sha256": "88fff85df0cfe58ef688b1593fe98aae6d2503d539668132fe3a7fcfd85867ec",
+        "source": "records"
+      },
+      "kind": "started",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:interrupted:4:a",
+      "evidence": {
+        "row": 4,
+        "sha256": "d9c59b206ed73b767c59da3841d88682bc40db5415dd972a485e61dae675e744",
+        "source": "records"
+      },
+      "kind": "interrupted",
+      "reason": null
+    },
+    {
+      "decision": "rejected",
+      "event_id": "0:0:observed:5:a",
+      "evidence": {
+        "row": 5,
+        "sha256": "456e7e06f83956658b602094b1cf70cd78bf185476247e1729c380e2d6811c5f",
+        "source": "records"
+      },
+      "kind": "observed",
+      "reason": "terminal_or_obsolete_invocation"
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:proposed:6:recovery",
+      "evidence": {
+        "row": 6,
+        "sha256": "4537f511e351e458ee214b1e187e36b2ad3b0a0ccbd820c60547ac9bfef2c06a",
+        "source": "records"
+      },
+      "kind": "proposed",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:started:7:recovery",
+      "evidence": {
+        "row": 7,
+        "sha256": "bcbc06e85659669f99e691d7ca5ee379ba4e1b273f385d382c0adec1f7e3bd3a",
+        "source": "records"
+      },
+      "kind": "started",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:returned:8:recovery",
+      "evidence": {
+        "row": 8,
+        "sha256": "4e94fdd5a5b80027f270bf2ba23e1dae49d581f9a10f0b4c0a6f4a9ee0b0f268",
+        "source": "records"
+      },
+      "kind": "returned",
+      "reason": null
+    },
+    {
+      "decision": "applied",
+      "event_id": "0:0:observed:9:recovery",
+      "evidence": {
+        "row": 9,
+        "sha256": "920ed0e3ed10d5c38eb1dceff4b8604af4fef0034704636b53093464047faf3d",
+        "source": "records"
+      },
+      "kind": "observed",
+      "reason": null
+    }
+  ],
+  "version": 1
+}
