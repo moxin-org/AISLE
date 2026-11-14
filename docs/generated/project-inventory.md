@@ -46,7 +46,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 93 |
+| ADR files | 94 |
 
 ## Graphs
 
@@ -296,6 +296,7 @@ inference.
 | [docs/decisions/ADR-h4-iteration-protocol.md](../decisions/ADR-h4-iteration-protocol.md) | ADR-h4-iteration-protocol — H4 iteration-latency protocol (hot-swap vs relaunch) | ACCEPTED (CON-15 — interpretation recorded, proceeding). |
 | [docs/decisions/ADR-h6-operation-protocol.md](../decisions/ADR-h6-operation-protocol.md) | ADR-h6-operation-protocol — H6 (Operation) campaign protocol | ACCEPTED (CON-15 — interpretation recorded, proceeding). |
 | [docs/decisions/ADR-m3-protocol.md](../decisions/ADR-m3-protocol.md) | ADR-m3-protocol — M3: neural-env ranking agreement, v0 surrogate | ACCEPTED (CON-15 — protocol pre-registered before any scored |
+| [docs/decisions/ADR-p3-chain-completion.md](../decisions/ADR-p3-chain-completion.md) | ADR-p3-chain-completion — Require the recovery result before completion | implementation interpretation of HAR-1/2/4, TC-7 and ADR-32; |
 | [docs/decisions/ADR-p3-recovery-sequencing.md](../decisions/ADR-p3-recovery-sequencing.md) | ADR-p3-recovery-sequencing — Wait for correlated executor completion | proposed implementation interpretation of TC-2/7, HAR-3 and ADR-32; |
 | [docs/decisions/ADR-phase6-prep.md](../decisions/ADR-phase6-prep.md) | ADR-phase6-prep — the hardware entry, prepared while gated | ACCEPTED (CON-15). Date: 2026-08-27. Scope: next-phases |
 | [docs/decisions/ADR-pilot-public-observations.md](../decisions/ADR-pilot-public-observations.md) | ADR-pilot-public-observations — Public observations for the admitted L2 candidate | PROPOSED; Class C review required before merge (CON-10). |

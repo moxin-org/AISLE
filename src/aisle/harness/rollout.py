@@ -159,6 +159,52 @@ def parse_seed_range(spec: str) -> list[int]:
     return [int(s) for s in spec.split(",")]
 
 
+def t4_chain_completion(records: list[dict], seeds: list[int]) -> dict:
+    """Structural completion for ADR-32 increment two, never a success metric."""
+    from aisle.nodes.human_sim import is_corrected
+
+    expected = {}
+    for episode, seed in enumerate(seeds):
+        expected[f"ep-{episode:04d}"] = (episode, seed, False)
+        if is_corrected(seed):
+            expected[f"ep-{episode:04d}r"] = (episode, seed, True)
+    seen, invalid = set(), []
+    for index, record in enumerate(records):
+        if type(record) is not dict:
+            invalid.append(index)
+            continue
+        goal_id = record.get("goal_id")
+        identity = (record.get("episode"), record.get("seed"), record.get("recovery", False))
+        if (
+            type(goal_id) is not str
+            or goal_id not in expected
+            or goal_id in seen
+            or type(identity[0]) is not int
+            or type(identity[1]) is not int
+            or type(identity[2]) is not bool
+            or identity != expected[goal_id]
+            or type(record.get("status")) is not str
+            or record["status"] not in {"success", "fail"}
+            or record.get("synthetic") is True
+        ):
+            invalid.append(index)
+        else:
+            seen.add(goal_id)
+    missing = [goal_id for goal_id in expected if goal_id not in seen]
+    complete = sum(
+        f"ep-{episode:04d}" in seen and (not is_corrected(seed) or f"ep-{episode:04d}r" in seen)
+        for episode, seed in enumerate(seeds)
+    )
+    return dict(
+        ok=not missing and not invalid,
+        complete_episodes=complete,
+        expected_goal_count=len(expected),
+        recorded_goal_count=len(records),
+        missing_goal_ids=missing,
+        invalid_record_indices=invalid,
+    )
+
+
 def compute_metrics(episodes: list[dict]) -> dict:
     """HAR-1/HAR-3: pass1 counts first-attempt successes; pass8 counts an
     episode as passed if it succeeded within <=8 IN-CONTEXT retries
@@ -1111,6 +1157,8 @@ SCRUBBED_ENV = (
     # client directly via `dora run` still set it; they do not go through
     # this runner.
     "AISLE_TARGET_MEDS",
+    # ADR-32: the captured graph, not a developer shell, selects two-goal chains.
+    "AISLE_T4_INCREMENT_TWO",
     # ADR-25 (issue #71): the bridge's bring-up opt-out
     "AISLE_STEP_WITHOUT_RESET",
     # T2: the label toggle changes the SCENE'S PIXELS -- graph-declared for
@@ -1565,6 +1613,12 @@ def rollout(
             return {"ok": False, "refused": reservation}
 
     seeds = (seeds * ((episodes + len(seeds) - 1) // len(seeds)))[:episodes]
+    increment_two = tier == "T4" and any(
+        (graph.parent / node.get("path", "")).resolve()
+        == (root / "src/aisle/harness/rollout_client.py").resolve()
+        and str((node.get("env") or {}).get("AISLE_T4_INCREMENT_TWO", "")).strip() in {"1", "true"}
+        for node in yaml.safe_load(graph_snapshot)["nodes"]
+    )
     run_dir = root / "runs" / run_id
     traces_dir = run_dir / "traces"
     traces_dir.mkdir(parents=True, exist_ok=True)
@@ -1743,6 +1797,15 @@ def rollout(
             # wait for the client to exit or the file to go quiet.
             total = raw.count(b"\n")
             lines = total - raw.count(b'"recovery": true')
+            if increment_two:
+                # A first-goal row is not a completed physical episode. Only
+                # parse newline-terminated records while the client is writing.
+                completion = t4_chain_completion(
+                    [json.loads(line) for line in raw.split(b"\n")[:-1] if line.strip()], seeds
+                )
+                lines = completion["complete_episodes"]
+                if completion["invalid_record_indices"]:
+                    break
             if lines >= episodes:
                 if count_met_t is None:
                     count_met_t = time.monotonic()
@@ -1814,6 +1877,13 @@ def rollout(
             # synthetic wall_clamp failure, and the run RELAUNCHES with the
             # remaining seeds so they still get scored.
             if time.monotonic() - last_line_t > grace:
+                if increment_two:
+                    # Preserve a partial chain as incomplete. A synthetic
+                    # initial-goal failure would duplicate its actual verdict,
+                    # and cannot stand in for the missing recovery scorer.
+                    if lines < len(seeds):
+                        clamped_seeds.append(seeds[lines])
+                    break
                 _terminate(proc)
                 # stale nodes from the killed launch are CONCURRENT WRITERS
                 # to results/traces (dora-rs/dora#2856) — reap before any
@@ -1964,6 +2034,10 @@ def rollout(
         episode_records = [
             json.loads(line) for line in results_path.read_text().splitlines() if line.strip()
         ]
+    chain_completion = t4_chain_completion(episode_records, seeds) if increment_two else None
+    infrastructure_invalid = typed_stage_error is not None or (
+        chain_completion is not None and not chain_completion["ok"]
+    )
     # ADR-24 D2 (PR #69 review F1): a trusted run is attested only if the
     # environment ALSO verifies after execution — against the gate-time
     # inventory, via the self-verified checker. Dev runs (local baseline)
@@ -2048,6 +2122,7 @@ def rollout(
         # ADR-23: per-episode wall clamp — which seeds were cut and how
         # many relaunches carried the remaining seeds
         "wall_clamped": clamped_seeds,
+        **({"chain_completion": chain_completion} if increment_two else {}),
         "relaunches": relaunches,
         # #267: how often the EXECUTED action differed from the PROPOSED one.
         # Persisted rather than left recomputable: the traces it derives from
@@ -2065,9 +2140,10 @@ def rollout(
         manifest["typed_artifacts"] = typed_artifacts
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=1))
     return {
-        "ok": len(episode_records) >= episodes and typed_stage_error is None,
+        "ok": len(episode_records) >= episodes and not infrastructure_invalid,
+        **({"chain_completion": chain_completion} if increment_two else {}),
         **({"campaign_purpose": "expert_parity"} if typed_stage_factory is not None else {}),
-        **({"infrastructure_invalid": True} if typed_stage_error is not None else {}),
+        **({"infrastructure_invalid": True} if infrastructure_invalid else {}),
         "stalled": stalled,
         "run_id": run_id,
         **metrics,
