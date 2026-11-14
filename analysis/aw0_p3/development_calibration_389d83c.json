@@ -1,0 +1,278 @@
+{
+  "batch_stop_reason": "instrument_failure",
+  "batch_wall_seconds": 924.0062451249687,
+  "calibration_screen": {
+    "eligible": false,
+    "failures": null,
+    "invalid_seeds": [
+      208
+    ],
+    "status": "instrument_failure",
+    "successes": null,
+    "unstarted_seeds": [
+      212,
+      216,
+      220,
+      224,
+      228,
+      232,
+      236,
+      240,
+      244
+    ]
+  },
+  "counts": {
+    "attempted_chains": 3,
+    "completed_chains": 2,
+    "failure_classes": {
+      "not_returned": 2
+    },
+    "ordered_recovery_sequences": 0,
+    "planned_chains": 12,
+    "scorer_failures": 2,
+    "scorer_successes": 0,
+    "unstarted_seeds": [
+      212,
+      216,
+      220,
+      224,
+      228,
+      232,
+      236,
+      240,
+      244
+    ]
+  },
+  "evidence": {
+    "archive_catalog": {
+      "path": "aw0-p3-sequenced-retention-389d83c2d5ed/aw0-p3-sequenced-calibration-389d83c2d5ed.json",
+      "sha256": "4025fcff002c136dfd03fb71f7594387b3a96382cf7b32f3d5c56d0fc564f5a0"
+    },
+    "events": {
+      "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/events.jsonl",
+      "sha256": "4f7c14b2548b419c7b9885505d2d0f9bed3d7d5f3ab3dadfeb10517203a5126e"
+    },
+    "host_context": {
+      "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/host-context.json",
+      "sha256": "138323567cc98cd47a9a383e28e34b68f50eeb4447a24d8d4e2a0b4b056ea906"
+    },
+    "prior_source_variant_report": {
+      "path": "aw0-p3-retention-3738fe036115/development-report.json",
+      "sha256": "f81903b5c4d2ac51e04cbd81a80dc0f5c162648efa1fe077dd2c192e7bf41136"
+    },
+    "protocol": {
+      "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/protocol.json",
+      "sha256": "f66337e5fa2bbf7417609f929158726dbad390e4ac2805e2eb2d1bbf1189c4be"
+    },
+    "summary": {
+      "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/summary.json",
+      "sha256": "a9f56054e0e5fbe5803c72d50d2af555ed13242b886e4e09ec4bf1a2872b2f29"
+    }
+  },
+  "format": "aisle_p3_development_calibration_report",
+  "interpretation": [
+    "All attempted, failed and unstarted slots remain in this report.",
+    "Physical scorer success and source-witnessed execution sequence are different observations.",
+    "Executor return does not establish physical completion.",
+    "The earlier source variant remains separately reported; no pooled estimate or matched treatment claim.",
+    "L1 simulator segmentation and scripted human feedback are explicit task limitations.",
+    "This engineering screen does not establish participant isolation or session-level acceptance feasibility.",
+    "P3 remains incomplete; public calibration seeds cannot become pilot or confirmatory holdouts."
+  ],
+  "local_validation": {
+    "affected_acceptance_passed": 3,
+    "unit_deselected": 422,
+    "unit_passed": 4750
+  },
+  "measured_pilot": {
+    "assigned_sessions": 0,
+    "complete": false,
+    "history_effect_estimate": null,
+    "provider_calls": 0,
+    "provider_spend_dollars": 0,
+    "scored_sessions": 0,
+    "started_sessions": 0
+  },
+  "prior_source_variant": {
+    "counts": {
+      "attempted_chains": 12,
+      "completed_chains": 12,
+      "failure_classes": {
+        "collision": 1,
+        "dropped": 1,
+        "not_returned": 7
+      },
+      "ordered_recovery_sequences": 0,
+      "planned_chains": 12,
+      "scorer_failures": 9,
+      "scorer_successes": 3,
+      "unstarted_seeds": []
+    },
+    "pooled": false,
+    "source_commit": "3738fe0361150a0a423da8ac3ad0470cdaf12b26"
+  },
+  "rows": [
+    {
+      "assessment": {
+        "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/seed-200/evidence/assessment.json",
+        "sha256": "ff06f58d3e268fac7e3ff6690f43bfcc73a46f79382691e2125b7a756f1b45cd"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 1,
+      "planning_diagnostics": {
+        "errors": [
+          "IK failed for waypoint 'pregrasp' at [0.349, -0.453, -0.06]"
+        ],
+        "source": {
+          "path": "p3-sequenced-389d83c2d5ed-seed200/dora.stdout.log",
+          "sha256": "979ca93846846e694e408e2a57ca27e283a88e3a0cbde96827e092e43b79da7a"
+        }
+      },
+      "proposed_invocations": 2,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/seed-200/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "adf8cd7b5ff830a5f14ebf2ef5366aadf2a53973a3647bb64baa0afb54a4fda3"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "planning_failed": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-sequenced-389d83c2d5ed-seed200",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 358.493
+      },
+      "seed": 200,
+      "started_invocations": 1,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 200,
+          "status": "success",
+          "t_end": 20.5,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 200,
+          "status": "fail",
+          "t_end": 60.0,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/seed-204/evidence/assessment.json",
+        "sha256": "dd4f15ecdba0611dd91c87730e4fa39c57eadb26a3571f98b8d8177709dd54df"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 1,
+      "planning_diagnostics": {
+        "errors": [
+          "IK failed for waypoint 'pregrasp' at [0.342, -0.453, -0.063]"
+        ],
+        "source": {
+          "path": "p3-sequenced-389d83c2d5ed-seed204/dora.stdout.log",
+          "sha256": "85f6632a2dbd66aa6ffd3f3dc599e9d13e32501a1634a7db1519fbac57145d26"
+        }
+      },
+      "proposed_invocations": 2,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-sequenced-calibration-389d83c2d5ed/seed-204/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "474fbb041a3c435e615bfe664e0d09884cdb4eb5cc1aebf3f9d334ccc5d55e54"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "planning_failed": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-sequenced-389d83c2d5ed-seed204",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 314.445
+      },
+      "seed": 204,
+      "started_invocations": 1,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 204,
+          "status": "success",
+          "t_end": 15.56,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 204,
+          "status": "fail",
+          "t_end": 60.0,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "error": "incomplete scorer evidence",
+      "failures": null,
+      "guarded_invocations": null,
+      "proposed_invocations": null,
+      "recovery_sequence": null,
+      "run_id": "p3-sequenced-389d83c2d5ed-seed208",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 244.176
+      },
+      "seed": 208,
+      "started_invocations": null,
+      "status": "instrument_failure",
+      "success": null
+    }
+  ],
+  "scope": "Separate T4/L1 Genesis qualification after request-correlated motion sequencing repair",
+  "session_rule_feasibility": {
+    "assumption": "Illustrative plug-in calculation only: treats the observed fixed-controller development rate as known and chains as iid. It is not a coding-agent session estimate, uncertainty interval, power calculation, or admission rule.",
+    "eight_holdout_chains_at_observed_median_s": 2691.752,
+    "fixed_controller_development_success_fraction": null,
+    "model_and_tool_overhead_in_projection": false,
+    "observation": "Check the session success rule and wall budget before freezing the pilot; an eligible chain screen alone does not establish session-level variation.",
+    "observed_chain_wall_max_s": 358.493,
+    "observed_chain_wall_median_s": 336.469,
+    "plugin_probability_of_6_of_8_if_independent_identical_chains": null,
+    "proposed_acceptance": "At least 6 of 8 held-out chains, plus zero unintended wrong-object incidents",
+    "status": "not_qualified_by_chain_calibration",
+    "twenty_development_plus_eight_holdout_chains_at_observed_median_s": 9421.132
+  },
+  "source_commit": "389d83c2d5ed56e34d6b9548bc8b110510da051c",
+  "still_required": [
+    "Qualified task and session acceptance feasibility",
+    "Isolated matched history/trace session adapter",
+    "Named provider/model and hard dollar ceiling",
+    "Frozen matched protocol",
+    "Actual matched pilot and report"
+  ],
+  "version": 1
+}

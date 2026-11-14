@@ -278,3 +278,11 @@ identities. Only source bindings and predecessor lineage move; study rules,
 instruments, budgets, seed commitments, analysis and every pending gate remain
 unchanged. The completed T4 calibration at `3738fe0` remains historical,
 ineligible development evidence. These registrations authorize no new study.
+
+CSE v33 and pilot v19 preserve v32 and pilot v18 after the shared rollout
+runner's T4 chain-completion repair. Only the rollout source binding, its
+derived treatment-table identity, and predecessor lineage move. Study rules,
+instruments, budgets, seed commitments, analysis and every pending gate remain
+unchanged. The stopped development
+calibration at `389d83c` remains incomplete historical evidence; these records
+authorize neither a replacement batch nor study collection.
