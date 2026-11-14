@@ -408,6 +408,41 @@ def test_malformed_manifests_reported_as_json(tmp_path):
 GUARD_ROOT = REPO_ROOT / "tests" / "fixtures" / "roots" / "with_guard"
 
 
+@pytest.mark.parametrize(
+    "port, driver", [("joint_cmd", "arm-driver-sim"), ("gripper_cmd", "gripper-driver-sim")]
+)
+@pytest.mark.parametrize("suffix", ["", "_0", "_12"])
+@pytest.mark.parametrize("route", ["raw", "guarded", "timer"])
+def test_motion_gate_covers_indexed_ports(tmp_path, port, driver, suffix, route):
+    """VAL-5, VAL-3: indexed command inputs require the guard and retain their edge identity."""
+    root = fixture_root(tmp_path, {"ik-trajectory": {}, "budget-guard": {}, driver: {}})
+    source = {
+        "raw": f"ik-trajectory/{port}",
+        "guarded": f"budget-guard/{port}_safe",
+        "timer": "dora/timer/millis/10",
+    }[route]
+    graph = write_graph(
+        root,
+        [
+            {"id": "ik-trajectory", "outputs": [port]},
+            {
+                "id": "budget-guard",
+                "inputs": {f"{port}_0": f"ik-trajectory/{port}"},
+                "outputs": [f"{port}_safe"],
+            },
+            {"id": driver, "inputs": {port + suffix: {"source": source, "queue_size": 10}}},
+        ],
+    )
+    code, report = run_validate(graph, "--root", str(root))
+    if route == "guarded":
+        assert code == 0, report
+        assert report["errors"] == []
+    else:
+        assert code != 0, report
+        assert codes(report, "errors") == {"MOTION_UNGATED"}, report
+        assert report["errors"][0]["edge"] == f"{source} -> {driver}/{port}{suffix}"
+
+
 def test_motion_gate_is_topological(tmp_path):
     """VAL-5: every backward path into a driver command input must traverse
     the resolved budget-guard — a multi-hop path THROUGH the guard passes,
