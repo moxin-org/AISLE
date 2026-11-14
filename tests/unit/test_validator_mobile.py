@@ -46,7 +46,8 @@ def test_base_requiring_node_mismatches_on_fixed_base():
     assert [e for e in bad if e["code"] == "EMBODIMENT_MISMATCH"]
 
 
-def test_unguarded_base_cmd_is_rejected(tmp_path):
+@pytest.mark.parametrize("port", ["base_cmd", "base_cmd_0"])
+def test_unguarded_base_cmd_is_rejected(tmp_path, port):
     """MOB-3 (PR #14 review): base_cmd is a motion sink — a base command
     reaching the bridge without traversing the budget guard is MOTION_UNGATED."""
     graph = _write(
@@ -55,7 +56,7 @@ def test_unguarded_base_cmd_is_rejected(tmp_path):
             {"id": "nav-action", "outputs": ["base_cmd"]},
             {
                 "id": "dora-genesis",
-                "inputs": {"base_cmd": "nav-action/base_cmd"},
+                "inputs": {port: "nav-action/base_cmd"},
                 "outputs": ["base_pose"],
             },
         ],
@@ -65,7 +66,8 @@ def test_unguarded_base_cmd_is_rejected(tmp_path):
     assert rc != 0
 
 
-def test_guarded_base_cmd_passes_the_motion_gate(tmp_path):
+@pytest.mark.parametrize("port", ["base_cmd", "base_cmd_0"])
+def test_guarded_base_cmd_passes_the_motion_gate(tmp_path, port):
     """MOB-3: routed through the budget guard, base_cmd is NOT MOTION_UNGATED."""
     graph = _write(
         tmp_path,
@@ -78,7 +80,7 @@ def test_guarded_base_cmd_passes_the_motion_gate(tmp_path):
             },
             {
                 "id": "dora-genesis",
-                "inputs": {"base_cmd": "budget-guard/base_cmd_safe"},
+                "inputs": {port: "budget-guard/base_cmd_safe"},
                 "outputs": ["base_pose"],
             },
         ],

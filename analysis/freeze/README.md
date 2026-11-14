@@ -263,3 +263,10 @@ BND, FLT and SFE), and the CSE pair also binds the regenerated treatment table
 for the `grasp_topdown.py` and `ik_trajectory.py` changes. Seed commitments are
 inherited, every pending gate is preserved, and no registration authorizes
 collection.
+
+CSE v31 and pilot v17 supersede v30 and pilot v16 after the VAL-5 indexed
+motion-port fix: the validator now checks guard coverage using the declared
+base port, and the monolithic treatment table binds that source change.
+Both inherit their predecessor's seed commitment unverified, preserve all
+protocol fields, commands and pending gates, and remain pending review.
+The predecessor records are unchanged; neither successor authorizes collection.
