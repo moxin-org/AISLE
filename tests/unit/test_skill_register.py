@@ -280,6 +280,56 @@ def test_a_stricter_self_declared_floor_still_governs(tmp_path):
         register_skill(skill_dir, root, run_rollout=_ok_rollout(), now="2026-07-25")
 
 
+@pytest.mark.parametrize(
+    "minimum",
+    [float("nan"), float("inf"), float("-inf"), 1.1, None, "invalid", True, 10**400],
+    ids=["nan", "inf", "negative-inf", "above-one", "null", "text", "bool", "overflow"],
+)
+def test_invalid_pass_rate_threshold_is_refused_before_eval(tmp_path, minimum):
+    """CAP-6, CON-8: invalid probability thresholds cannot bypass certification or spend eval."""
+    root = _registry(tmp_path)
+    skill_dir = _write_skill(root, eval_extra={"min_pass_rate": minimum})
+    fake = _ok_rollout({"ok": True, "pass1": 0.0})
+    with pytest.raises(RegistrationError, match="min_pass_rate"):
+        register_skill(skill_dir, root, run_rollout=fake, now="2026-07-25")
+    assert not fake.calls
+    assert not (root / "registry" / "manifests" / "pour-arc.yaml").exists()
+
+
+@pytest.mark.parametrize(
+    "measured",
+    [float("nan"), float("inf"), float("-inf"), -0.1, 1.1, None, "invalid", True, 10**400],
+    ids=["nan", "inf", "negative-inf", "negative", "above-one", "null", "text", "bool", "overflow"],
+)
+@pytest.mark.parametrize("updating", [False, True], ids=["new", "update"])
+def test_invalid_measured_pass_rate_rolls_back_registration(tmp_path, measured, updating):
+    """CAP-6, CAP-7, CON-8: invalid eval rates never certify a skill and restore prior state."""
+    root = _registry(tmp_path)
+    skill_dir = _write_skill(root)
+    installed = root / "registry" / "manifests" / "pour-arc.yaml"
+    if updating:
+        register_skill(skill_dir, root, run_rollout=_ok_rollout(), now="2026-07-24")
+    prior = installed.read_bytes() if installed.exists() else None
+    fake = _ok_rollout({"ok": True, "pass1": measured})
+    with pytest.raises(RegistrationError, match="measured pass_rate"):
+        register_skill(skill_dir, root, run_rollout=fake, now="2026-07-25")
+    assert len(fake.calls) == 1
+    assert (installed.read_bytes() if installed.exists() else None) == prior
+
+
+@pytest.mark.parametrize("rate", [0.5, 1.0, "0.5"])
+def test_valid_rate_at_declared_threshold_is_certified(tmp_path, rate):
+    """CAP-6: equality at valid probability boundaries and numeric strings remains accepted."""
+    root = _registry(tmp_path)
+    skill_dir = _write_skill(root, eval_extra={"min_pass_rate": rate})
+    result = register_skill(
+        skill_dir, root, run_rollout=_ok_rollout({"ok": True, "pass1": rate}), now="2026-07-25"
+    )
+    assert result["ok"] is True
+    assert result["trust_tier"] == "reviewed"
+    assert result["pass_rate"] == float(rate)
+
+
 def test_every_shipped_skill_meets_the_registry_floor(tmp_path):
     """CAP-6 (#243): the floor is calibrated against the corpus, not picked in
     the abstract — every skill already in the library must satisfy it, or the
@@ -319,11 +369,12 @@ def test_cli_surface_parses():
     assert args.command == "skill" and args.skill_command == "register"
 
 
-def test_cli_register_json_contract(tmp_path):
+@pytest.mark.parametrize("eval_extra", [{"seeds": "abc"}, {"min_pass_rate": float("nan")}])
+def test_cli_register_json_contract(tmp_path, eval_extra):
     """CON-8 end to end: JSON on stdout, exit 1 on a refused registration
-    (malformed seeds here — no rollout machinery touched)."""
+    (malformed seeds or threshold — no rollout machinery touched)."""
     root = _registry(tmp_path)
-    skill_dir = _write_skill(root, eval_extra={"seeds": "abc"})
+    skill_dir = _write_skill(root, eval_extra=eval_extra)
     proc = subprocess.run(
         [
             sys.executable,

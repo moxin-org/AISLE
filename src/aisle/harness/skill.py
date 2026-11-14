@@ -34,6 +34,7 @@ malformed YAML, bad seed specs, and unparseable configs included.
 
 from __future__ import annotations
 
+import math
 import tomllib
 import uuid
 from dataclasses import dataclass
@@ -76,6 +77,17 @@ def _load_yaml(path: Path, what: str) -> dict:
     return doc
 
 
+def _parse_pass_rate(value: object, field: str) -> float:
+    error = f"{field} invalid: expected a finite number in [0, 1]"
+    try:
+        rate = float(value)
+    except (ValueError, TypeError, OverflowError) as bad:
+        raise RegistrationError(error) from bad
+    if isinstance(value, bool) or not math.isfinite(rate) or not 0.0 <= rate <= 1.0:
+        raise RegistrationError(error)
+    return rate
+
+
 def load_skill(skill_dir: Path) -> Skill:
     """Read the skill directory's manifest and shipped eval suite."""
     manifest_path = skill_dir / "skill.yaml"
@@ -96,7 +108,7 @@ def load_skill(skill_dir: Path) -> Skill:
     try:
         parse_seed_range(str(eval_cfg["seeds"]))
         int(eval_cfg["episodes"])
-        declared = float(eval_cfg["min_pass_rate"])
+        declared = _parse_pass_rate(eval_cfg["min_pass_rate"], "eval.yaml min_pass_rate")
     except (ValueError, TypeError) as bad:
         raise RegistrationError(f"eval.yaml field invalid: {bad}") from bad
     # CAP-6: refuse HERE, before the eval rollout is spent — a candidate that
@@ -210,7 +222,7 @@ def run_skill_eval(
     if not report.get("ok"):
         detail = report.get("refused") or report.get("error") or "no episodes"
         raise RegistrationError(f"eval run failed before scoring: {detail}")
-    return float(report.get("pass1", 0.0))
+    return _parse_pass_rate(report.get("pass1", 0.0), "measured pass_rate")
 
 
 def register_skill(
@@ -293,7 +305,7 @@ def register_skill(
             }
         eval_run_id = run_id or f"skill-{skill.manifest['id']}-{now}-{uuid.uuid4().hex[:6]}"
         pass_rate = run_skill_eval(skill, root, run_rollout, eval_run_id, sim_engine=sim_engine)
-        minimum = float(skill.eval_cfg["min_pass_rate"])
+        minimum = max(REGISTRY_MIN_PASS_RATE, float(skill.eval_cfg["min_pass_rate"]))
         if pass_rate < minimum:
             raise RegistrationError(
                 f"measured pass_rate {pass_rate:.3f} below the skill's shipped "
