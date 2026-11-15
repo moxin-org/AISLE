@@ -1,6 +1,6 @@
 {
   "benchmark_version": "aisle-benchmark-v1-draft",
-  "manifest_sha256": "513617f4d2d27aa6cd85748dfa25cbee6e402ed1142605f2164f966632f58a57",
+  "manifest_sha256": "0ec8834d5fc28105ff42c63bbfa5ffa652086ce46e43d7f4e9e2bcea342a3911",
   "missing_surfaces": [],
   "schema_version": "aisle.benchmark.version-manifest.v1",
   "status": "draft",
@@ -79,7 +79,7 @@
     },
     "safety_boundary_validator": {
       "path": "src/aisle/harness/validate.py",
-      "sha256": "sha256:6324c0a684e4d56a8711ff7ed5851a23c1c6131f1040f3f6e80c2f896a2ac955"
+      "sha256": "sha256:3d9bbfaa7b7d00ced031496c6e9186f492826c1a6be4872ae9aa3c90342f7b4d"
     },
     "scorer": {
       "path": "src/aisle/verifier",

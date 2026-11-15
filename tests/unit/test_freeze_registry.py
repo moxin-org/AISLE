@@ -22,6 +22,18 @@ from aisle.harness.freeze import FreezeError, build_manifest, check_manifest, ha
 pytestmark = pytest.mark.unit
 
 
+def _assert_validator_successor_current(previous_id):
+    successor_id = {
+        "cse-causal-study-v33": "cse-causal-study-v34",
+        "cse-causal-study-pilot-v19": "cse-causal-study-pilot-v20",
+    }[previous_id]
+    successor = json.loads(
+        (REPO_ROOT / "analysis/freeze" / successor_id / "freeze-manifest.json").read_text()
+    )
+    assert successor["declaration"]["superseded"].startswith(f"{previous_id} (")
+    assert check_manifest(REPO_ROOT, successor, require_seed_sources=False)["ok"] is True
+
+
 def _tree(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
     (root / "graphs").mkdir(parents=True)
@@ -409,7 +421,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 85
+    assert len(manifests) == 87
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -650,7 +662,7 @@ def test_palm_clearance_successors_preserve_protocol_and_gates(previous_id, curr
         }[successor_id]
         latest = json.loads((root / latest_id / "freeze-manifest.json").read_text())
         assert latest["declaration"]["superseded"].startswith(f"{successor_id} (")
-        assert check_manifest(REPO_ROOT, latest, require_seed_sources=False)["ok"] is True
+        _assert_validator_successor_current(latest_id)
     else:
         assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
 
@@ -702,11 +714,12 @@ def test_p3_capture_successors_preserve_protocol_and_pending_gates(previous_id, 
     }[latest_id]
     successor = json.loads((root / successor_id / "freeze-manifest.json").read_text())
     assert successor["declaration"]["superseded"].startswith(f"{latest_id} (")
-    assert check_manifest(REPO_ROOT, successor, require_seed_sources=False)["ok"] is True
+    _assert_validator_successor_current(successor_id)
     drift = check_manifest(REPO_ROOT, previous, require_seed_sources=False)
     assert drift["ok"] is False
     assert {entry.split(": sha256:", 1)[0] for entry in drift["drift"]} == {
         "artifact_hashes.matched_source:src/aisle/harness/rollout.py",
+        "artifact_hashes.matched_source:src/aisle/harness/validate.py",
         "artifact_hashes.public_observation_source:analysis/monolithic-control/experts-t1-l2-v1.json",
         "artifact_hashes.public_observation_source:analysis/monolithic-control/treatment-table-t1-l2-v1.json",
         "artifact_hashes.treatment_table",
@@ -746,7 +759,7 @@ def test_p3_sequence_successors_preserve_study_and_pending_gates(previous_id, cu
     }[current_id]
     successor = json.loads((root / successor_id / "freeze-manifest.json").read_text())
     assert successor["declaration"]["superseded"].startswith(f"{current_id} (")
-    assert check_manifest(REPO_ROOT, successor, require_seed_sources=False)["ok"] is True
+    _assert_validator_successor_current(successor_id)
     assert check_manifest(REPO_ROOT, previous, require_seed_sources=False)["ok"] is False
 
 
@@ -785,6 +798,51 @@ def test_p3_completion_successors_change_only_source_and_lineage(previous_id, cu
     assert changed == {
         "seed_commitment_predecessor",
         "matched_source:src/aisle/harness/rollout.py",
+        "treatment_table",
+    }
+    _assert_validator_successor_current(current_id)
+
+
+@pytest.mark.parametrize(
+    ("previous_id", "current_id"),
+    [
+        ("cse-causal-study-v33", "cse-causal-study-v34"),
+        ("cse-causal-study-pilot-v19", "cse-causal-study-pilot-v20"),
+    ],
+)
+def test_validator_safety_successors_preserve_protocol_and_gates(previous_id, current_id):
+    """CSE-15, MON-1, VAL-5: validator fixes rebind pending records without changing the study."""
+    lineage = f"analysis/freeze/{previous_id}/freeze-manifest.json"
+    previous = json.loads((REPO_ROOT / lineage).read_text())
+    current = json.loads(
+        (REPO_ROOT / "analysis/freeze" / current_id / "freeze-manifest.json").read_text()
+    )
+    old, new = previous["declaration"], current["declaration"]
+    assert new["campaign_id"] == current_id
+    assert new["superseded"].startswith(previous_id + " (")
+    assert new["seed_commitment"] == {**old["seed_commitment"], "inherited_from": lineage}
+    assert new["artifacts"] == {**old["artifacts"], "seed_commitment_predecessor": lineage}
+    for key in set(old) - {"campaign_id", "superseded", "seed_commitment", "artifacts", "commands"}:
+        assert new[key] == old[key], key
+    assert new["commands"] == [
+        command.replace(old["seed_commitment"]["inherited_from"], lineage)
+        for command in old["commands"]
+    ]
+    for key in ("seed_commitment", "pending_gates", "gate_record_hashes", "analysis_script_hashes"):
+        assert current[key] == previous[key], key
+    assert current["status"] == "registered_pending_review"
+    assert current["frozen"] is False
+    assert current["timestamp"] is None and current["timestamp_source"] is None
+    assert current["artifact_hashes"]["seed_commitment_predecessor"] == hash_path(
+        REPO_ROOT, lineage
+    )
+    assert {
+        key
+        for key in current["artifact_hashes"]
+        if current["artifact_hashes"][key] != previous["artifact_hashes"][key]
+    } == {
+        "seed_commitment_predecessor",
+        "matched_source:src/aisle/harness/validate.py",
         "treatment_table",
     }
     assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True

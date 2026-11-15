@@ -1,0 +1,296 @@
+{
+  "actuation_authority": false,
+  "attempts": {},
+  "format": "aisle_shadow_report",
+  "guard_traversal": "unverified",
+  "ok": true,
+  "pending": null,
+  "provenance": "synthetic",
+  "reliability_scope": "synthetic_fixture_inputs",
+  "rule": {
+    "calibrated": false,
+    "min_success_fraction": "1/2",
+    "priority": [
+      "skill",
+      "learned"
+    ],
+    "stale_ns": 500000000
+  },
+  "source_sha256": "9e466491e98ccc98ce36016302cf0dd458f3ff793cdcf2a708ef9aaf361b1c92",
+  "task_success": null,
+  "timeline": [
+    {
+      "cancelled_request": null,
+      "decision": "accepted",
+      "event_id": "e0",
+      "event_sha256": "c31650fbef697965e823484f3f75b46b6251603c81a049c14852561d9d23ab36",
+      "owner": null,
+      "reason": "reset",
+      "row": 0,
+      "sim_time_ns": 0
+    },
+    {
+      "cancelled_request": null,
+      "decision": "accepted",
+      "event_id": "e1",
+      "event_sha256": "9f518f4c9b9c7dd6769f929845a94aa0670644d683efb8060a7bad6517b13814",
+      "owner": null,
+      "reason": "goal",
+      "row": 1,
+      "sim_time_ns": 1
+    },
+    {
+      "decision": "accepted",
+      "event_id": "e2",
+      "event_sha256": "83a4026a80125e18febf5a9cc0b16b459ce02093e7c878f6f8a7a684685a46a6",
+      "owner": null,
+      "reason": "observation_recorded",
+      "row": 2,
+      "sim_time_ns": 2
+    },
+    {
+      "candidates": [
+        {
+          "candidate": "ik-transfer-v2",
+          "reasons": [
+            "selected_fixed_rule"
+          ]
+        },
+        {
+          "candidate": "vla-policy-smolvla",
+          "reasons": [
+            "lower_fixed_priority"
+          ]
+        }
+      ],
+      "decision": "selected",
+      "event_id": "e3",
+      "event_sha256": "ce3aa97bfc65e50cf6e6c6eda1332c3ec39dd4f15023e683292fe1e15808dbcd",
+      "owner": "e3",
+      "reason": "fixed_skill_first",
+      "request_id": "e3",
+      "row": 3,
+      "selected": "ik-transfer-v2",
+      "sim_time_ns": 3
+    },
+    {
+      "decision": "proposed",
+      "event_id": "e4",
+      "event_sha256": "bcb5a89478babe2930865e26678866c3089e9820e01ca49d2906f59c5107b7c9",
+      "owner": "e3",
+      "proposal": {
+        "actuation_authority": false,
+        "candidate": "ik-transfer-v2",
+        "env_id": 0,
+        "episode": 0,
+        "goal_revision": "g1",
+        "kind": "skill_invocation",
+        "obs_ns": 2,
+        "parameters": {
+          "grasp_pose": [
+            0.1,
+            0.2,
+            0.3,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "request_id": "e3",
+        "required_motion_route": "budget_guard_inputs",
+        "version": "sha256:0c1f7fae1de794ad84fb41946a9e472409fcc882ceacf1c51516c29a2fee81be"
+      },
+      "reason": "shadow_boundary",
+      "row": 4,
+      "sim_time_ns": 4
+    },
+    {
+      "cancelled_request": "e3",
+      "decision": "hold",
+      "event_id": "e5",
+      "event_sha256": "2fd0fe82fd838f1236a70e7369cc033cd19831ea21b1a406db7d36fb2c3afc62",
+      "owner": null,
+      "reason": "interrupted",
+      "row": 5,
+      "sim_time_ns": 5
+    },
+    {
+      "decision": "hold",
+      "event_id": "e6",
+      "event_sha256": "9216b453f7d519bb919e3acfe003344f563e8608b7346d39c3f9aa15bcd61688",
+      "owner": null,
+      "reason": "observation_required",
+      "row": 6,
+      "sim_time_ns": 6
+    },
+    {
+      "decision": "accepted",
+      "event_id": "e7",
+      "event_sha256": "a73ba085884c5a881d8153ed9d638aeb722162c9dc7e8fc1ffc72a55fa27eadb",
+      "owner": null,
+      "reason": "observation_recorded",
+      "row": 7,
+      "sim_time_ns": 7
+    },
+    {
+      "candidates": [
+        {
+          "candidate": "ik-transfer-v2",
+          "reasons": [
+            "not_applicable"
+          ]
+        },
+        {
+          "candidate": "vla-policy-smolvla",
+          "reasons": [
+            "selected_fixed_rule"
+          ]
+        }
+      ],
+      "decision": "selected",
+      "event_id": "e8",
+      "event_sha256": "e5652b3becd313044608496bd1289abff8235060074cbf3322a0f60299bdfbaf",
+      "owner": "e8",
+      "reason": "fixed_skill_first",
+      "request_id": "e8",
+      "row": 8,
+      "selected": "vla-policy-smolvla",
+      "sim_time_ns": 8
+    },
+    {
+      "decision": "accepted",
+      "event_id": "e9",
+      "event_sha256": "edc5cf454d74c9180230284d5ec9551bf631de10594a47e485007f2576f44c2c",
+      "owner": "e8",
+      "reason": "chunk_queued",
+      "row": 9,
+      "sim_time_ns": 9
+    },
+    {
+      "decision": "proposed",
+      "event_id": "e10",
+      "event_sha256": "70a9ba4c299afe9a7862a94814dfbeae58c5b821f0b8828816934b379100d9e1",
+      "owner": "e8",
+      "proposal": {
+        "action": {
+          "gripper": 0.2,
+          "joints": [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+          ]
+        },
+        "actuation_authority": false,
+        "candidate": "vla-policy-smolvla",
+        "env_id": 0,
+        "episode": 0,
+        "goal_revision": "g1",
+        "kind": "learned_action",
+        "obs_ns": 7,
+        "request_id": "e8",
+        "required_motion_route": "budget_guard_inputs",
+        "version": "sha256:1b6ce3febd01ebcf9adbb3e56b553640e661ec437dd39e014c029979e825f379"
+      },
+      "reason": "shadow_boundary",
+      "row": 10,
+      "sim_time_ns": 10
+    },
+    {
+      "cancelled_request": "e8",
+      "decision": "accepted",
+      "event_id": "e11",
+      "event_sha256": "8beacd39f8d5d8a1e096193cec3bba26e243ce7d10b8aaf46537716f27c2246d",
+      "owner": null,
+      "reason": "goal",
+      "row": 11,
+      "sim_time_ns": 11
+    },
+    {
+      "decision": "rejected",
+      "event_id": "e12",
+      "event_sha256": "6324ed7e142b5d7db7b3012eb73864a6117c867b18ab125d1899e1732b560768",
+      "owner": null,
+      "reason": "wrong_goal",
+      "row": 12,
+      "sim_time_ns": 12
+    },
+    {
+      "decision": "accepted",
+      "event_id": "e13",
+      "event_sha256": "393bff68c53ed3d2e233790242b844e2c6b45a365c426627e85b852abd135cff",
+      "owner": null,
+      "reason": "observation_recorded",
+      "row": 13,
+      "sim_time_ns": 13
+    },
+    {
+      "candidates": [
+        {
+          "candidate": "ik-transfer-v2",
+          "reasons": [
+            "not_applicable"
+          ]
+        },
+        {
+          "candidate": "vla-policy-smolvla",
+          "reasons": [
+            "selected_fixed_rule"
+          ]
+        }
+      ],
+      "decision": "selected",
+      "event_id": "e14",
+      "event_sha256": "0ed1044a4d899d8114456ab4f45442b2b06229684eca8de36f257d1baad3d08b",
+      "owner": "e14",
+      "reason": "fixed_skill_first",
+      "request_id": "e14",
+      "row": 14,
+      "selected": "vla-policy-smolvla",
+      "sim_time_ns": 14
+    },
+    {
+      "cancelled_request": "e14",
+      "decision": "hold",
+      "event_id": "e114",
+      "event_sha256": "b244099cda0ab3937ca49cde116aefc8f03b68d1e99f6d6692707c07ccb76d3c",
+      "owner": null,
+      "reason": "timeout_hold",
+      "row": 15,
+      "sim_time_ns": 114
+    },
+    {
+      "decision": "rejected",
+      "event_id": "e115",
+      "event_sha256": "289c561886cb2bb992ff9bfd6b49fdd4f731fd804070ceb64b8380f346d00585",
+      "owner": null,
+      "reason": "no_pending_request",
+      "row": 16,
+      "sim_time_ns": 115
+    },
+    {
+      "cancelled_request": null,
+      "decision": "accepted",
+      "event_id": "e116",
+      "event_sha256": "dda9b65c675108f8a1654542ee853379097e4702fc5ac8c31ff5bd676e34022c",
+      "owner": null,
+      "reason": "reset",
+      "row": 17,
+      "sim_time_ns": 116
+    },
+    {
+      "decision": "rejected",
+      "event_id": "e117",
+      "event_sha256": "4a0a6167afe2fc3a5d81252425e828df8b591bf4642001b200cba771ba4ed71e",
+      "owner": null,
+      "reason": "wrong_episode",
+      "row": 18,
+      "sim_time_ns": 117
+    }
+  ],
+  "version": 1
+}

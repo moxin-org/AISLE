@@ -1,0 +1,76 @@
+{
+  "actuation_authority": false,
+  "attempts": {},
+  "format": "aisle_shadow_report",
+  "guard_traversal": "unverified",
+  "ok": true,
+  "pending": null,
+  "provenance": "synthetic",
+  "reliability_scope": "synthetic_fixture_inputs",
+  "rule": {
+    "calibrated": false,
+    "min_success_fraction": "1/2",
+    "priority": [
+      "skill",
+      "learned"
+    ],
+    "stale_ns": 500000000
+  },
+  "source_sha256": "7db779faeb9f809f1e062a1fda02015637e34f25dac45af8a1c2c29ec209617c",
+  "task_success": null,
+  "timeline": [
+    {
+      "cancelled_request": null,
+      "decision": "accepted",
+      "event_id": "e0",
+      "event_sha256": "c31650fbef697965e823484f3f75b46b6251603c81a049c14852561d9d23ab36",
+      "owner": null,
+      "reason": "reset",
+      "row": 0,
+      "sim_time_ns": 0
+    },
+    {
+      "cancelled_request": null,
+      "decision": "accepted",
+      "event_id": "e1",
+      "event_sha256": "9f518f4c9b9c7dd6769f929845a94aa0670644d683efb8060a7bad6517b13814",
+      "owner": null,
+      "reason": "goal",
+      "row": 1,
+      "sim_time_ns": 1
+    },
+    {
+      "decision": "accepted",
+      "event_id": "e2",
+      "event_sha256": "83a4026a80125e18febf5a9cc0b16b459ce02093e7c878f6f8a7a684685a46a6",
+      "owner": null,
+      "reason": "observation_recorded",
+      "row": 2,
+      "sim_time_ns": 2
+    },
+    {
+      "candidates": [
+        {
+          "candidate": "ik-transfer-v2",
+          "reasons": [
+            "unknown_reliability"
+          ]
+        },
+        {
+          "candidate": "vla-policy-smolvla",
+          "reasons": [
+            "below_reliability_floor"
+          ]
+        }
+      ],
+      "decision": "hold",
+      "event_id": "e3",
+      "event_sha256": "ce3aa97bfc65e50cf6e6c6eda1332c3ec39dd4f15023e683292fe1e15808dbcd",
+      "owner": null,
+      "reason": "no_eligible_candidate",
+      "row": 3,
+      "sim_time_ns": 3
+    }
+  ],
+  "version": 1
+}

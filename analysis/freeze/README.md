@@ -286,3 +286,11 @@ instruments, budgets, seed commitments, analysis and every pending gate remain
 unchanged. The stopped development
 calibration at `389d83c` remains incomplete historical evidence; these records
 authorize neither a replacement batch nor study collection.
+
+CSE v34 and pilot v20 preserve v33 and pilot v19 after PR #627's indexed
+motion-input guard fix is integrated with the P3 stack. Only the validator
+source binding, derived treatment-table identity, and predecessor lineage
+move. The earlier P3 v31–v33 and pilot v17–v19 records remain unchanged; #627's
+parallel proposed v31/pilot v17 identities are replaced by these successors.
+Study rules, instruments, budgets, seed commitments, analysis, and every pending
+gate remain unchanged. These records authorize no collection or API invocation.
