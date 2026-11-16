@@ -263,3 +263,35 @@ BND, FLT and SFE), and the CSE pair also binds the regenerated treatment table
 for the `grasp_topdown.py` and `ik_trajectory.py` changes. Seed commitments are
 inherited, every pending gate is preserved, and no registration authorizes
 collection.
+
+CSE v31 and pilot v17 supersede v30 and pilot v16 after P3's opt-in executor
+capture hook changed the shared rollout source and the indexed recovery-input
+repair changed generated current-source treatment/expert records. The optional
+capture helper is now explicitly bound. Study rules, instrument sets, budgets,
+seed commitments, analysis and all pending gates are preserved. These pending
+successors do not authorize CSE or P3 collection, establish physical outcomes,
+or replace the separate P3 calibration and matched-pilot protocols.
+
+CSE v32 and pilot v18 preserve v31 and pilot v17 after the separate P3
+recovery-sequencing repair updates generated current-source treatment/expert
+identities. Only source bindings and predecessor lineage move; study rules,
+instruments, budgets, seed commitments, analysis and every pending gate remain
+unchanged. The completed T4 calibration at `3738fe0` remains historical,
+ineligible development evidence. These registrations authorize no new study.
+
+CSE v33 and pilot v19 preserve v32 and pilot v18 after the shared rollout
+runner's T4 chain-completion repair. Only the rollout source binding, its
+derived treatment-table identity, and predecessor lineage move. Study rules,
+instruments, budgets, seed commitments, analysis and every pending gate remain
+unchanged. The stopped development
+calibration at `389d83c` remains incomplete historical evidence; these records
+authorize neither a replacement batch nor study collection.
+
+CSE v34 and pilot v20 preserve v33 and pilot v19 after PR #627's indexed
+motion-input guard fix is integrated with the P3 stack. Only the validator
+source binding, derived treatment-table identity, the regenerated T1-L2
+treatment record (stale against the rollout runner in v33/pilot v19), and
+predecessor lineage move. The earlier P3 v31–v33 and pilot v17–v19 records remain unchanged; #627's
+parallel proposed v31/pilot v17 identities are replaced by these successors.
+Study rules, instruments, budgets, seed commitments, analysis, and every pending
+gate remain unchanged. These records authorize no collection or API invocation.

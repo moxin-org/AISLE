@@ -1546,6 +1546,14 @@ def _validate_edge(
     is_dora_source = source.startswith("dora/")
     src_id = None if is_dora_source else source.partition("/")[0]
 
+    # Fleet fan-in: `name_<int>` is an instance of declared port `name`.
+    # Resolve it before both safety and schema checks so an indexed motion
+    # input cannot bypass VAL-5. Keep the authored port in error messages.
+    base_port, _, suffix = port.rpartition("_")
+    effective_port = port
+    if port not in declared_inputs and suffix.isdigit() and base_port in declared_inputs:
+        effective_port = base_port
+
     # VAL-5 first: every backward path into a motion sink must traverse the
     # RESOLVED budget-guard (topological, per the spec's "every path"; a
     # same-named node with no manifest is spoofing; timers and unresolvable
@@ -1555,7 +1563,7 @@ def _validate_edge(
     # every path must traverse — raw commands are exactly what it consumes.
     if (
         manifest.get("safety_class") == "motion"
-        and port in MOTION_SINK_PORTS
+        and effective_port in MOTION_SINK_PORTS
         and node_id != GUARD_ID
     ):
         gated = not is_dora_source and _gated_source(source, graph_nodes, manifests, {}, set())
@@ -1569,16 +1577,6 @@ def _validate_edge(
                 )
             )
 
-    # fleet fan-in convention (BRG-5, design doc 8.4.3): `name_<int>` is
-    # an INSTANCE of declared port `name` — a shared node (guard, reset
-    # service) takes one suffixed input per agent, schema unchanged.
-    # Dora needs distinct input ids per source; duplicating every
-    # instance in the manifest would make the agent count a manifest
-    # property, which it is not.
-    base_port, _, suffix = port.rpartition("_")
-    effective_port = port
-    if port not in declared_inputs and suffix.isdigit() and base_port in declared_inputs:
-        effective_port = base_port
     port_declared = effective_port in declared_inputs
     if not port_declared:
         errors.append(

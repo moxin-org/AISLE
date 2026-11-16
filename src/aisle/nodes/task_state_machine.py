@@ -100,6 +100,9 @@ class TaskStateMachine:
         self.confirmed = False
         self.dialogue_corrections = 0
         self.return_med = None  # T4 inc-2: med to take back first
+        self.motion_request: tuple[str, str] | None = None
+        self.motion_serial = 0
+        self.recovery_phase: str | None = None
 
     def _reset_tour(self) -> None:
         self.candidates = None
@@ -142,13 +145,14 @@ class TaskStateMachine:
             # decision node, so the two policies are mutually exclusive
             # by construction (never two writers to the arm).
             topic = "vla_request" if (self.vla_fallback and self.retries >= 2) else "target_request"
-            emissions.append(
-                (
-                    topic,
-                    {"target_med": self.goal["target_med"]},
-                    {"goal_id": self.goal_id},
+            if self.tier == DIALOGUE_TIER:
+                emissions.extend(
+                    self._request_motion(topic, {"target_med": self.goal["target_med"]})
                 )
-            )
+            else:
+                emissions.append(
+                    (topic, {"target_med": self.goal["target_med"]}, {"goal_id": self.goal_id})
+                )
         if self.tier == DIALOGUE_TIER and not self.confirmed:
             phase = "confirming"
         elif self.candidates is not None:
@@ -163,7 +167,7 @@ class TaskStateMachine:
         emissions.append(("episode_feedback", feedback, {"goal_id": self.goal_id}))
         return emissions
 
-    def on_plan_done(self) -> None:
+    def on_plan_done(self, goal_id=None, request_id=None) -> list:
         """The executor finished a grasp plan. If the verdict does not
         arrive within the grace window, the attempt failed in-flight —
         arm a retry (HAR-3), bounded by max_retries. In T4 a plan that
@@ -171,16 +175,40 @@ class TaskStateMachine:
         without a confirmed task — a dialogue protocol violation (ADR-32
         §2), counted in feedback, and no retry (there was no legitimate
         target_request to re-issue)."""
+        if self.tier == DIALOGUE_TIER:
+            if self.motion_request is None or (goal_id, request_id) != self.motion_request:
+                if (
+                    self.goal is not None
+                    and not self.confirmed
+                    and goal_id is None
+                    and request_id is None
+                ):
+                    self.violations["dialogue_protocol"] = (
+                        self.violations.get("dialogue_protocol", 0) + 1
+                    )
+                return []
+            # The old goal can score before the executor finishes its home
+            # stage. Retain that motion boundary across the recovery dialogue.
+            self.motion_request = None
+            if self.goal is None or not self.confirmed:
+                return []
+            if self.recovery_phase == "waiting_previous":
+                return self._begin_return()
+            if self.recovery_phase == "returning":
+                self.recovery_phase = None
+                return self._request_motion(
+                    "target_request", {"target_med": self.goal["target_med"]}
+                )
         if self.goal is None:
-            return
-        if self.tier == DIALOGUE_TIER and not self.confirmed:
-            self.violations["dialogue_protocol"] = self.violations.get("dialogue_protocol", 0) + 1
-            return
+            return []
         if self.retries >= self.max_retries:
-            return
+            return []
         self.retry_due_tick = self.ticks + RETRY_GRACE_TICKS
+        return []
 
-    def on_result(self) -> list:
+    def on_result(self, goal_id=None) -> list:
+        if goal_id is not None and goal_id != self.goal_id:
+            return []
         self.goal = None
         self.retry_due_tick = None
         self._reset_tour()
@@ -188,7 +216,18 @@ class TaskStateMachine:
         self.confirmed = False
         self.dialogue_corrections = 0
         self.return_med = None
+        self.recovery_phase = None
         return []
+
+    def _request_motion(self, topic: str, payload: dict) -> list:
+        self.motion_serial += 1
+        request_id = f"{self.goal_id}/{topic}/{self.motion_serial}"
+        self.motion_request = (self.goal_id, request_id)
+        return [(topic, payload, {"goal_id": self.goal_id, "request_id": request_id})]
+
+    def _begin_return(self) -> list:
+        self.recovery_phase = "returning"
+        return self._request_motion("return_request", {"return_med": self.return_med})
 
     # -- T4 dialogue (ADR-32) -------------------------------------------
 
@@ -206,6 +245,12 @@ class TaskStateMachine:
             med = payload["med"]
             self.goal, self.goal_id, self.violations = {"target_med": med}, goal_id, {}
             self.return_med = payload.get("return_med")
+            self.motion_serial = 0
+            self.recovery_phase = None
+            if not self.return_med:
+                # A fresh initial request starts the next physical episode.
+                # A recovery request instead preserves the preceding motion.
+                self.motion_request = None
             self.ticks = 0
             self.retries = 0
             self.retry_due_tick = None
@@ -235,29 +280,12 @@ class TaskStateMachine:
             ]
         if kind == "confirm_reply" and not self.confirmed:
             self.confirmed = True
-            emissions = []
             if self.return_med:
-                # T4 inc-2: the recovery request names the med to take
-                # BACK. return_item rides the same grasp stack as a
-                # normal pick with the TRAY as source and the shelf
-                # return slot as destination; the executor's
-                # one-plan-at-a-time rule serializes it ahead of the
-                # delivery that follows.
-                emissions.append(
-                    (
-                        "return_request",
-                        {"return_med": self.return_med},
-                        {"goal_id": goal_id},
-                    )
-                )
-            emissions.append(
-                (
-                    "target_request",
-                    {"target_med": self.goal["target_med"]},
-                    {"goal_id": goal_id},
-                )
-            )
-            return emissions
+                if self.motion_request is not None:
+                    self.recovery_phase = "waiting_previous"
+                    return []
+                return self._begin_return()
+            return self._request_motion("target_request", {"target_med": self.goal["target_med"]})
         return []
 
     def on_violation(self, violation: dict) -> None:
@@ -461,7 +489,7 @@ def main() -> None:
             if lockstep:
                 last_tick_sim_ns = int(metadata.get("sim_time_ns", 0))
         elif event["id"] == "episode_result":
-            emit(machine.on_result())
+            emit(machine.on_result(goal_id=metadata.get("goal_id", "")))
         elif event["id"] == "violation":
             machine.on_violation(json.loads(event["value"][0].as_py()))
         elif event["id"] == "tick" and not lockstep:
@@ -474,7 +502,7 @@ def main() -> None:
                 last_tick_sim_ns += 1_000_000_000
                 emit(machine.on_tick())
         elif event["id"] == "plan_done":
-            machine.on_plan_done()
+            emit(machine.on_plan_done(metadata.get("goal_id"), metadata.get("request_id")))
         elif event["id"] == "target_pose":
             pos = (
                 np.asarray(event["value"].to_numpy(zero_copy_only=False), dtype=np.float64)

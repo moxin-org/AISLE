@@ -1,0 +1,384 @@
+{
+  "candidates": [
+    {
+      "id": "ik-transfer-v2",
+      "max_attempts": 2,
+      "reliability": {
+        "successes": 8,
+        "trials": 10
+      },
+      "stages": [
+        "transfer"
+      ],
+      "timeout_ns": 100,
+      "version": "sha256:0c1f7fae1de794ad84fb41946a9e472409fcc882ceacf1c51516c29a2fee81be"
+    },
+    {
+      "id": "vla-policy-smolvla",
+      "max_attempts": 2,
+      "reliability": {
+        "successes": 8,
+        "trials": 10
+      },
+      "stages": [
+        "transfer"
+      ],
+      "timeout_ns": 100,
+      "version": "sha256:1b6ce3febd01ebcf9adbb3e56b553640e661ec437dd39e014c029979e825f379"
+    }
+  ],
+  "format": "aisle_shadow_events",
+  "provenance": "synthetic",
+  "records": [
+    {
+      "env_id": 0,
+      "episode": 0,
+      "id": "e0",
+      "kind": "reset",
+      "sim_time_ns": 0
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e1",
+      "instruction": "move the requested object",
+      "kind": "goal",
+      "sim_time_ns": 1
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e2",
+      "kind": "observation",
+      "obs_ns": 2,
+      "sim_time_ns": 2
+    },
+    {
+      "applicable": [
+        "ik-transfer-v2",
+        "vla-policy-smolvla"
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e3",
+      "kind": "select",
+      "parameters": {
+        "ik-transfer-v2": {
+          "grasp_pose": [
+            0.1,
+            0.2,
+            0.3,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "vla-policy-smolvla": {}
+      },
+      "remaining_budget_ns": 200,
+      "sim_time_ns": 3,
+      "stage": "transfer"
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e4",
+      "kind": "boundary",
+      "sim_time_ns": 4
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e5",
+      "kind": "interrupt",
+      "request_id": "e3",
+      "sim_time_ns": 5
+    },
+    {
+      "applicable": [
+        "vla-policy-smolvla"
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e6",
+      "kind": "select",
+      "parameters": {
+        "ik-transfer-v2": {
+          "grasp_pose": [
+            0.1,
+            0.2,
+            0.3,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "vla-policy-smolvla": {}
+      },
+      "remaining_budget_ns": 200,
+      "sim_time_ns": 6,
+      "stage": "transfer"
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e7",
+      "kind": "observation",
+      "obs_ns": 7,
+      "sim_time_ns": 7
+    },
+    {
+      "applicable": [
+        "vla-policy-smolvla"
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e8",
+      "kind": "select",
+      "parameters": {
+        "ik-transfer-v2": {
+          "grasp_pose": [
+            0.1,
+            0.2,
+            0.3,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "vla-policy-smolvla": {}
+      },
+      "remaining_budget_ns": 200,
+      "sim_time_ns": 8,
+      "stage": "transfer"
+    },
+    {
+      "candidate": "vla-policy-smolvla",
+      "chunk": [
+        {
+          "gripper": 0.2,
+          "joints": [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "gripper": 0.3,
+          "joints": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ]
+        }
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e9",
+      "kind": "reply",
+      "request_id": "e8",
+      "sim_time_ns": 9,
+      "version": "sha256:1b6ce3febd01ebcf9adbb3e56b553640e661ec437dd39e014c029979e825f379"
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e10",
+      "kind": "boundary",
+      "sim_time_ns": 10
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g2",
+      "id": "e11",
+      "instruction": "move the requested object",
+      "kind": "goal",
+      "sim_time_ns": 11
+    },
+    {
+      "candidate": "vla-policy-smolvla",
+      "chunk": [
+        {
+          "gripper": 0.2,
+          "joints": [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "gripper": 0.3,
+          "joints": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ]
+        }
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g1",
+      "id": "e12",
+      "kind": "reply",
+      "request_id": "e8",
+      "sim_time_ns": 12,
+      "version": "sha256:1b6ce3febd01ebcf9adbb3e56b553640e661ec437dd39e014c029979e825f379"
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g2",
+      "id": "e13",
+      "kind": "observation",
+      "obs_ns": 13,
+      "sim_time_ns": 13
+    },
+    {
+      "applicable": [
+        "vla-policy-smolvla"
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g2",
+      "id": "e14",
+      "kind": "select",
+      "parameters": {
+        "ik-transfer-v2": {
+          "grasp_pose": [
+            0.1,
+            0.2,
+            0.3,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "vla-policy-smolvla": {}
+      },
+      "remaining_budget_ns": 200,
+      "sim_time_ns": 14,
+      "stage": "transfer"
+    },
+    {
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g2",
+      "id": "e114",
+      "kind": "boundary",
+      "sim_time_ns": 114
+    },
+    {
+      "candidate": "vla-policy-smolvla",
+      "chunk": [
+        {
+          "gripper": 0.2,
+          "joints": [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "gripper": 0.3,
+          "joints": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ]
+        }
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g2",
+      "id": "e115",
+      "kind": "reply",
+      "request_id": "e14",
+      "sim_time_ns": 115,
+      "version": "sha256:1b6ce3febd01ebcf9adbb3e56b553640e661ec437dd39e014c029979e825f379"
+    },
+    {
+      "env_id": 0,
+      "episode": 1,
+      "id": "e116",
+      "kind": "reset",
+      "sim_time_ns": 116
+    },
+    {
+      "candidate": "vla-policy-smolvla",
+      "chunk": [
+        {
+          "gripper": 0.2,
+          "joints": [
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "gripper": 0.3,
+          "joints": [
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2,
+            0.2
+          ]
+        }
+      ],
+      "env_id": 0,
+      "episode": 0,
+      "goal_revision": "g2",
+      "id": "e117",
+      "kind": "reply",
+      "request_id": "e14",
+      "sim_time_ns": 117,
+      "version": "sha256:1b6ce3febd01ebcf9adbb3e56b553640e661ec437dd39e014c029979e825f379"
+    }
+  ],
+  "version": 1
+}

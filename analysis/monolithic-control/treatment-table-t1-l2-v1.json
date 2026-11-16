@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:7b677f7c92f8dbfea02705b960c265c48ff1c3b62ae5cc3433e7bac672edaa68",
+  "immutable_id": "sha256:7d2374224427c8b1041f6cfc498eda828ca3f7dece6efc862dfd1bcf3f75eb2b",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -8,16 +8,16 @@
       "justification": "this is the treatment: bundled typed-dataflow engineering surface versus one ordinary module",
       "monolithic": "experts/monolithic/expert_t1_l2.py#sha256:01821c12b1a49e60f41711ef9d00450052f5a5a85d6e5fea020d3fe449bdbeb4",
       "surface": "agent deliverable",
-      "typed": "graphs/pilot_t1_l2_typed.yaml#sha256:3f0158853aa3a520e284062116b4892ac21273add9320ad6841a6018b00c53f6"
+      "typed": "graphs/pilot_t1_l2_typed.yaml#sha256:aba26aa4be0aaf61bcb7be3d91a7c00d57b5ffcd5093b7a59e8e1bf4c09ebddb"
     },
     {
       "analysis": "recorded as treatment property; check/run attempt and error events compared descriptively",
       "classification": "intentionally-different",
       "id": "mon1-02",
       "justification": "part of the bundled treatment; absence is a declared property, not missing data (MON-12)",
-      "monolithic": "src/aisle/harness/monolith.py#sha256:98c59d5f0887cf808888deadeb0712de37621a875a3e1d87dae0469478ddbc55",
+      "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "static validation and diagnostics",
-      "typed": "src/aisle/harness/validate.py#sha256:55ab8640ce1dc85fac48ba5b21556cfaf1f1827c60cc2056abe12b51ae8d03e2"
+      "typed": "src/aisle/harness/validate.py#sha256:f0e8281a49a54bc8f9bc5c2a973382512b3c2f775a52899f0e79e7d0e358bb00"
     },
     {
       "analysis": "treatment property",
@@ -44,7 +44,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/monolith/primitives.py#sha256:b408cf09cb4a2dc76a43bee63f0b61a46e247361cad307ec71f182e3d797a06d",
       "surface": "robot primitives (pose, grasp, trajectory, executor)",
-      "typed": "src/aisle/nodes/l2_pose.py#sha256:8dffddeb0d3ae61e21a8371da2e80f9b021e0eacd990e449b1feed29416ee941"
+      "typed": "src/aisle/nodes/l2_pose.py#sha256:ddb41aae838bb2f76b33b5ae4a71f422b5af3186a207bdb7f3e79a4cffca9b9f"
     },
     {
       "analysis": "held fixed; exactness checked by harness monolith interface",
@@ -80,7 +80,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/nodes/monolith_broker.py#sha256:872741da1be8cfa0c89a4ee77ee4fb8a457f130a48228d39ebb8e09a84ee3d46",
       "surface": "trusted controller (bridge, reset, verifier, rollout client, turn barrier)",
-      "typed": "src/aisle/nodes/dora_genesis.py#sha256:b4f454c471e01bfee648a0a87806af50ea8d777fcf6052fdba9e0ccc3cff86a6"
+      "typed": "src/aisle/nodes/dora_genesis.py#sha256:1d2bfb3aaecf60e664649ed2ee9b09deded448080b7efcdc9b655af4c70fb3aa"
     },
     {
       "analysis": "excluded from task authority (MON-4); no analysis treatment",
@@ -114,9 +114,9 @@
       "classification": "identical",
       "id": "mon1-13",
       "justification": "none needed: same artifact",
-      "monolithic": "src/aisle/harness/monolith.py#sha256:98c59d5f0887cf808888deadeb0712de37621a875a3e1d87dae0469478ddbc55",
+      "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "episode budget, seeds, reset semantics, evaluator",
-      "typed": "src/aisle/harness/rollout.py#sha256:a201e4b2f66a90f600a0385de9706be4ce97149196b2f5fb63d98faac861be59"
+      "typed": "src/aisle/harness/rollout.py#sha256:253fc95eaf38f1e7783bc80dcbac027b4a7d3dc470d5418b5555c54f0346d453"
     },
     {
       "analysis": "infrastructure-invalid records excluded in both arms; confinement status in the MON-8 tuple",

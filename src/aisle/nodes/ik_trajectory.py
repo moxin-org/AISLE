@@ -1133,9 +1133,16 @@ def main() -> None:
     )
 
     env_pin = env_pin_from_env(os.environ)
-    node = Node()
+    capture = None
+    if "AISLE_EXECUTION_CAPTURE_CONFIG" in os.environ:
+        from aisle.harness.execution_capture import captured_node
+
+        node, capture = captured_node(os.environ)
+    else:
+        node = Node()
     send = make_sender(node, env_pin)
     streamer: StageStreamer | None = None
+    grasp_identity: dict = {}
     # while a read move runs: {request_id, face, attempts: [(q, range_m)],
     # attempt_idx} — the executor walks the ladder until one attempt TRACKS
     pending_read: dict | None = None
@@ -1172,14 +1179,24 @@ def main() -> None:
         if not env_accepts(metadata, env_pin):
             continue  # fleet mode (BRG-5): another env's stream
         if event["id"] == "reset_done":
+            if capture:
+                capture.reset(event)
             # episode boundary: NEVER keep executing a stale plan — in the
             # first live run a stale stream fought the post-reset guard
             # reference until the wall timeout froze everything
             streamer = None
+            grasp_identity = {}
             pending_read = None
             parked_at_read = False
         elif event["id"] == "read_move":
+            invocation = (
+                capture.propose(event, {"operation": "read", "request": event["value"][0].as_py()})
+                if capture
+                else None
+            )
             if streamer is not None and not streamer.done:
+                if capture:
+                    capture.reject(invocation, "controller_busy")
                 print("read_move refused: a plan is executing", file=sys.stderr)
                 continue
             request = json.loads(event["value"][0].as_py())
@@ -1193,6 +1210,8 @@ def main() -> None:
                 # entries, whose margin floor (0.04) is the trustworthy one
                 attempts = [a for a in attempts if a[2] == 0.0]
             if offset >= len(attempts):
+                if capture:
+                    capture.reject(invocation, "read_ladder_exhausted")
                 # ladder exhausted (or unreachable face / non-franka):
                 # REPLY with failure so the tour advances instead of
                 # hanging on a silent drop
@@ -1210,8 +1229,29 @@ def main() -> None:
                 "attempt_idx": offset,
             }
             start_read_attempt(pending_read)
-        elif event["id"] == "grasp_pose":
+            grasp_identity = {}
+            if capture:
+                capture.accept(invocation)
+        elif event["id"] == "grasp_pose" or (
+            event["id"].startswith("grasp_pose_") and event["id"].rpartition("_")[2].isdigit()
+        ):
+            invocation = (
+                capture.propose(
+                    event,
+                    {
+                        "operation": "grasp",
+                        "pose": event["value"].to_pylist(),
+                        "place_xy": metadata.get("place_xy", list(tray_xy)),
+                        "place_tcp_z": metadata.get("place_tcp_z", PLACE_TCP_Z),
+                        "approach_m": metadata.get("approach_m", 0.15),
+                    },
+                )
+                if capture
+                else None
+            )
             if streamer is not None and not streamer.done:
+                if capture:
+                    capture.reject(invocation, "controller_busy")
                 continue  # one plan at a time; re-plan only after home
             # T4 inc-2 (return_item): a plan whose metadata carries
             # place_xy delivers to THAT destination instead of the tray
@@ -1230,6 +1270,8 @@ def main() -> None:
                 embodiment=embodiment,
             )
             if not candidate.ok:
+                if capture:
+                    capture.reject(invocation, "planning_failed")
                 print(f"grasp plan failed: {candidate.error}", file=sys.stderr)
                 continue
             stages = list(candidate.stages)
@@ -1257,11 +1299,24 @@ def main() -> None:
                 embodiment=embodiment,
                 max_waypoints=plan_waypoint_cap(stages) if h6_fault == "traj_short" else None,
             )
+            grasp_identity = {
+                key: metadata[key] for key in ("goal_id", "request_id") if key in metadata
+            }
+            if capture:
+                capture.accept(invocation)
             print(f"plan ready: {len(stages)} stages", file=sys.stderr)
         elif event["id"] == "joint_state" and streamer is not None and not streamer.done:
             qpos = np.asarray(
                 event["value"].to_numpy(zero_copy_only=False), dtype=np.float32
             ).reshape(-1)
+            if capture:
+                capture.observe(
+                    event,
+                    stage={
+                        "name": streamer.stages[streamer.stage_idx].name,
+                        "read_attempt": pending_read["attempt_idx"] if pending_read else None,
+                    },
+                )
             full_cmd, grip_out, logs = streamer.step(qpos)
             if grip_out is not None:
                 send("gripper_cmd", pa.array(np.array([grip_out], dtype=np.float32)), metadata)
@@ -1271,13 +1326,25 @@ def main() -> None:
                 print(line, file=sys.stderr)
             if streamer.done:
                 streamer = None  # finished: idle until the next episode
+                if capture and pending_read is None:
+                    capture.finish(metadata)
                 if pending_read is None and plan_done_declared(
                     os.environ.get("AISLE_TURN_OUTPUTS", "")
                 ):
                     # a GRASP plan completed (read parks reply on
                     # move_done): tell the state machine so it can arm
                     # an in-context retry if no verdict lands (HAR-3)
-                    send("plan_done", pa.array([json.dumps({"ok": True})]), metadata)
+                    completion_meta = {
+                        key: value
+                        for key, value in metadata.items()
+                        if key not in ("goal_id", "request_id")
+                    }
+                    send(
+                        "plan_done",
+                        pa.array([json.dumps({"ok": True})]),
+                        {**completion_meta, **grasp_identity},
+                    )
+                    grasp_identity = {}
                 if pending_read is not None:
                     q_read, range_m, pitch, _ = pending_read["attempts"][
                         pending_read["attempt_idx"]
@@ -1301,6 +1368,8 @@ def main() -> None:
                             pa.array([json.dumps({"ok": False})]),
                             {"request_id": pending_read["request_id"]},
                         )
+                        if capture:
+                            capture.finish(metadata)
                         print(f"read_move untrackable (err {track_err:.2f})", file=sys.stderr)
                         pending_read = None
                         continue
@@ -1344,6 +1413,8 @@ def main() -> None:
                         pa.array([json.dumps(payload)]),
                         {"request_id": pending_read["request_id"]},
                     )
+                    if capture:
+                        capture.finish(metadata)
                     pending_read = None
 
 

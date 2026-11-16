@@ -1,5 +1,10 @@
 # P3 readiness: collection is not ready
 
+Follow-up implementation: [goal-chain capture repair](agentic-wam-p3-capture.md)
+retains goal metadata and represents recovery verdicts within physical reset
+windows. This repairs one evidence path; the other collection gates below
+remain outstanding. P3 completion is the active objective, not readiness alone.
+
 This is the readiness milestone for [P3](agentic-wam-adoption-plan.md), after
 P2 merged in [PR #617](https://github.com/moxin-org/AISLE/pull/617). It is not
 a completed pilot, registration, or memory-benefit result. **Zero P3 sessions

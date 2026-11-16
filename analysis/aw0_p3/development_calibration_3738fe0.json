@@ -1,0 +1,719 @@
+{
+  "batch_stop_reason": null,
+  "batch_wall_seconds": 3446.946690958983,
+  "calibration_screen": {
+    "eligible": false,
+    "failures": 9,
+    "invalid_seeds": [],
+    "status": "ineligible",
+    "successes": 3,
+    "unstarted_seeds": []
+  },
+  "counts": {
+    "attempted_chains": 12,
+    "completed_chains": 12,
+    "failure_classes": {
+      "collision": 1,
+      "dropped": 1,
+      "not_returned": 7
+    },
+    "ordered_recovery_sequences": 0,
+    "planned_chains": 12,
+    "scorer_failures": 9,
+    "scorer_successes": 3,
+    "unstarted_seeds": []
+  },
+  "evidence": {
+    "archive_catalog": {
+      "path": "aw0-p3-retention-3738fe036115/aw0-p3-calibration-3738fe036115-awake.json",
+      "sha256": "168f5d841900c75cc2d9d82c7c53a848ce1b9815e0d1c521b4f0c61f5f4bef66"
+    },
+    "events": {
+      "path": "aw0-p3-calibration-3738fe036115-awake/events.jsonl",
+      "sha256": "a916fc750bb884e28a08d288e9429046e32dad7aafeb7fc960c3d57ffe1beac1"
+    },
+    "prior_startup_failure": {
+      "path": "aw0-p3-calibration-3738fe036115/summary.json",
+      "sha256": "5be9a19f20c505e5ae62fee6fec993a2417ab007d013d5226cd955d65bee613a"
+    },
+    "protocol": {
+      "path": "aw0-p3-calibration-3738fe036115-awake/protocol.json",
+      "sha256": "7d9376ce79930eaad6ba28a814dabcc87232b6578e084ecf715f11a43313b6a7"
+    },
+    "summary": {
+      "path": "aw0-p3-calibration-3738fe036115-awake/summary.json",
+      "sha256": "6820a3c03aa37f77bece05cdd26e0e65d5dcc979ac31d9e3f7cdd5a35d9ba03e"
+    }
+  },
+  "format": "aisle_p3_development_calibration_report",
+  "interpretation": [
+    "Physical scorer success and source-witnessed skill sequence are separate observations.",
+    "An executor return does not establish physical delivery completion.",
+    "No task admission unless the complete frozen screen passes.",
+    "These public development seeds and outcomes cannot enter a later pilot or confirmatory estimate.",
+    "P3 remains incomplete until an eligible task, isolated matched sessions and their analysis are available."
+  ],
+  "local_validation": {
+    "affected_acceptance_passed": 2,
+    "unit_deselected": 421,
+    "unit_passed": 4739
+  },
+  "measured_pilot": {
+    "assigned_sessions": 0,
+    "complete": false,
+    "history_effect_estimate": null,
+    "provider_calls": 0,
+    "provider_spend_dollars": 0,
+    "scored_sessions": 0,
+    "started_sessions": 0
+  },
+  "preparation_notes": [
+    {
+      "path": "aw0-p3-retention-3738fe036115/p3-session-adapter-preparation.json",
+      "sha256": "8f4efe660aaf2f550ec59deb8e339d0a6221cbc43d21a4a38d7674cdc29c9578"
+    },
+    {
+      "path": "aw0-p3-retention-3738fe036115/p3-recovery-sequencing-inspection.json",
+      "sha256": "43a81b8c20d6278be1d388b457bc8e021bcf20abf1e0ce381b95ca177194bf24"
+    }
+  ],
+  "prior_attempt": {
+    "explanation": "The existing display was online but inactive; Genesis/Pyglet failed before simulation. The separately frozen host repair held it awake, kept the original deadline, and changed no task or engine code.",
+    "physical_episode_records": 0,
+    "status": "separately_retained_startup_instrument_failure"
+  },
+  "repair_prs": [
+    "https://github.com/moxin-org/AISLE/pull/620",
+    "https://github.com/moxin-org/AISLE/pull/621"
+  ],
+  "rows": [
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-200/evidence/assessment.json",
+        "sha256": "bc67adf67623bc5c884293ea7d7f7e41dc75f617c963143c6e5a0644d1d6a02c"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 1,
+      "proposed_invocations": 2,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-200/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "732a1988e7b42b4ced84649b02808811e92329ae236558a7b9be57d45b59b477"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed200",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 418.825
+      },
+      "seed": 200,
+      "started_invocations": 1,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 200,
+          "status": "success",
+          "t_end": 20.5,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 200,
+          "status": "fail",
+          "t_end": 60.0,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-204/evidence/assessment.json",
+        "sha256": "b417330e6ccd2a9829924bf4e9a71c28007e5ea755f7163491a341006f756890"
+      },
+      "error": null,
+      "failures": {},
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-204/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "fed1f7fd995637bd31b847ce5ce0e97169e0e71e5cd3cd00877a531b9a196e14"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed204",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 374.714
+      },
+      "seed": 204,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": true,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 204,
+          "status": "success",
+          "t_end": 15.56,
+          "verifier": "oracle"
+        },
+        {
+          "failure": null,
+          "goal_id": "ep-0000r",
+          "seed": 204,
+          "status": "success",
+          "t_end": 19.6,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-208/evidence/assessment.json",
+        "sha256": "0fd2ce62e62f1bbad67423d82b419da0af19a82fb2daa88d9716289f8b9ffd7c"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-208/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "cdfd957a424494e2e362b929632f2abbdbe211d9f812efc3aa22876c1a946b5c"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed208",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 358.335
+      },
+      "seed": 208,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 208,
+          "status": "success",
+          "t_end": 15.13,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 208,
+          "status": "fail",
+          "t_end": 15.94,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-212/evidence/assessment.json",
+        "sha256": "fba86a48229f152a6054b1b76007c3ed991f8307cbf4a8e804d857730f76a8b4"
+      },
+      "error": null,
+      "failures": {},
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-212/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "a876a90d66a10917837aaa5ce93709ed200e576bb7a264a71bd89161c0842a06"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed212",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 361.108
+      },
+      "seed": 212,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": true,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 212,
+          "status": "success",
+          "t_end": 14.0,
+          "verifier": "oracle"
+        },
+        {
+          "failure": null,
+          "goal_id": "ep-0000r",
+          "seed": 212,
+          "status": "success",
+          "t_end": 18.37,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-216/evidence/assessment.json",
+        "sha256": "deeafa9ba971735284af35f49ede026db2b840e49ca4b990fc140a4b1085f90f"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-216/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "e077ede7070432c8e3e8dae99e047ab02446e74c89e46c36e6e2aad81f98332b"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed216",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 380.785
+      },
+      "seed": 216,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 216,
+          "status": "success",
+          "t_end": 21.46,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 216,
+          "status": "fail",
+          "t_end": 16.23,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-220/evidence/assessment.json",
+        "sha256": "19e26dab1fcbecd1f1ba47dbe9798b5901619c97a5e9ca07c53b49146af18bba"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-220/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "d30a5d1971be875a9ce45d9f6ec7e13b28974f8ea30a94168b86da6000acb2a5"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed220",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 397.486
+      },
+      "seed": 220,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 220,
+          "status": "success",
+          "t_end": 19.66,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 220,
+          "status": "fail",
+          "t_end": 23.9,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-224/evidence/assessment.json",
+        "sha256": "20e978df182984687d2c14b0a35f026a444c16256820a382b11c5c747a7c9ebf"
+      },
+      "error": null,
+      "failures": {},
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-224/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "419fa1d4456a3ebb63a42be89778e2f8edcd4f9db21c4565f0f83da622f1bd22"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed224",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 200.481
+      },
+      "seed": 224,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": true,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 224,
+          "status": "success",
+          "t_end": 13.23,
+          "verifier": "oracle"
+        },
+        {
+          "failure": null,
+          "goal_id": "ep-0000r",
+          "seed": 224,
+          "status": "success",
+          "t_end": 22.47,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-228/evidence/assessment.json",
+        "sha256": "d7a88884d0bf2417cc5a27c0920bde57f69060557171968918eb12ab637c41f2"
+      },
+      "error": null,
+      "failures": {
+        "collision": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-228/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "22adbc8a674b10f4ce0b1f17dc564cca4cf29fe62d5823bbdaa8de712cc2d93c"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed228",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 170.214
+      },
+      "seed": 228,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 228,
+          "status": "success",
+          "t_end": 20.13,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "collision",
+          "goal_id": "ep-0000r",
+          "seed": 228,
+          "status": "fail",
+          "t_end": 5.5,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-232/evidence/assessment.json",
+        "sha256": "5ac9bc60fc1ff21caa5c37d3725472d464a9f159d62db905814e91a0b38a7c23"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-232/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "d39ab8a47dba66575726c75a5bc2f1084665025f84e0ddf5c3d44dffa85637cc"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed232",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 185.22
+      },
+      "seed": 232,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 232,
+          "status": "success",
+          "t_end": 16.0,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 232,
+          "status": "fail",
+          "t_end": 18.73,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-236/evidence/assessment.json",
+        "sha256": "4da1a754b182e00ce1614f318e7dd3e837c3fa0c6416ecf1ed28879329dfeaa1"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-236/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "c754a8f2789f81d2302b3fe6da28c2989a6fd7b9e1c16c7d9178ac51540aad8e"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed236",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 181.08
+      },
+      "seed": 236,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 236,
+          "status": "success",
+          "t_end": 15.7,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 236,
+          "status": "fail",
+          "t_end": 17.97,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-240/evidence/assessment.json",
+        "sha256": "34cd33e2c5ba67b60e32d7ec987d2bddcb931ac9997eef2299f53cb43fdbf58b"
+      },
+      "error": null,
+      "failures": {
+        "not_returned": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-240/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "afe7d4f058d3b4f738aafeae4237d7d7633ef43a94a67e5218585e023b1e5ad2"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed240",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 199.166
+      },
+      "seed": 240,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 240,
+          "status": "success",
+          "t_end": 21.46,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "not_returned",
+          "goal_id": "ep-0000r",
+          "seed": 240,
+          "status": "fail",
+          "t_end": 22.46,
+          "verifier": "oracle"
+        }
+      ]
+    },
+    {
+      "assessment": {
+        "path": "aw0-p3-calibration-3738fe036115-awake/seed-244/evidence/assessment.json",
+        "sha256": "ad5e487a513de3a0d0f3c0c142e1496f1639a1f85fd9edbdb227eb07e374785d"
+      },
+      "error": null,
+      "failures": {
+        "dropped": 1
+      },
+      "guarded_invocations": 2,
+      "proposed_invocations": 4,
+      "recovery_sequence": false,
+      "return_invocations": {
+        "journal": {
+          "path": "aw0-p3-calibration-3738fe036115-awake/seed-244/evidence/policy/traces/executions/ik-trajectory.jsonl",
+          "sha256": "c589f1a5d4871b5b7cb7035636e7f34c09900e9b0149d9ca01fc263e830e32a2"
+        },
+        "proposed": 1,
+        "rejection_reasons": {
+          "controller_busy": 1
+        },
+        "started": 0
+      },
+      "run_id": "p3-calibration-3738fe036115-awake-seed244",
+      "runtime": {
+        "returncode": 0,
+        "timed_out": false,
+        "wall_s": 188.99
+      },
+      "seed": 244,
+      "started_invocations": 2,
+      "status": "complete",
+      "success": false,
+      "verdicts": [
+        {
+          "failure": null,
+          "goal_id": "ep-0000",
+          "seed": 244,
+          "status": "success",
+          "t_end": 14.33,
+          "verifier": "oracle"
+        },
+        {
+          "failure": "dropped",
+          "goal_id": "ep-0000r",
+          "seed": 244,
+          "status": "fail",
+          "t_end": 22.87,
+          "verifier": "oracle"
+        }
+      ]
+    }
+  ],
+  "scope": "T4 return/redelivery, L1 perception, Genesis; development evidence only",
+  "source_commit": "3738fe0361150a0a423da8ac3ad0470cdaf12b26",
+  "still_required": [
+    "Qualified recovery/composition task",
+    "Isolated history/trace session adapter",
+    "Named provider/model and hard dollar ceiling",
+    "Frozen matched protocol",
+    "Actual matched pilot and report"
+  ],
+  "version": 1
+}
