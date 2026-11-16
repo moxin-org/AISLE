@@ -844,5 +844,7 @@ def test_validator_safety_successors_preserve_protocol_and_gates(previous_id, cu
         "seed_commitment_predecessor",
         "matched_source:src/aisle/harness/validate.py",
         "treatment_table",
+        # v33/pilot-v19 bound a T1-L2 record already stale against rollout.py.
+        "public_observation_source:analysis/monolithic-control/treatment-table-t1-l2-v1.json",
     }
     assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True

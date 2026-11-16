@@ -145,7 +145,7 @@
     "protocol_template": "sha256:9d636f3dc462a2e051ee0b3ded565aff1c5be86331e5b1b6692988509ccf088e",
     "provider_admission_documentation": "sha256:856851935d15d8cb0c5653548ae9312441263cce9a3300e36d0863f5bdb96cf4",
     "public_observation_source:analysis/monolithic-control/experts-t1-l2-v1.json": "sha256:7b71b90aa855fb13fba2be51ace395a11a6e63af85b28725207c1ac44932cb90",
-    "public_observation_source:analysis/monolithic-control/treatment-table-t1-l2-v1.json": "sha256:a37f79495f84424d65acd7ba82068b1e33c543187bf5c12f9a3cdb44b2519c06",
+    "public_observation_source:analysis/monolithic-control/treatment-table-t1-l2-v1.json": "sha256:d077eb0f465a504e615f68fc612f6fe3883819ca5fb16a5f099b35c2af1d9b66",
     "public_observation_source:docs/decisions/ADR-pilot-public-observations.md": "sha256:0bf46aac693fa9b9e78997d6843cb87112f7716d006a0f4a63e987f3eca5ea5e",
     "public_observation_source:docs/monolithic/public-observations.md": "sha256:1b395b766ef5345169e2047a3a86f80648f5d265f3d4445315f314214c7068b7",
     "public_observation_source:graphs/pilot_t1_l2_monolithic.yaml": "sha256:ebf12538d0b9def23ce4ea70a9feb375c98535f774bbf16d4d839aaa4e99d27c",
@@ -571,7 +571,7 @@
   "declaration_sha256": "sha256:e36e974b33e8ccc77f5e35e0b0dddcdde18b953e3ab00afbd8eab158ee2fd705",
   "frozen": false,
   "gate_record_hashes": {},
-  "git_head": "91cdc433be0f666590a90ed41cd0562d364c785a",
+  "git_head": "2a8feba0e06e904ed44634b2572d48301e3b1590",
   "issue": 347,
   "pending_gates": [
     "BND-12 task-band freeze (#346)",

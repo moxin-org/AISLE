@@ -1,5 +1,5 @@
 {
-  "immutable_id": "sha256:5110d0ffda3bda0ba4c2567c3caee7f55b4933b21799acb610f73163188265a1",
+  "immutable_id": "sha256:7d2374224427c8b1041f6cfc498eda828ca3f7dece6efc862dfd1bcf3f75eb2b",
   "rows": [
     {
       "analysis": "the manipulated factor (SPEC 500 primary contrast)",
@@ -17,7 +17,7 @@
       "justification": "part of the bundled treatment; absence is a declared property, not missing data (MON-12)",
       "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "static validation and diagnostics",
-      "typed": "src/aisle/harness/validate.py#sha256:58e860b6b5cbfe66948cbfddae25c2de46e17001f2fce868689c4829d963a117"
+      "typed": "src/aisle/harness/validate.py#sha256:f0e8281a49a54bc8f9bc5c2a973382512b3c2f775a52899f0e79e7d0e358bb00"
     },
     {
       "analysis": "treatment property",
@@ -116,7 +116,7 @@
       "justification": "none needed: same artifact",
       "monolithic": "src/aisle/harness/monolith.py#sha256:a19225bef036fd797208c8c1f35cf08165aab8e0dc3ab36282172b737206bbf3",
       "surface": "episode budget, seeds, reset semantics, evaluator",
-      "typed": "src/aisle/harness/rollout.py#sha256:71e73e23cbbf3748e49d521ca86fb0164ae0703faa3f6741c8edb2e94c619427"
+      "typed": "src/aisle/harness/rollout.py#sha256:253fc95eaf38f1e7783bc80dcbac027b4a7d3dc470d5418b5555c54f0346d453"
     },
     {
       "analysis": "infrastructure-invalid records excluded in both arms; confinement status in the MON-8 tuple",

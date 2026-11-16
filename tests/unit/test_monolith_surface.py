@@ -288,6 +288,13 @@ def test_broker_ticks_and_default_feedback_follow_the_sim_clock(tmp_path):
 # -- MON-1: treatment table -------------------------------------------------
 
 
+def test_t1_l2_candidate_treatment_table_rendering_is_current():
+    """MON-1: the T1-L2 candidate table and record carry current surface hashes."""
+    documents = mono.candidate_documents(ROOT, "t1-l2-realistic")
+    report = mono.table_report(ROOT, write=False, documents=documents)
+    assert report["ok"] is True and report["errors"] == [], report
+
+
 def test_treatment_table_is_complete_and_rendered():
     """MON-1, MON-14: every row classified with both sides, paths present,
     differences justified, and the committed rendering current."""
