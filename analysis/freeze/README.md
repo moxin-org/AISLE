@@ -263,3 +263,14 @@ BND, FLT and SFE), and the CSE pair also binds the regenerated treatment table
 for the `grasp_topdown.py` and `ik_trajectory.py` changes. Seed commitments are
 inherited, every pending gate is preserved, and no registration authorizes
 collection.
+
+BND v18, CSE v31 and pilot v17 supersede v17, v30 and pilot v16 after Nexus
+became the default simulation engine (ADR-71 section 2): the shared harness
+CLI, the rollout runner and the simulator bridge now take their default from
+`DEFAULT_ENGINE = "nexus"`, and the CSE pair also binds the regenerated
+treatment table. A graph that declares no engine now runs on Nexus. The
+calibrations and thresholds these registrations carry were derived on Genesis
+and have not been re-derived on Nexus; results are not comparable across
+engines (ADR-67). Seed commitments are inherited, every pending gate is
+preserved, and no registration authorizes collection. FLT v8 and SFE v5 do not
+bind the moved sources and stay current.

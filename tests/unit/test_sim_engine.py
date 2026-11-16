@@ -26,11 +26,13 @@ from aisle.sim import (
 pytestmark = pytest.mark.unit
 
 
-def test_default_engine_is_genesis():
-    """ADR-67: the frozen Genesis path stays the default; the engine is an
-    explicit, graph-declared choice."""
-    assert DEFAULT_ENGINE == "genesis"
-    assert select_engine({}) == "genesis"
+def test_default_engine_is_nexus():
+    """ADR-71 section 2 (amends ADR-67): Nexus is the default engine once the
+    ADR-67 conditions are met; Genesis and rapier stay selectable, and the
+    engine remains an explicit, graph-declared choice."""
+    assert DEFAULT_ENGINE == "nexus"
+    assert select_engine({}) == "nexus"
+    assert select_engine({"AISLE_SIM_ENGINE": "genesis"}) == "genesis"
     assert select_engine({"AISLE_SIM_ENGINE": "nexus"}) == "nexus"
     assert select_engine({"AISLE_SIM_ENGINE": " Nexus "}) == "nexus"
     assert select_engine({"AISLE_SIM_ENGINE": "rapier"}) == "rapier"

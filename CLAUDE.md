@@ -28,10 +28,12 @@ benchmark acceptance. Run things:
 `uv run pytest -m unit`, `uv run harness validate graphs/expert_t0.yaml`,
 `dora run graphs/expert_t0.yaml --uv`. Never install with bare pip/conda.
 CUDA-only deps are forbidden in default extras (CON-1).
-Optional engines (ADR-67, ADR-68): `harness rollout --sim-engine nexus` (or
-`rapier`) runs the same scene on Nexus (or rapier); both wheels come from PyPI
-through the `sim` extra (ADR-70, docs/getting-started.md §3b). Genesis stays
-the default and the only engine behind the measured record.
+Engines (ADR-67, ADR-68, ADR-71): Nexus is the default for `harness rollout`
+and `AISLE_SIM_ENGINE`; `--sim-engine rapier` is the CPU reproducibility
+cross-check and `--sim-engine genesis` stays selectable. All wheels come from
+PyPI through the `sim` extra (ADR-70, docs/getting-started.md §3b). Genesis is
+the only engine behind the 2026-08-28 measured record; results are not
+comparable across engines.
 
 ## Quality gates before EVERY commit (inherited from dora-rs/dora practice)
 Class B/C (nodes, harness, frozen set, contracts): /review on the diff →

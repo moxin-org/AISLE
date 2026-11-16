@@ -33,8 +33,8 @@ Things to know before anything else:
   (#516). Install the corrected source pin rather than relying on version
   output, which is also 1.0.1 for the corrected binary.
 
-Genesis is the default simulation engine. Nexus and rapier come with the same
-locked `sim` extra (on macOS arm64, Linux x86_64 and aarch64, and Windows
+Nexus is the default simulation engine (ADR-71). It, rapier and Genesis come
+with the same locked `sim` extra; the Nexus and rapier wheels exist (on macOS arm64, Linux x86_64 and aarch64, and Windows
 x64); see the
 [simulation backend guide](simulation-backends.md) for a comparison and the
 selection path.
@@ -156,11 +156,11 @@ work, and see `docs/troubleshooting.md` if runs behave strangely
 (leaked simulator processes from a previous killed run are the most
 common cause).
 
-## 3b. Optional: run the scene on the Nexus engine (ADR-67)
+## 3b. The Nexus engine (ADR-67, default since ADR-71)
 
-Genesis is the default and the only engine behind the measured record. The
-graphs can also run on [Nexus](https://github.com/dimforge/nexus) (GPU
-rigid bodies, native Metal on macOS and WebGPU elsewhere) for development:
+Genesis is the only engine behind the measured record. The graphs run by
+default on [Nexus](https://github.com/dimforge/nexus) (GPU rigid bodies,
+native Metal on macOS and WebGPU elsewhere):
 the bridge picks the engine
 from `AISLE_SIM_ENGINE`, which `harness rollout --sim-engine nexus` injects
 into the bridge node and records in the manifest. Results are not

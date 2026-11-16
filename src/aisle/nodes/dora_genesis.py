@@ -35,6 +35,7 @@ from aisle.embodiment import (
     profile_joint_names,
     to_wire_joint_order,
 )
+from aisle.sim import DEFAULT_ENGINE
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -258,7 +259,7 @@ class BridgeConfig:
     # (AISLE_SIM_ENGINE): `genesis` (the frozen builders), `nexus` or
     # `rapier`. Graph-declared like the rung, injected by rollout, attested
     # in bridge_info and the manifest.
-    sim_engine: str = "genesis"
+    sim_engine: str = DEFAULT_ENGINE
     # T2: printed med labels rendered as box textures. Graph-declared
     # (AISLE_LABELS on the bridge node) so the graph hash attests whether a
     # run's pixels carried text -- same reasoning as the rung; ambient env

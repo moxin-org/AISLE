@@ -409,7 +409,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 79
+    assert len(manifests) == 82
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -487,7 +487,9 @@ def test_shared_cli_successor_preserves_bnd_protocol_and_review_gates():
         assert current["declaration"][key] == previous["declaration"][key]
     assert current["pending_gates"] == previous["pending_gates"]
     assert not current["frozen"]
-    assert current["artifact_hashes"]["perception_cli"] == hash_path(
+    # v15 bound the CLI of its day; the newest BND registration binds today's
+    newest = json.loads((root / "bnd-task-band-calibration-v18/freeze-manifest.json").read_text())
+    assert newest["artifact_hashes"]["perception_cli"] == hash_path(
         REPO_ROOT, "src/aisle/harness/cli.py"
     )
 
@@ -629,4 +631,35 @@ def test_palm_clearance_successors_preserve_protocol_and_gates(previous_id, curr
         for name, path in previous["declaration"]["artifacts"].items()
         if name not in lineage
     }
+
+
+@pytest.mark.parametrize(
+    ("previous_id", "current_id"),
+    [
+        ("bnd-task-band-calibration-v17", "bnd-task-band-calibration-v18"),
+        ("cse-causal-study-v30", "cse-causal-study-v31"),
+        ("cse-causal-study-pilot-v16", "cse-causal-study-pilot-v17"),
+    ],
+)
+def test_nexus_default_successors_preserve_protocol_and_gates(previous_id, current_id):
+    """BND-12/BND-13/CSE-15, ADR-71 section 2: making Nexus the default engine
+    moves the shared CLI, the rollout runner and the simulator bridge, so the
+    registrations binding them need successors that change only identity and
+    lineage, and that say their calibrations were derived on Genesis."""
+    root = REPO_ROOT / "analysis/freeze"
+    previous = json.loads((root / previous_id / "freeze-manifest.json").read_text())
+    current = json.loads((root / current_id / "freeze-manifest.json").read_text())
+    assert current["seed_commitment"] == previous["seed_commitment"]
+    assert current["pending_gates"] == previous["pending_gates"]
+    assert current["gate_record_hashes"] == previous["gate_record_hashes"]
+    assert not current["frozen"]
+    lineage = f"analysis/freeze/{previous_id}/freeze-manifest.json"
+    assert current["declaration"]["seed_commitment"]["inherited_from"] == lineage
+    note = current["declaration"]["superseded"]
+    assert note.startswith(f"{previous_id} (")
+    assert "derived on Genesis" in note and "no collection authorization" in note
+    older = previous["declaration"]["seed_commitment"]["inherited_from"]
+    for key in set(previous["declaration"]) - {"campaign_id", "superseded", "seed_commitment"}:
+        was = json.dumps(previous["declaration"][key]).replace(older, lineage)
+        assert json.dumps(current["declaration"][key]) == was, key
     assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True

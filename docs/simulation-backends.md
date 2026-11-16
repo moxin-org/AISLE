@@ -6,9 +6,9 @@ the choice into the bridge and records it in the run manifest.
 
 | Engine | Physics | Renderer | Installation | Status |
 |---|---|---|---|---|
-| `genesis` | Genesis | Genesis | Included in the `sim` or `cuda` extra | Default; only engine behind the measured record |
-| `nexus` | Nexus GPU | Nexus | `dimforge-nexus3d`, included in the `sim` extra | Development only |
-| `rapier` | Rapier CPU | Nexus | `rapier3d` and `dimforge-nexus3d`, included in the `sim` extra | Development only |
+| `nexus` | Nexus GPU | Nexus | `dimforge-nexus3d`, included in the `sim` extra | Default (ADR-71); M0 gate passed, no hypothesis measured on it yet |
+| `rapier` | Rapier CPU | Nexus | `rapier3d` and `dimforge-nexus3d`, included in the `sim` extra | Reproducibility cross-check |
+| `genesis` | Genesis | Genesis | Included in the `sim` or `cuda` extra | Selectable; only engine behind the 2026-08-28 measured record |
 
 Results from different engines are not directly comparable. Each run records
 the engine, resolved backend and device, and the engine realization digest.
@@ -26,8 +26,8 @@ Genesis is installed with the normal simulation environment:
 uv sync --extra sim --locked
 ```
 
-It is the default when `--sim-engine` is omitted. An explicit development
-rollout is:
+Select it explicitly; it is no longer the default (ADR-71). On macOS it needs
+an awake display. A development rollout is:
 
 ```bash
 uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \
@@ -47,7 +47,8 @@ Nexus is installed by the normal simulation environment:
 uv sync --extra sim --locked
 ```
 
-Run a graph with Nexus:
+Nexus is the engine used when `--sim-engine` is omitted and the graph
+declares none. An explicit rollout is:
 
 ```bash
 uv run --extra sim --locked harness rollout --graph graphs/expert_t0.yaml --tier T0 \

@@ -62,7 +62,7 @@ def test_engine_check_takes_the_request_when_the_graph_declares_nothing(tmp_path
     graph = _graph_with_bridge_env(tmp_path, {})
     assert engine_check(REPO_ROOT, graph, None) == {
         "ok": True,
-        "engine": "genesis",
+        "engine": "nexus",
         "declared": None,
     }
     assert engine_check(REPO_ROOT, graph, "nexus")["engine"] == "nexus"

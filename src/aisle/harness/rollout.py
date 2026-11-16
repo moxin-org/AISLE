@@ -28,6 +28,7 @@ import yaml
 from aisle.harness.ideas import open_ideas
 from aisle.harness.reaper import reap_orphans
 from aisle.harness.validate import validate
+from aisle.sim import DEFAULT_ENGINE
 
 # every declared node/output endpoint is traced (HAR-4); image topics
 # record payload-free rows — pixels live in the mp4 (ADR-11), and seg
@@ -367,7 +368,7 @@ def sim_device_for(engine: str, backend: str) -> str:
     return backend
 
 
-def resolve_sim_identity(sim_extra: str, sim_engine: str = "genesis") -> dict:
+def resolve_sim_identity(sim_extra: str, sim_engine: str = DEFAULT_ENGINE) -> dict:
     """Resolve the requested lock extra to a fail-closed backend/device.
 
     CON-5 requires this live hardware fact to ride with the run identity;
@@ -630,7 +631,7 @@ def run_gates(
     sim_extra: str = "sim",
     graph_snapshot: bytes | None = None,
     typed_stage: tuple[Path, dict] | None = None,
-    sim_engine: str = "genesis",
+    sim_engine: str = DEFAULT_ENGINE,
 ) -> dict:
     """HAR-2: refuse on env-hash mismatch (TRUSTED baseline by default,
     ADR-21: the baseline commit is fetched from the remote SERVER and
@@ -1344,11 +1345,11 @@ def engine_check(
     produced a result. `--sim-engine` therefore ASSERTS the declaration rather
     than replacing it: a conflict is refused before any gate, budget
     reservation, or launch, a graph that declares nothing takes the request
-    (default genesis), and a request of nothing takes the declaration.
+    (default nexus, ADR-71), and a request of nothing takes the declaration.
     Returns {"ok": True, "engine": <resolved>, "declared": <or None>}."""
     from aisle.harness.registry import load_manifests
     from aisle.harness.validate import graph_perception_rung, load_graph
-    from aisle.sim import DEFAULT_ENGINE, normalize_engine
+    from aisle.sim import normalize_engine
 
     try:
         requested = None if requested is None else normalize_engine(requested)
