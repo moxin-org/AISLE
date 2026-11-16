@@ -83,6 +83,41 @@ def test_return_input_does_not_preempt_an_active_grasp(monkeypatch):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize("reset", [False, True])
+def test_plan_done_echoes_accepted_request_with_current_stamp(monkeypatch, reset):
+    """TC-2/7: rejected or reset requests cannot supply completion identity."""
+    home = np.asarray(load_physics()["embodiment"]["franka"]["home_qpos"], dtype=np.float32)
+    pose = [0.4, 0.0, 0.3, 0.0, 0.0, 0.0, 1.0]
+    events = [
+        event("grasp_pose", 1, pose, goal_id="accepted", request_id="delivery"),
+        event("grasp_pose_2", 2, pose, goal_id="rejected", request_id="return"),
+    ]
+    if reset:
+        events.extend(
+            [
+                event("reset_done", 3, [1]),
+                event("grasp_pose", 4, pose, goal_id="next", request_id="new-delivery"),
+            ]
+        )
+    events.append(event("joint_state", 5, home, goal_id="sensor", request_id="unrelated"))
+    node = Node(events)
+    monkeypatch.setattr("aisle.turn_node.Node", lambda: node)
+    monkeypatch.setattr(
+        ik,
+        "StagedPlan",
+        lambda *a, **k: SimpleNamespace(
+            ok=True, stages=[ik.Stage("fixture", (home[:7],), 0.0, 0.0)]
+        ),
+    )
+    monkeypatch.setenv("AISLE_TURN_OUTPUTS", "joint_cmd,gripper_cmd,plan_done,turn_done")
+    ik.main()
+    completions = [metadata for topic, _, metadata in node.sent if topic == "plan_done"]
+    assert len(completions) == 1
+    assert completions[0]["sim_time_ns"] == 5
+    assert completions[0]["goal_id"] == ("next" if reset else "accepted")
+    assert completions[0]["request_id"] == ("new-delivery" if reset else "delivery")
+
+
 @pytest.mark.parametrize("port", ["grasp_pose", "grasp_pose_2"])
 def test_real_executor_capture_records_proposal_send_and_return(tmp_path, monkeypatch, port):
     """HAR-4; TC-2/7: executor records actual emitted commands and their causal request."""

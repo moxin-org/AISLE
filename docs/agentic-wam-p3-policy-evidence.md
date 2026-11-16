@@ -12,6 +12,13 @@ uv run --no-sync python tools/p3_evidence.py export \
 uv run --no-sync python tools/p3_evidence.py raw \
   --bundle runs/<public-bundle> --endpoint ik-trajectory/joint_cmd \
   --offset 0 --limit 100
+uv run --no-sync python tools/p3_evidence.py journal \
+  --bundle runs/<public-bundle> --offset 0 --limit 100
+uv run --no-sync python tools/p3_evidence.py artifacts \
+  --bundle runs/<public-bundle>
+uv run --no-sync python tools/p3_evidence.py artifact \
+  --bundle runs/<public-bundle> --path traces/identities.jsonl \
+  --offset 0 --limit 65536
 uv run --no-sync python tools/p3_evidence.py history \
   --bundle runs/<public-bundle>
 ```
@@ -28,6 +35,17 @@ ADR-32.
 
 Both arms receive the identical raw bundle and its artifact hashes. The raw
 query returns original Arrow values, row identities and captured metadata.
+The journal query paginates original JSONL records, including the header and
+trailer; it does not return the organized invocation view. The artifact list
+gives every common raw file's relative path, byte count and SHA-256. Artifact
+reads return base64-encoded byte chunks with their offset, total size, source
+hash and end-of-file flag, so either arm can reconstruct retained camera arrays,
+video, identity records and Arrow files. Paths must appear in the verified
+public manifest; arbitrary host paths and private scorer files are refused.
+Journal pages are limited to 1,000 records and artifact chunks to 1 MiB.
+These operations require closed, immutable, controller-owned bundles, as does
+the existing Arrow query. They do not grant a participant filesystem access.
+
 The history query groups the same executor events by invocation and reports
 state, parameters, stages, emitted commands and explicitly linked guarded
 commands. It neither invents observations nor counts executor return as
@@ -43,8 +61,11 @@ code; consistent hashes alone do not authenticate fabricated source data.
 The participant boundary still has to be enforced by the eventual session
 adapter. Giving agents unrestricted host access plus a filtered directory
 would not isolate hidden scoring data. The controller must expose the raw
-query to both arms and the history query only as the treatment, retain every
-request and response, and keep private storage outside participant authority.
+queries and artifact access to both arms and the history query only as the
+treatment, retain every request and response, and keep private storage outside
+participant authority. This helper remains controller-side: copying its full
+source into the trace participant's view would also expose the history
+implementation. These CLI commands do not enforce arm authorization themselves.
 The trace arm may organize its allowed evidence itself. The contrast is the
 provided interface, not a claim that the control is unable to derive history.
 
