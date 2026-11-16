@@ -61,7 +61,11 @@ def export_policy(run, out, *, launch=0):
         raise FileExistsError(out)
     if type(launch) is not int or launch < 0:
         raise ValueError("invalid launch index")
+    if out.resolve().is_relative_to(run.resolve()):
+        raise ValueError("policy bundle must be outside the source run")
     source_manifest = json.loads((run / "manifest.json").read_text())
+    if not isinstance(source_manifest, dict):
+        raise ValueError("source manifest must be an object")
     if source_manifest.get("perception") != "L1":
         raise ValueError("this projection is qualified only for the L1 candidate")
     graph_path = run / ("graph.yaml" if launch == 0 else f"graph-r{launch}.yaml")
@@ -148,7 +152,7 @@ def export_policy(run, out, *, launch=0):
 def read_policy(root):
     root = Path(root)
     manifest = json.loads((root / "manifest.json").read_text())
-    if set(manifest) != {
+    if not isinstance(manifest, dict) or set(manifest) != {
         "format",
         "version",
         "perception",
@@ -195,8 +199,7 @@ def read_policy(root):
         if path.suffix == ".npz":
             check_camera(path)
     traces = root / "traces"
-    for line in (traces / "identities.jsonl").read_text().splitlines():
-        check_identity(json.loads(line))
+    check_identities(traces)
     check_journal(traces / "executions/ik-trajectory.jsonl")
     journal = verify_capture(
         traces / "executions/ik-trajectory.jsonl",
@@ -209,8 +212,16 @@ def read_policy(root):
 
 def check_identity(record):
     if (
-        set(record) != {"format", "version", "endpoint", "row", "trace_row_sha256", "metadata"}
+        not isinstance(record, dict)
+        or set(record) != {"format", "version", "endpoint", "row", "trace_row_sha256", "metadata"}
+        or record["format"] != "aisle_trace_identity"
+        or type(record["version"]) is not int
+        or record["version"] != 1
         or record["endpoint"] not in ALLOWED
+        or type(record["row"]) is not int
+        or record["row"] < 0
+        or not isinstance(record["metadata"], dict)
+        or not all(type(v) in (str, int) for v in record["metadata"].values())
         or not set(record["metadata"])
         <= {
             "goal_id",
@@ -223,6 +234,30 @@ def check_identity(record):
         }
     ):
         raise ValueError("non-policy identity artifact")
+
+
+def check_identities(traces):
+    """Bind every projected identity to the hash of its own retained Arrow row."""
+    import pyarrow as pa
+
+    tables, seen = {}, set()
+    for line in (traces / "identities.jsonl").read_text().splitlines():
+        record = json.loads(line)
+        check_identity(record)
+        endpoint, index = record["endpoint"], record["row"]
+        if endpoint not in tables:
+            source = traces / f"{endpoint}.arrow"
+            if not source.is_file():
+                raise ValueError("policy identity lacks its trace source")
+            with pa.memory_map(str(source), "r") as stream:
+                tables[endpoint] = pa.ipc.open_stream(stream).read_all().to_pylist()
+        rows = tables[endpoint]
+        if (endpoint, index) in seen or index >= len(rows):
+            raise ValueError("policy identity row is duplicated or out of range")
+        seen.add((endpoint, index))
+        row_hash = hashlib.sha256(encoded(rows[index]).rstrip(b"\n")).hexdigest()
+        if record["trace_row_sha256"] != row_hash:
+            raise ValueError("policy identity does not match its trace row")
 
 
 def check_journal(path):
@@ -352,7 +387,7 @@ def summarize_history(bundle):
 def query_raw(root, endpoint, *, offset=0, limit=100):
     import pyarrow as pa
 
-    name = endpoint.replace("/", "__")
+    name = endpoint.replace("/", "__") if isinstance(endpoint, str) else None
     if name not in ALLOWED:
         raise ValueError("non-policy raw endpoint")
     if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 1000:
@@ -480,10 +515,19 @@ def main(argv=None):
             )
         else:
             payload = dict(ok=True, invocations=summarize_history(read_policy(args.bundle)))
-    except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError, zipfile.BadZipFile) as exc:
+        text = json.dumps(payload, allow_nan=False, sort_keys=True)
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        RecursionError,
+        yaml.YAMLError,
+        zipfile.BadZipFile,
+    ) as exc:
         print(json.dumps(dict(ok=False, error=str(exc))))
         return 1
-    print(json.dumps(payload, allow_nan=False, sort_keys=True))
+    print(text)
     return 0
 
 

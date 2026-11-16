@@ -247,7 +247,8 @@ def coverage(episodes):
         physical_resets=len(episodes),
         goals=len(goals),
         verdict_records=sum(g["outcome"] is not None for g in goals),
-        unscored_goals=sum(g["outcome"] is None for g in goals),
+        unscored_goals=sum(g["completeness"] == "unscored" for g in goals),
+        missing_episode_records=sum(g["completeness"] == "missing_episode_record" for g in goals),
     )
 
 
@@ -309,6 +310,17 @@ def read_chains(root):
     manifest = json.loads((root / "manifest.json").read_text())
     require(
         isinstance(manifest, dict)
+        and set(manifest)
+        == {
+            "format",
+            "version",
+            "policy_visible",
+            "evidence_kind",
+            "endpoints",
+            "coverage",
+            "artifacts_sha256",
+        }
+        and manifest["evidence_kind"] == "measurement_only_not_invocation_or_training_evidence"
         and manifest.get("format") == "aisle_goal_chains"
         and type(manifest.get("version")) is int
         and manifest["version"] == 1
@@ -334,6 +346,8 @@ def read_chains(root):
     )
     required.update(f"source/{p}" for p in selection.values() if p is not None)
     require(required <= set(artifacts), "missing source artifact hashes")
+    actual = {str(p.relative_to(root)) for p in root.rglob("*") if p.is_file()} - {"manifest.json"}
+    require(actual == set(artifacts), "source artifact set mismatch")
     for name, digest in artifacts.items():
         path = root / name
         require(
@@ -360,7 +374,7 @@ def main(argv=None):
             args.run, args.out, json.loads(args.endpoints.read_text()) if args.endpoints else None
         )
         result = dict(ok=True, output=str(args.out), coverage=manifest["coverage"])
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, RecursionError) as exc:
         result = dict(ok=False, error=str(exc))
     print(json.dumps(result, sort_keys=True, allow_nan=False))
     return 0 if result["ok"] else 1

@@ -267,3 +267,37 @@ def test_cli_single_json_and_no_overwrite(tmp_path, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["ok"] is True
     assert chains.main(args) == 1
     assert json.loads(capsys.readouterr().out)["ok"] is False
+
+
+def test_coverage_separates_missing_episode_record_from_unscored(tmp_path, monkeypatch):
+    """HAR-4: a goal with a source verdict but no episode record is not reported unscored."""
+    run = capture(tmp_path, monkeypatch)
+    path = run / "episodes.jsonl"
+    path.write_text(path.read_text().splitlines(keepends=True)[0])
+    coverage = chains.export_chains(run, tmp_path / "chains")["coverage"]
+    assert coverage["unscored_goals"] == 0
+    assert coverage["missing_episode_records"] == 1
+
+
+def test_reader_refuses_unlisted_files_and_manifest_fields(tmp_path, monkeypatch):
+    """HAR-4: the reader verifies all archived bytes and the declared evidence kind."""
+    run = capture(tmp_path, monkeypatch)
+    out = tmp_path / "chains"
+    chains.export_chains(run, out)
+    (out / "extra.txt").write_text("extra")
+    with pytest.raises(ValueError, match="artifact"):
+        chains.read_chains(out)
+    (out / "extra.txt").unlink()
+    manifest = json.loads((out / "manifest.json").read_text())
+    for change in (dict(evidence_kind="training_evidence"), dict(oracle_score=1)):
+        (out / "manifest.json").write_text(json.dumps({**manifest, **change}))
+        with pytest.raises(ValueError, match="format"):
+            chains.read_chains(out)
+
+
+def test_cli_reports_pathological_json_as_refusal(tmp_path, monkeypatch, capsys):
+    """CON-8: deeply nested source JSON is a structured refusal, never a traceback."""
+    run = capture(tmp_path, monkeypatch)
+    (run / "episodes.jsonl").write_text("[" * 200000 + "\n")
+    assert chains.main(["--run", str(run), "--out", str(tmp_path / "chains")]) == 1
+    assert json.loads(capsys.readouterr().out)["ok"] is False

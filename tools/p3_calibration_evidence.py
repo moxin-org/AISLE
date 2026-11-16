@@ -115,6 +115,8 @@ def assess_run(run, out, *, seed, instrument_commit, graph_sha256, env_fingerpri
     if not isinstance(env_fingerprint, str) or not env_fingerprint or not skill_sources:
         raise ValueError("calibration requires environment and skill source pins")
     manifest = json.loads((run / "manifest.json").read_text())
+    if not isinstance(manifest, dict):
+        raise ValueError("calibration run manifest must be an object")
     if (
         manifest.get("git_sha") != instrument_commit
         or manifest.get("graph_hash") != graph_sha256

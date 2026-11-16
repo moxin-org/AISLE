@@ -207,3 +207,22 @@ def test_assessment_joins_source_verdicts_and_policy_capture(tmp_path):
         assess_run(
             run, tmp_path / "wrong-skill", **{**args, "skill_sources": {"different": "e" * 64}}
         )
+
+
+def test_cli_refuses_non_object_run_manifest_as_json(tmp_path, capsys):
+    """CON-8: a malformed run manifest is a structured refusal, never a traceback."""
+    from p3_calibration_evidence import main
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "manifest.json").write_text("[]")
+    (tmp_path / "skills.json").write_text(
+        '{"src/aisle/nodes/ik_trajectory.py": "' + "c" * 64 + '"}'
+    )
+    args = ["--run", str(run), "--out", str(tmp_path / "out"), "--seed", "200"]
+    args += ["--instrument-commit", "a" * 40, "--graph-sha256", "b" * 64]
+    args += ["--env-fingerprint", "c" * 64, "--skill-sources", str(tmp_path / "skills.json")]
+    assert main(args) == 1
+    import json
+
+    assert json.loads(capsys.readouterr().out)["ok"] is False

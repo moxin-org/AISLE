@@ -139,3 +139,13 @@ def test_malformed_requests_are_retained_refusals(bundle, tmp_path, payload):
         assert controller.call(payload) == {"ok": False, "error": "evidence_request_refused"}
     events = (tmp_path / "s1/events.jsonl").read_text().splitlines()
     assert len(events) == 2
+
+
+@pytest.mark.parametrize("endpoint", [5, None, ["reset/reset_done"]])
+def test_wrong_typed_arguments_are_retained_refusals(bundle, tmp_path, endpoint):
+    """CON-8; HAR-4: a malformed argument value is refused and its response retained."""
+    request = {"operation": "raw", "arguments": {"endpoint": endpoint}}
+    with session(bundle, tmp_path) as controller:
+        assert controller.call(request) == {"ok": False, "error": "evidence_request_refused"}
+    events = (tmp_path / "s1/events.jsonl").read_text().splitlines()
+    assert [json.loads(e)["kind"] for e in events] == ["request", "response"]

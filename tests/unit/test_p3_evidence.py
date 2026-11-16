@@ -434,3 +434,60 @@ def test_artifact_path_replacement_cannot_return_unchecked_bytes(tmp_path, monke
     monkeypatch.setattr(p3_evidence, "read_policy", replace_after_validation)
     with pytest.raises(ValueError, match="changed during query"):
         p3_evidence.read_artifact(out, relative)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        dict(row=999),
+        dict(trace_row_sha256="not-a-hash"),
+        dict(format="x"),
+        dict(version=2),
+        dict(metadata={"goal_id": {"oracle_verdict": "SECRET_FAIL"}}),
+        "duplicate",
+    ],
+)
+def test_identity_rows_must_bind_original_trace_rows(tmp_path, mutation):
+    """HAR-4; TC-8: sidecar metadata reaches policy arms only for its hashed Arrow row."""
+    run = run_fixture(tmp_path)
+    path = run / "traces/identities.jsonl"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    index = next(i for i, r in enumerate(rows) if r["endpoint"] == "reset__reset_done")
+    rows.append(rows[index] if mutation == "duplicate" else {**rows.pop(index), **mutation})
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    with pytest.raises(ValueError, match="identity"):
+        export_policy(run, tmp_path / "public")
+    assert not (tmp_path / "public").exists()
+
+
+def test_export_refuses_output_inside_source_run(tmp_path):
+    """HAR-4: a projection never writes into the source run it reads."""
+    run = run_fixture(tmp_path)
+    with pytest.raises(ValueError, match="outside"):
+        export_policy(run, run / "traces/public")
+    assert not (run / "traces/public").exists()
+
+
+def test_cli_refuses_non_object_manifests_as_json(tmp_path, capsys):
+    """CON-8: malformed source or bundle manifests are structured refusals."""
+    from p3_evidence import main
+
+    run = run_fixture(tmp_path)
+    out = tmp_path / "public"
+    export_policy(run, out)
+    (run / "manifest.json").write_text("[]")
+    assert main(["export", "--run", str(run), "--out", str(tmp_path / "again")]) == 1
+    assert json.loads(capsys.readouterr().out)["ok"] is False
+    manifest = json.loads((out / "manifest.json").read_text())
+    (out / "manifest.json").write_text(json.dumps(sorted(manifest)))
+    assert main(["history", "--bundle", str(out)]) == 1
+    assert json.loads(capsys.readouterr().out)["ok"] is False
+
+
+def test_cli_refuses_unserializable_rows_as_json(tmp_path, capsys, monkeypatch):
+    """CON-8: a non-finite captured value is a structured refusal, never a traceback."""
+    import p3_evidence
+
+    monkeypatch.setattr(p3_evidence, "query_raw", lambda *a, **k: [dict(data=[float("nan")])])
+    assert p3_evidence.main(["raw", "--bundle", str(tmp_path), "--endpoint", "reset/reset_done"])
+    assert json.loads(capsys.readouterr().out)["ok"] is False
