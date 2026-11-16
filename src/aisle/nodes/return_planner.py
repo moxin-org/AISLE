@@ -14,6 +14,16 @@ med's known half-height (SCN-2 public geometry), no privileged topic.
 
 from __future__ import annotations
 
+from aisle.nodes.grasp_topdown import topdown_quat
+
+
+def _return_orientation(embodiment: str) -> tuple:
+    if embodiment == "franka":
+        return topdown_quat(0.0)
+    if embodiment == "so101":
+        return (0.0, 0.0, 0.0, 1.0)  # separate embodiment; retain its existing path
+    raise ValueError(f"unsupported return-planner embodiment: {embodiment}")
+
 
 def return_slot(med: str, meds: dict, layout: dict) -> list | None:
     """The return slot: the shelf's front-left corner column at level 0 —
@@ -28,7 +38,7 @@ def return_slot(med: str, meds: dict, layout: dict) -> list | None:
 
 
 def return_grasp_from_estimate(
-    estimate: dict, med: str, meds: dict, layout: dict
+    estimate: dict, med: str, meds: dict, layout: dict, *, embodiment: str = "franka"
 ) -> tuple[list, list] | None:
     """(grasp_pose7, place_xy) grasping the MEASURED box pose (L1
     estimate) instead of the assumed tray centre — t4-inc2-recovery-r4
@@ -38,7 +48,7 @@ def return_grasp_from_estimate(
     if slot is None:
         return None
     x, y, z = (float(v) for v in estimate["pos"])
-    return [x, y, z, 0.0, 0.0, 0.0, 1.0], slot
+    return [x, y, z, *_return_orientation(embodiment)], slot
 
 
 def carry_request_meta(request_meta: dict, place_xy: list) -> dict:
@@ -56,7 +66,9 @@ def carry_request_meta(request_meta: dict, place_xy: list) -> dict:
     return carried
 
 
-def return_grasp_and_slot(med: str, meds: dict, layout: dict) -> tuple[list, list] | None:
+def return_grasp_and_slot(
+    med: str, meds: dict, layout: dict, *, embodiment: str = "franka"
+) -> tuple[list, list] | None:
     """(grasp_pose7, place_xy) for returning `med` from the tray to the
     front-most free shelf slot column on level 0. Pure (CON-12)."""
     spec = meds.get(med)
@@ -66,7 +78,7 @@ def return_grasp_and_slot(med: str, meds: dict, layout: dict) -> tuple[list, lis
     tx, ty = float(tray["pos"][0]), float(tray["pos"][1])
     tray_top = float(tray["pos"][2]) + float(tray["size"][2]) / 2.0
     grasp_z = tray_top + float(spec["size"][2]) / 2.0
-    grasp = [tx, ty, grasp_z, 0.0, 0.0, 0.0, 1.0]
+    grasp = [tx, ty, grasp_z, *_return_orientation(embodiment)]
     return grasp, return_slot(med, meds, layout)
 
 
@@ -85,7 +97,8 @@ def main() -> None:  # pragma: no cover — graph-tested
     from aisle.verifier.stages import backproject_overhead
 
     meds = load_meds()
-    layout = resolve_layout(load_physics(), os.environ.get("AISLE_EMBODIMENT", "franka"))
+    embodiment = os.environ.get("AISLE_EMBODIMENT", "franka")
+    layout = resolve_layout(load_physics(), embodiment)
     env_pin = env_pin_from_env(os.environ)
     node = Node()
     send = make_sender(node, env_pin)
@@ -143,7 +156,9 @@ def main() -> None:  # pragma: no cover — graph-tested
                 print(f"return estimate refused for {pending['med']}: {exc}", file=sys.stderr)
                 out = None
             if out is not None:
-                pair = return_grasp_from_estimate(out, pending["med"], meds, layout)
+                pair = return_grasp_from_estimate(
+                    out, pending["med"], meds, layout, embodiment=embodiment
+                )
                 plan_and_send(pair[0], pair[1], pending["meta"], pending["med"], "estimate")
                 pending = None
                 continue
@@ -152,7 +167,7 @@ def main() -> None:  # pragma: no cover — graph-tested
                 # the pre-estimate behavior as the floor: grasp the tray
                 # centre rather than never returning at all — LOUD, so a
                 # fallback-heavy run is visible in the record
-                pair = return_grasp_and_slot(pending["med"], meds, layout)
+                pair = return_grasp_and_slot(pending["med"], meds, layout, embodiment=embodiment)
                 print(
                     f"return estimate unavailable after {pending['frames']} frames — "
                     "falling back to tray centre",
