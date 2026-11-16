@@ -292,3 +292,145 @@ def test_export_refuses_symlinked_policy_artifacts(tmp_path):
     (run / "traces/overhead.mp4").symlink_to(outside)
     with pytest.raises(ValueError, match="source"):
         export_policy(run, tmp_path / "public")
+
+
+def test_raw_journal_pagination_preserves_every_original_record(tmp_path):
+    """HAR-4/6: either arm can reconstruct lifecycle evidence without the history view."""
+    from p3_evidence import query_journal
+
+    run = run_fixture(tmp_path)
+    out = tmp_path / "public"
+    export_policy(run, out)
+    original = [
+        json.loads(line)
+        for line in (out / "traces/executions/ik-trajectory.jsonl").read_text().splitlines()
+    ]
+    actual = []
+    for offset in range(0, len(original), 2):
+        actual.extend(query_journal(out, offset=offset, limit=2))
+    assert actual == [dict(row=i, record=r) for i, r in enumerate(original)]
+    assert query_journal(out, offset=len(original), limit=1) == []
+
+
+def test_raw_artifact_listing_and_chunks_reconstruct_camera_bytes(tmp_path):
+    """HAR-4/6; TC-9: both arms can access the same captured camera bytes and hashes."""
+    import base64
+
+    import numpy as np
+    from p3_evidence import list_artifacts, read_artifact
+
+    run = run_fixture(tmp_path)
+    relative = "traces/frames/overhead/00000000000000000000.npz"
+    path = run / relative
+    path.parent.mkdir(parents=True)
+    np.savez(path, rgb=np.zeros((1, 1, 3), dtype=np.uint8))
+    original = path.read_bytes()
+    out = tmp_path / "public"
+    export_policy(run, out)
+    artifacts = list_artifacts(out)
+    assert next(a for a in artifacts if a["path"] == relative) == dict(
+        path=relative, size_bytes=len(original), sha256=hashlib.sha256(original).hexdigest()
+    )
+    chunks = []
+    for offset in range(0, len(original), 97):
+        result = read_artifact(out, relative, offset=offset, limit=97)
+        assert result["offset"] == offset
+        assert result["eof"] == (offset + 97 >= len(original))
+        assert result["sha256"] == hashlib.sha256(original).hexdigest()
+        chunks.append(base64.b64decode(result["data_base64"], validate=True))
+    assert b"".join(chunks) == original
+    assert read_artifact(out, relative, offset=len(original))["data_base64"] == ""
+    assert all("SECRET" not in a["path"] for a in artifacts)
+
+
+@pytest.mark.parametrize("relative", ["../run/episodes.jsonl", "/etc/passwd", "episodes.jsonl"])
+def test_raw_artifact_refuses_paths_outside_public_manifest(tmp_path, relative):
+    """TC-8; HAR-6: arbitrary path requests cannot reach scorer or host files."""
+    from p3_evidence import read_artifact
+
+    run = run_fixture(tmp_path)
+    out = tmp_path / "public"
+    export_policy(run, out)
+    with pytest.raises(ValueError, match="artifact"):
+        read_artifact(out, relative)
+
+
+@pytest.mark.parametrize(
+    "bounds", [dict(offset=-1), dict(offset=True), dict(limit=0), dict(limit=True)]
+)
+def test_raw_journal_and_file_bounds_are_strict(tmp_path, bounds):
+    """CON-8; HAR-6: invalid pagination never falls back to an unbounded read."""
+    from p3_evidence import query_journal, read_artifact
+
+    with pytest.raises(ValueError, match="bounds"):
+        query_journal(tmp_path, **bounds)
+    with pytest.raises(ValueError, match="bounds"):
+        read_artifact(tmp_path, "traces/identities.jsonl", **bounds)
+
+
+def test_raw_extensions_refuse_tampered_and_redirected_artifacts(tmp_path):
+    """HAR-4; TC-8: raw-file access retains the bundle's source-integrity checks."""
+    from p3_evidence import list_artifacts, query_journal, read_artifact
+
+    run = run_fixture(tmp_path)
+    out = tmp_path / "public"
+    export_policy(run, out)
+    relative = "traces/identities.jsonl"
+    (out / relative).unlink()
+    (out / relative).symlink_to(run / "episodes.jsonl")
+    for read in (
+        lambda: list_artifacts(out),
+        lambda: query_journal(out),
+        lambda: read_artifact(out, relative),
+    ):
+        with pytest.raises(ValueError, match="unsafe"):
+            read()
+
+
+def test_raw_extensions_cli_exposes_data_without_history(tmp_path, capsys):
+    """CON-8; HAR-6: common raw CLI commands emit structured, bounded evidence."""
+    from p3_evidence import main
+
+    run = run_fixture(tmp_path)
+    out = tmp_path / "public"
+    export_policy(run, out)
+    for command, extra, field in (
+        ("journal", ["--limit", "1"], "records"),
+        ("artifacts", [], "artifacts"),
+        ("artifact", ["--path", "traces/identities.jsonl", "--limit", "1"], "artifact"),
+    ):
+        assert main([command, "--bundle", str(out), *extra]) == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["ok"] is True and field in result
+        assert "invocations" not in result
+
+
+def test_raw_extensions_refuse_oversized_pages_before_reading(tmp_path):
+    """CON-8; HAR-6: evidence tools enforce their declared maximum response sizes."""
+    from p3_evidence import query_journal, read_artifact
+
+    with pytest.raises(ValueError, match="bounds"):
+        query_journal(tmp_path, limit=1001)
+    with pytest.raises(ValueError, match="bounds"):
+        read_artifact(tmp_path, "traces/identities.jsonl", limit=1048577)
+
+
+def test_artifact_path_replacement_cannot_return_unchecked_bytes(tmp_path, monkeypatch):
+    """TC-8; HAR-4: verify the opened response file if a path changes after bundle validation."""
+    import p3_evidence
+
+    run = run_fixture(tmp_path)
+    out = tmp_path / "public"
+    export_policy(run, out)
+    relative = "traces/identities.jsonl"
+    original_reader = p3_evidence.read_policy
+
+    def replace_after_validation(root):
+        result = original_reader(root)
+        (out / relative).unlink()
+        (out / relative).symlink_to(run / "episodes.jsonl")
+        return result
+
+    monkeypatch.setattr(p3_evidence, "read_policy", replace_after_validation)
+    with pytest.raises(ValueError, match="changed during query"):
+        p3_evidence.read_artifact(out, relative)

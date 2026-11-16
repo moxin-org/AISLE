@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import re
 import shutil
 import tempfile
 import zipfile
+from itertools import islice
 from pathlib import Path
 
 import yaml
@@ -377,6 +379,55 @@ def query_raw(root, endpoint, *, offset=0, limit=100):
     ]
 
 
+def query_journal(root, *, offset=0, limit=100):
+    """Original journal records, including header/trailer, without derived history."""
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 1000:
+        raise ValueError("invalid journal query bounds")
+    read_policy(root)
+    with (Path(root) / "traces/executions/ik-trajectory.jsonl").open() as stream:
+        return [
+            dict(row=offset + i, record=json.loads(line))
+            for i, line in enumerate(islice(stream, offset, offset + limit))
+        ]
+
+
+def list_artifacts(root):
+    """The common raw inventory; no scorer files or derived history artifacts."""
+    manifest = read_policy(root)["manifest"]
+    return [
+        dict(path=name, sha256=digest, size_bytes=(Path(root) / name).stat().st_size)
+        for name, digest in sorted(manifest["artifacts"].items())
+    ]
+
+
+def read_artifact(root, relative, *, offset=0, limit=65536):
+    """Bounded original bytes, usable for camera archives and every common raw file."""
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 1048576:
+        raise ValueError("invalid artifact query bounds")
+    artifacts = read_policy(root)["manifest"]["artifacts"]
+    if type(relative) is not str or relative not in artifacts:
+        raise ValueError("non-policy artifact")
+    # Hash the same opened file used for the response: replacing a path after
+    # bundle validation cannot substitute unchecked bytes into this read.
+    with (Path(root) / relative).open("rb") as stream:
+        checksum = hashlib.sha256()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            checksum.update(chunk)
+        size = stream.tell()
+        if checksum.hexdigest() != artifacts[relative]:
+            raise ValueError("policy artifact changed during query")
+        stream.seek(offset)
+        data = stream.read(limit)
+    return dict(
+        path=relative,
+        sha256=artifacts[relative],
+        size_bytes=size,
+        offset=offset,
+        data_base64=base64.b64encode(data).decode("ascii"),
+        eof=offset + len(data) >= size,
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -391,6 +442,17 @@ def main(argv=None):
     raw.add_argument("--endpoint", required=True)
     raw.add_argument("--offset", type=int, default=0)
     raw.add_argument("--limit", type=int, default=100)
+    journal = sub.add_parser("journal")
+    journal.add_argument("--bundle", required=True, type=Path)
+    journal.add_argument("--offset", type=int, default=0)
+    journal.add_argument("--limit", type=int, default=100)
+    artifacts = sub.add_parser("artifacts")
+    artifacts.add_argument("--bundle", required=True, type=Path)
+    artifact = sub.add_parser("artifact")
+    artifact.add_argument("--bundle", required=True, type=Path)
+    artifact.add_argument("--path", required=True)
+    artifact.add_argument("--offset", type=int, default=0)
+    artifact.add_argument("--limit", type=int, default=65536)
     args = parser.parse_args(argv)
     try:
         if args.command == "export":
@@ -402,6 +464,19 @@ def main(argv=None):
             payload = dict(
                 ok=True,
                 rows=query_raw(args.bundle, args.endpoint, offset=args.offset, limit=args.limit),
+            )
+        elif args.command == "journal":
+            payload = dict(
+                ok=True, records=query_journal(args.bundle, offset=args.offset, limit=args.limit)
+            )
+        elif args.command == "artifacts":
+            payload = dict(ok=True, artifacts=list_artifacts(args.bundle))
+        elif args.command == "artifact":
+            payload = dict(
+                ok=True,
+                artifact=read_artifact(
+                    args.bundle, args.path, offset=args.offset, limit=args.limit
+                ),
             )
         else:
             payload = dict(ok=True, invocations=summarize_history(read_policy(args.bundle)))
