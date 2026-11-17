@@ -34,7 +34,7 @@ fn same_verdict(mut actual: Value, mut expected: Value) {
     assert_eq!(actual, expected);
 }
 
-/// CON-4/5, TC-2/3/8/9, BG-1/2: retained physical evidence must support success.
+/// CON-4, CON-5, TC-2, TC-3, TC-8, TC-9, BG-1, BG-2: retained physical evidence must support success.
 #[test]
 #[ignore = "Set AISLE_NANO_EVIDENCE to a completed native rollout directory"]
 fn physical_episode_has_complete_guarded_evidence() {
@@ -103,6 +103,14 @@ fn physical_episode_has_complete_guarded_evidence() {
         ("assets_sha256", "asset-manifest.json"),
     ] {
         assert_eq!(provenance[key], sha(&root.join(path)));
+    }
+    // Runs recorded since the model snapshot keep the exact URDF and meshes.
+    if root.join("model").is_dir() {
+        let manifest = json(&root.join("asset-manifest.json"));
+        assert_eq!(provenance["model_sha256"], manifest["model.urdf"]);
+        for (name, hash) in manifest.as_object().unwrap() {
+            assert_eq!(hash, &sha(&root.join("model").join(name)), "{name}");
+        }
     }
     let graph: Value =
         serde_yaml::from_slice(&fs::read(root.join("dataflow.yaml")).unwrap()).unwrap();

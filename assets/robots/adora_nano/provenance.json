@@ -62,7 +62,7 @@
     "source_cad": "two identically oriented instances separated by 460 mm",
     "hardware_validated": false,
     "supersedes": "left mount yaw +180 degrees",
-    "generator": "tools/mirror_nano_arm.py",
+    "generator": "dorobot-org/dorobot-studio:tools/mirror_nano_arm.py",
     "floating_xml_updated": true,
     "mirrored_meshes": 53
   }

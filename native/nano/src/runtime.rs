@@ -1,7 +1,7 @@
 use crate::{
-    judge::{Judge, Sample},
     kinematics::Robot,
     navigation::{Box2, Map, distance},
+    oracle::{Feed, Input, Step},
     perception::{Color, detect},
     safety::Guard,
 };
@@ -234,7 +234,8 @@ fn decode32(data: &dora_node_api::DoraArray) -> Result<Vec<f64>> {
     let v: &[f32] = data.try_into().map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(v.iter().map(|x| *x as f64).collect())
 }
-fn transform(v: &[f64]) -> Result<Isometry3<f64>> {
+/// A row-major 4x4 camera pose; rejects anything that is not a rigid transform.
+pub fn transform(v: &[f64]) -> Result<Isometry3<f64>> {
     ensure!(
         v.len() == 16 && v.iter().all(|x| x.is_finite()),
         "Invalid camera transform"
@@ -459,10 +460,8 @@ pub fn node(role: &str) -> Result<()> {
             }
         }
         "judge" => {
-            let mut judge = None;
-            let mut last = None;
+            let mut feed = Feed::new(config.goal, config.drop);
             let mut done = None;
-            let mut last_sample = None;
             let mut trace = fs::File::create(config.output.join("judge-trace.jsonl"))?;
             while let Some(e) = block_on(events.next()) {
                 if let Event::Error(ref error) = e {
@@ -470,57 +469,38 @@ pub fn node(role: &str) -> Result<()> {
                 }
                 if let Event::Input { id, data, metadata } = e {
                     let (seq, t) = stamp(&metadata)?;
-                    if id.as_str() == "finished" {
-                        done = Some(seq);
-                        break;
-                    }
-                    if id.as_str() == "truth" {
-                        let v: &[f64] = (&data).try_into().map_err(|e| anyhow::anyhow!("{e}"))?;
-                        ensure!(
-                            v.len() == 8
-                                && v.iter().all(|x| x.is_finite())
-                                && v[5..].iter().all(|x| *x == 0. || *x == 1.),
-                            "Bad oracle sample"
-                        );
-                        let sample = Sample {
-                            stamp: t,
-                            base: [v[0], v[1]],
-                            cube: [v[2], v[3], v[4]],
-                            finger_contact: v[5] == 1.,
-                            furniture_contact: v[6] == 1.,
-                            robot_contact: v[7] == 1.,
-                        };
-                        let j =
-                            judge.get_or_insert_with(|| Judge::new(config.goal, v[4], config.drop));
-                        if last == Some(seq) {
-                            ensure!(
-                                last_sample == Some(sample),
-                                "Oracle changed an observation during retry"
-                            );
-                        } else {
-                            ensure!(
-                                last.is_none_or(|n| seq == n + 1),
-                                "Missing oracle observation"
-                            );
-                            j.observe(sample)?;
-                            writeln!(trace, "{}", serde_json::to_string(&sample)?)?;
-                            last = Some(seq);
-                            last_sample = Some(sample);
+                    let step = match id.as_str() {
+                        "finished" => {
+                            done = Some(seq);
+                            break;
                         }
-                        write(&config.output.join("judge-progress.json"), &j.result())?;
-                        node.send_output("ack".into(), metadata.parameters, vec![seq])
-                            .map_err(|e| anyhow::anyhow!("{e}"))?;
-                    } else if id.as_str() == "done" {
-                        done = Some(seq);
+                        "done" => {
+                            done = Some(seq);
+                            continue;
+                        }
+                        "state" => feed.offer(seq, t, Input::State(&decode32(&data)?))?,
+                        "truth" => {
+                            let v: &[f64] =
+                                (&data).try_into().map_err(|e| anyhow::anyhow!("{e}"))?;
+                            feed.offer(seq, t, Input::Truth(v))?
+                        }
+                        _ => bail!("Unknown judge input {id}"),
+                    };
+                    if step == Step::Pending {
+                        continue;
                     }
+                    if let Step::Observed(sample) = step {
+                        writeln!(trace, "{}", serde_json::to_string(&sample)?)?;
+                    }
+                    write(&config.output.join("judge-progress.json"), &feed.verdict())?;
+                    // State and truth of one observation carry the same receipt metadata.
+                    node.send_output("ack".into(), metadata.parameters, vec![seq])
+                        .map_err(|e| anyhow::anyhow!("{e}"))?;
                 }
             }
-            let verdict = judge.context("No physics evidence")?.result();
-            let complete = done.is_some() && done == last;
-            let success = complete
-                && verdict.furniture_contacts == 0
-                && verdict.navigation
-                && (config.task == "navigate" || verdict.placed);
+            let verdict = feed.verdict().context("No physics evidence")?;
+            let complete = done.is_some() && done == feed.last();
+            let success = crate::oracle::success(&config.task, complete, &verdict);
             write(
                 &config.output.join("result.json"),
                 &json!({"ok":complete,"success":success,"task":config.task,"verdict":verdict,"seed":config.seed,"oracle":"independent physics contacts/poses; no controller success input","limitations":["experimental Nano profile, not frozen benchmark acceptance","static map and simulator localization, not SLAM","color-specific RGB perception, not open vocabulary","simulation model, not hardware calibration"]}),
@@ -757,7 +737,8 @@ impl Policy {
         Ok((v, false, "".into()))
     }
 }
-fn wheel_rates(forward: f64, lateral: f64, turn: f64) -> [f64; 3] {
+/// Wheel rates for the three-wheel base, scaled into the 5 rad/s motor envelope.
+pub fn wheel_rates(forward: f64, lateral: f64, turn: f64) -> [f64; 3] {
     let mut r = [
         lateral / 0.034 - 3.4 * turn,
         ((3f64).sqrt() / 2. * forward - 0.5 * lateral) / 0.034 - 3.4 * turn,

@@ -1,4 +1,5 @@
 use aisle_nano::{
+    assets::{self, sha256 as hash},
     kinematics::Robot,
     runtime::{self, Config},
 };
@@ -64,32 +65,6 @@ static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 extern "C" fn interrupt(_: libc::c_int) {
     INTERRUPTED.store(true, Ordering::SeqCst);
 }
-fn hash(path: &std::path::Path) -> Result<String> {
-    Ok(format!("{:x}", Sha256::digest(fs::read(path)?)))
-}
-fn asset_hashes(model: &std::path::Path) -> Result<std::collections::BTreeMap<String, String>> {
-    let robot = urdf_rs::read_file(model)?;
-    let mut files = std::collections::BTreeMap::from([("model.urdf".to_owned(), hash(model)?)]);
-    let root = model.parent().context("Model directory")?;
-    for link in robot.links {
-        for geometry in link
-            .visual
-            .iter()
-            .map(|v| &v.geometry)
-            .chain(link.collision.iter().map(|c| &c.geometry))
-        {
-            if let urdf_rs::Geometry::Mesh { filename, .. } = geometry {
-                let name = filename
-                    .strip_prefix("package://adora_nano/")
-                    .unwrap_or(filename);
-                if !files.contains_key(name) {
-                    files.insert(name.to_owned(), hash(&root.join(name))?);
-                }
-            }
-        }
-    }
-    Ok(files)
-}
 fn run() -> Result<serde_json::Value> {
     let args = match Args::try_parse() {
         Ok(args) => args,
@@ -154,14 +129,15 @@ fn run() -> Result<serde_json::Value> {
             let simulator = simulator.canonicalize()?;
             let dora = dora.canonicalize()?;
             Robot::read(&model)?;
+            // Everything that can refuse the request runs before the output
+            // directory exists, so a refused request does not consume it.
+            assets::meshes(&model)?;
             let version = Command::new(&dora).arg("--version").output()?;
             ensure!(
                 version.status.success()
                     && String::from_utf8_lossy(&version.stdout).trim() == "dora-cli 1.0.1",
                 "Dora CLI 1.0.1 required"
             );
-            fs::create_dir_all(&output)?;
-            let output = output.canonicalize()?;
             let goal = [goal_x, goal_y];
             let station = if task == "navigate" {
                 [1.6, -1.2]
@@ -170,8 +146,19 @@ fn run() -> Result<serde_json::Value> {
             };
             let objects = runtime::room(seed, station, &arm);
             let map = runtime::map(&objects);
-            // The same route the policy drives from the scene origin.
-            runtime::route(&map, &task, [0., 0.], goal)?;
+            // The same route the policy drives from the scene origin; inspection
+            // does not move the base.
+            if task != "inspect" {
+                runtime::route(&map, &task, [0., 0.], goal)?;
+            }
+            fs::create_dir_all(&output)?;
+            let output = output.canonicalize()?;
+            // Nodes and simulator load this frozen copy, the one that is hashed.
+            // The directory is new and still holds nothing else: a failed copy
+            // must not leave it behind to block a retry.
+            let model = assets::snapshot(&model, &output.join("model")).inspect_err(|_| {
+                let _ = fs::remove_dir_all(&output);
+            })?;
             let config = Config {
                 model: model.clone(),
                 output: output.clone(),
@@ -202,7 +189,7 @@ fn run() -> Result<serde_json::Value> {
                 {"id":"sim","path":simulator,"args":"aisle-node","env":env,"inputs":{"command":"guard/joint_cmd_safe","done":"policy/done","judge_ack":"judge/ack"},"outputs":["state","truth","finished","rgb_head","depth_head","pose_head","rgb_left_wrist","depth_left_wrist","pose_left_wrist","rgb_right_wrist","depth_right_wrist","pose_right_wrist"]},
                 {"id":"policy","path":exe,"args":"node policy","env":env,"inputs":{"state":"sim/state","rgb":"sim/rgb_head","depth":"sim/depth_head","camera":"sim/pose_head","finished":"sim/finished"},"outputs":["joint_cmd","done"]},
                 {"id":"guard","path":exe,"args":"node guard","env":env,"inputs":{"state":"sim/state","command":"policy/joint_cmd","finished":"sim/finished"},"outputs":["joint_cmd_safe"]},
-                {"id":"judge","path":exe,"args":"node judge","env":env,"inputs":{"truth":"sim/truth","done":"policy/done","finished":"sim/finished"},"outputs":["ack"]}
+                {"id":"judge","path":exe,"args":"node judge","env":env,"inputs":{"truth":"sim/truth","state":"sim/state","done":"policy/done","finished":"sim/finished"},"outputs":["ack"]}
             ]});
             // Explicit queues; one observation turn is in flight. No silent latest-wins mode.
             for n in graph["nodes"].as_array_mut().unwrap() {
@@ -212,7 +199,10 @@ fn run() -> Result<serde_json::Value> {
             }
             let graph_path = output.join("dataflow.yaml");
             fs::write(&graph_path, serde_yaml::to_string(&graph)?)?;
-            runtime::write(&output.join("asset-manifest.json"), &asset_hashes(&model)?)?;
+            runtime::write(
+                &output.join("asset-manifest.json"),
+                &assets::manifest(&model)?,
+            )?;
             runtime::write(
                 &output.join("provenance.json"),
                 &json!({"profile":"adora_nano_experimental_v1","seed":seed,"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"aisle_head_at_last_build":env!("AISLE_SOURCE_REVISION"),"policy_sha256":hash(&exe)?,"simulator_sha256":hash(&simulator)?,"model_sha256":hash(&model)?,"dora_sha256":hash(&dora)?,"assets_sha256":hash(&output.join("asset-manifest.json"))?,"cargo_lock_sha256":format!("{:x}",Sha256::digest(include_bytes!("../Cargo.lock"))),"scene_sha256":hash(&output.join("scene.json"))?,"graph_sha256":hash(&graph_path)?,"fault_injection":{"drop_head_depth_once":drop_depth_once}}),

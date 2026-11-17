@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 pub struct Sample {
     pub stamp: u64,
     pub base: [f64; 2],
+    /// Base heading in radians; absent from traces recorded before it was judged.
+    #[serde(default)]
+    pub yaw: f64,
     pub cube: [f64; 3],
     pub finger_contact: bool,
     pub robot_contact: bool,
@@ -60,13 +63,20 @@ impl Judge {
             "Missing physics observation"
         );
         ensure!(
-            s.base.iter().chain(&s.cube).all(|x| x.is_finite()),
+            s.base
+                .iter()
+                .chain(&s.cube)
+                .chain([&s.yaw])
+                .all(|x| x.is_finite()),
             "Invalid physics sample"
         );
         self.v.samples += 1;
-        let stopped = self
-            .last
-            .is_some_and(|p| crate::navigation::distance(s.base, p.base) < 0.005);
+        // Stationary means neither translating nor turning on the spot.
+        let stopped = self.last.is_some_and(|p| {
+            let turn = (s.yaw - p.yaw).rem_euclid(std::f64::consts::TAU);
+            crate::navigation::distance(s.base, p.base) < 0.005
+                && turn.min(std::f64::consts::TAU - turn) < 0.02
+        });
         if crate::navigation::distance(s.base, self.goal) < 0.12 && stopped {
             let since = *self.arrival_since.get_or_insert(s.stamp);
             self.v.navigation = s.stamp - since >= 400_000_000;

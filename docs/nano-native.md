@@ -5,11 +5,16 @@ URDF FK/IK, motion guard and independent judge to DoRobot's Rust Nexus simulator
 through Dora 1.0.1. No Python process participates in a rollout. The existing
 pharmacy benchmark, registered skills and hardware drivers are unchanged.
 
-Use a macOS Apple Silicon machine, the DoRobot Studio `feat/nano-autonomy`
-checkout, and AISLE `feat/nano-rust-indoor`. Build the native Studio runtime
+Use a macOS Apple Silicon machine and this AISLE checkout. The simulator side
+is not released yet: it is DoRobot Studio pull request
+[dorobot-org/dorobot-studio#9](https://github.com/dorobot-org/dorobot-studio/pull/9)
+(branch `feat/nano-autonomy`, commit `de6ba8d` when this was written). Until that
+pull request merges, check out that commit; this profile cannot run against
+Studio's main branch. Build the native Studio runtime
 using its release instructions (FFmpeg 8 and cargo-gpu **0.10.0**, with its pinned
 shader toolchain). Supply the full `data/adora_nano/adora_nano.urdf` path, including
-meshes; the AISLE copy is sufficient for kinematic tests only.
+meshes; the AISLE copy is sufficient for kinematic tests only, and a rollout
+refuses a model whose meshes are missing before it creates the output directory.
 
 ```sh
 cargo test --locked --manifest-path native/nano/Cargo.toml
@@ -36,7 +41,9 @@ and released it onto the table without furniture contact. A separate local-origi
 pickup failed, so this result does not establish reliable grasping at arbitrary
 base poses. See the validation report for all retained attempts.
 
-`--task inspect` captures a short three-camera scene inspection. `--task navigate`
+`--task inspect` captures a short three-camera scene inspection; the base does
+not move, so it succeeds when the capture is complete and nothing touched the
+furniture. `--task navigate`
 tests navigation only. `--task pickup` navigates to the work surface, finds a red
 cube from RGB, estimates its position with matching depth, solves the selected
 arm's IK, attempts grasp/lift/place/release, then settles. `--arm left` mirrors the
@@ -59,8 +66,12 @@ The generated `dataflow.yaml` contains four native processes:
 Nexus simulator ── RGB + depth + camera pose + robot state ──▶ policy
        ▲                                                       │
        └──────────────── guard ◀──── joint velocities ─────────┘
-       └── object poses + physical contacts ──▶ independent judge
+       └── object poses + contacts + robot state ──▶ independent judge
 ```
+
+The judge pairs each oracle row with the simulator's `state` of the same
+observation and uses only its base heading: arrival requires the base to be
+neither translating nor turning. It never reads policy or guard output.
 
 Hot topics use Arrow arrays: `state` Float32[24] is world XYZ + quaternion XYZW +
 17 URDF-ordered joints; RGB is UInt8[640×480×3], depth Float32[640×480], camera
@@ -107,6 +118,10 @@ is false: that run is a fault, not a measured physical failure. The supervisor
 plans the policy's route, including the pickup docking point, before launching.
 Interrupting the supervisor (Ctrl-C or SIGTERM) stops the whole Dora process
 group; anything still alive after `--grace-seconds` (default 15) is killed.
+Each run copies the URDF and every referenced mesh into `<run>/model/` (about
+70 MB for the Studio model). Policy, guard, judge and simulator all load that
+copy, and `asset-manifest.json` hashes it, so editing the source model during a
+run cannot change what was executed or recorded.
 Raw captures and all three videos are saved in `dataset/`, using
 Studio's replay format. The preview socket is `<run>/preview.sock`.
 

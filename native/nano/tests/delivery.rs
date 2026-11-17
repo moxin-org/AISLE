@@ -1,5 +1,5 @@
 use aisle_nano::delivery::CachedCommand;
-/// CON-4/5, BG-1: retry delivery never applies motion twice or admits changed commands.
+/// CON-4, CON-5, BG-1: retry delivery never applies motion twice or admits changed commands.
 #[test]
 fn duplicate_delivery_is_idempotent_but_not_mutable() {
     let c = CachedCommand::new(4, 800_000_000, vec![0.1; 17], vec![0.1; 17]);

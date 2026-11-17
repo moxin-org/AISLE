@@ -1,7 +1,9 @@
+pub mod assets;
 pub mod delivery;
 pub mod judge;
 pub mod kinematics;
 pub mod navigation;
+pub mod oracle;
 pub mod perception;
 pub mod runtime;
 pub mod safety;

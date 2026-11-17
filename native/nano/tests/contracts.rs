@@ -16,7 +16,7 @@ fn robot() -> Robot {
     .unwrap()
 }
 
-/// TC-1/5, MOB-4: both physical arm chains, all 17 joints, identical mirrored reach.
+/// TC-1, TC-5, MOB-4: both physical arm chains, all 17 joints, identical mirrored reach.
 #[test]
 fn nano_fk_and_ik_respect_both_chains() {
     let r = robot();
@@ -57,7 +57,7 @@ fn nano_fk_and_ik_respect_both_chains() {
     );
 }
 
-/// TC-1/5: jaw-axis IK for a cube-aligned grasp with the five-DoF Nano arm.
+/// TC-1, TC-5: jaw-axis IK for a cube-aligned grasp with the five-DoF Nano arm.
 #[test]
 fn cube_aligned_jaw_ik() {
     let r = robot();
@@ -96,7 +96,7 @@ fn cube_aligned_jaw_ik() {
     }
 }
 
-/// TC-1/5, MOB-4: solve the actual finger-center approach/lift for both arms.
+/// TC-1, TC-5, MOB-4: solve the actual finger-center approach/lift for both arms.
 #[test]
 fn both_grippers_can_reach_pickup_and_lift() {
     let r = robot();
@@ -213,9 +213,19 @@ fn navigation_avoids_inflated_obstacles() {
     };
     let route = m.plan([-2., 0.], [2., 0.]).unwrap();
     assert!(route.len() > 1);
+    assert_eq!(route.last(), Some(&[2., 0.]));
     let mut p = [-2., 0.];
     for next in route {
-        assert!(m.clear_segment(p, next));
+        // Independent geometry: every sampled point stays outside the box
+        // grown by the 0.4 m clearance, not merely "clear" by the map's own test.
+        for i in 0..=200 {
+            let t = i as f64 / 200.;
+            let (x, y) = (p[0] + t * (next[0] - p[0]), p[1] + t * (next[1] - p[1]));
+            assert!(
+                x.abs() > 0.9 || y.abs() > 1.4,
+                "({x}, {y}) cuts the obstacle"
+            );
+        }
         p = next;
     }
     assert!(m.plan([-2., 0.], [0., 0.]).is_err());
@@ -233,7 +243,7 @@ fn navigation_turns_before_forward_motion() {
     assert!(aisle_nano::navigation::base_command([f64::NAN, 0.], [0., 0., 0.]).is_err());
 }
 
-/// BG-1/2, MOB-3: limits, NaN, replayed clocks and concurrent motion fail closed.
+/// BG-1, BG-2, MOB-3: limits, NaN, replayed clocks and concurrent motion fail closed.
 #[test]
 fn guard_limits_and_interlocks() {
     let r = robot();
@@ -244,7 +254,7 @@ fn guard_limits_and_interlocks() {
     cmd[5] = 0.3;
     let safe = g.apply(0, &q, &cmd).unwrap();
     assert_eq!(safe[0], 0.);
-    assert!(safe[5] <= 0.5);
+    assert_eq!(safe[5], 0.3);
     assert!(g.apply(0, &q, &cmd).is_err());
     cmd[1] = f64::NAN;
     assert!(g.apply(200_000_000, &q, &cmd).is_err());
@@ -255,7 +265,7 @@ fn guard_limits_and_interlocks() {
     assert_eq!(g.apply(400_000_000, &at_limit, &cmd).unwrap()[5], 0.);
 }
 
-/// BG-1/MOB-4: a restarted IK solve cannot command a distant arm branch.
+/// BG-1, MOB-4: a restarted IK solve cannot command a distant arm branch.
 #[test]
 fn rejects_discontinuous_ik_branch() {
     let q = [0.; 17];
@@ -273,6 +283,7 @@ fn judge_requires_contact_lift_release_and_settling() {
     let base = Sample {
         stamp: 0,
         base: [1., 1.],
+        yaw: 0.,
         cube: [1., 1., 0.02],
         finger_contact: false,
         robot_contact: false,
@@ -335,6 +346,7 @@ fn judge_requires_contact_lift_release_and_settling() {
     j.observe(Sample {
         stamp: 5_800_000_000,
         base: [2., 2.],
+        yaw: 0.,
         cube: [2., 2., 0.02],
         ..base
     })
@@ -358,6 +370,7 @@ fn judge_rejects_a_dropped_cube_even_if_it_settles_in_zone() {
         j.observe(Sample {
             stamp: i * 200_000_000,
             base: [0., 0.],
+            yaw: 0.,
             cube: [0.404, -0.23, 0.30],
             finger_contact: true,
             robot_contact: true,
@@ -370,6 +383,7 @@ fn judge_rejects_a_dropped_cube_even_if_it_settles_in_zone() {
         j.observe(Sample {
             stamp: i * 200_000_000,
             base: [0., 0.],
+            yaw: 0.,
             cube: [0.34, -0.23, 0.2],
             finger_contact: false,
             robot_contact: false,
@@ -383,6 +397,7 @@ fn judge_rejects_a_dropped_cube_even_if_it_settles_in_zone() {
     j.observe(Sample {
         stamp: 3_000_000_000,
         base: [0., 0.],
+        yaw: 0.,
         cube: [0.34, -0.23, 0.2],
         finger_contact: true,
         robot_contact: true,
@@ -393,6 +408,7 @@ fn judge_rejects_a_dropped_cube_even_if_it_settles_in_zone() {
         j.observe(Sample {
             stamp: i * 200_000_000,
             base: [0., 0.],
+            yaw: 0.,
             cube: [0.34, -0.23, 0.2],
             finger_contact: false,
             robot_contact: false,
@@ -406,13 +422,14 @@ fn judge_rejects_a_dropped_cube_even_if_it_settles_in_zone() {
     );
 }
 
-/// TC-8/CON-4: missing oracle intervals cannot establish a sustained grasp.
+/// TC-8, CON-4: missing oracle intervals cannot establish a sustained grasp.
 #[test]
 fn judge_rejects_missing_physics_observations() {
     let mut judge = Judge::new([0., 0.], 0.2, [0.3, 0., 0.2]);
     let sample = Sample {
         stamp: 0,
         base: [0., 0.],
+        yaw: 0.,
         cube: [0.4, 0., 0.3],
         finger_contact: true,
         robot_contact: true,
