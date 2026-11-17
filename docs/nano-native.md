@@ -101,6 +101,12 @@ traces, three latest camera images, `result.json` and `rollout.json`. `ok` repor
 whether the evaluation completed; `success` reports the physical task result.
 `rollout.json` is authoritative: it combines physical judgment with capture and
 normal Dora exit; run-root `result.json` contains the physics judge alone.
+If the policy stopped on its own error (blocked route, unreachable IK, target not
+found, stalled arm), `rollout.json` carries the reason in `policy_fault` and `ok`
+is false: that run is a fault, not a measured physical failure. The supervisor
+plans the policy's route, including the pickup docking point, before launching.
+Interrupting the supervisor (Ctrl-C or SIGTERM) stops the whole Dora process
+group; anything still alive after `--grace-seconds` (default 15) is killed.
 Raw captures and all three videos are saved in `dataset/`, using
 Studio's replay format. The preview socket is `<run>/preview.sock`.
 

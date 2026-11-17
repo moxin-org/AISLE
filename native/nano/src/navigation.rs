@@ -1,4 +1,4 @@
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -131,6 +131,8 @@ impl Map {
             rev.push(point(at));
             at = prev[&at];
         }
+        // Keep the verified start cell: start may not see its neighbour directly.
+        rev.push(point(begin));
         rev.push(start);
         rev.reverse();
         let mut route = Vec::new();
@@ -139,7 +141,7 @@ impl Map {
             let j = (i + 1..rev.len())
                 .rev()
                 .find(|j| self.clear_segment(rev[i], rev[*j]))
-                .unwrap();
+                .context("No collision-free route")?;
             route.push(rev[j]);
             i = j;
         }

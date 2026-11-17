@@ -429,3 +429,97 @@ fn judge_rejects_missing_physics_observations() {
     );
     assert!(!judge.result().pickup);
 }
+
+/// MOB-2, CON-8: planning never panics; any returned route is collision-free.
+#[test]
+fn planner_returns_a_clear_route_or_an_error_near_corners() {
+    let corner = Map {
+        bounds: [-3., 3., -3., 3.],
+        clearance: 0.,
+        obstacles: vec![Box2 {
+            center: [0.03, -0.03],
+            half: [0.1, 0.1],
+            clearance: None,
+        }],
+    };
+    let obstacle = |center, half, clearance| Box2 {
+        center,
+        half,
+        clearance,
+    };
+    let room = Map {
+        bounds: [-5.9, 5.9, -4.9, 4.9],
+        clearance: 0.55,
+        obstacles: vec![
+            obstacle([0., 2.6], [1.3, 0.45], None),
+            obstacle([0., 1.1], [0.7, 0.4], None),
+            obstacle([-3.4, 0.3], [0.6, 1.0], None),
+            obstacle([0.85, -2.5], [0.09, 0.6], None),
+            obstacle([2.08, -1.43], [0.18, 0.35], Some(0.27)),
+        ],
+    };
+    // Each of these panicked in route smoothing before the start cell was retained.
+    let mut cases = vec![(corner, [-0.11, -0.07], [-0.04, -0.17])];
+    for (start, goal) in [
+        (
+            [-1.2664256118774841, 0.2452451701782845],
+            [2.177856212725694, 0.14945378842969692],
+        ),
+        (
+            [2.461420635473579, -2.054402715722067],
+            [2.1545616975855157, 3.5137309849469283],
+        ),
+        (
+            [-1.277059805746875, 0.23348701851403408],
+            [2.4476125689246997, 0.4357812629343689],
+        ),
+        (
+            [1.2539622466345506, 0.167902621306669],
+            [-3.458235970170195, 3.41423343687417],
+        ),
+        (
+            [-4.572540214275682, 1.8037297981719131],
+            [4.762161451944525, 0.4559079204392935],
+        ),
+    ] {
+        cases.push((room.clone(), start, goal));
+    }
+    for (map, start, goal) in cases {
+        let planned = std::panic::catch_unwind(|| map.plan(start, goal));
+        let planned = planned.unwrap_or_else(|_| panic!("planner panicked: {start:?} -> {goal:?}"));
+        if let Ok(route) = planned {
+            assert_eq!(route.last(), Some(&goal));
+            let mut p = start;
+            for next in route {
+                assert!(map.clear_segment(p, next), "{start:?} -> {goal:?}");
+                p = next;
+            }
+        }
+    }
+}
+
+/// MOB-2, CON-8: the supervisor pre-flight plans the route the policy will drive.
+#[test]
+fn preflight_rejects_a_blocked_pickup_docking_point() {
+    let goal = [1.9, -2.5];
+    let map = aisle_nano::runtime::map(&aisle_nano::runtime::room(0, goal, "right"));
+    assert!(map.plan([0., 0.], goal).is_ok());
+    assert!(aisle_nano::runtime::route(&map, "pickup", [0., 0.], goal).is_err());
+    assert!(aisle_nano::runtime::route(&map, "navigate", [0., 0.], goal).is_ok());
+    let open = [1.6, -1.2];
+    let map = aisle_nano::runtime::map(&aisle_nano::runtime::room(0, open, "right"));
+    let route = aisle_nano::runtime::route(&map, "pickup", [0., 0.], open).unwrap();
+    assert_eq!(route.last(), Some(&open));
+    assert!(route.contains(&[open[0] - 0.7, open[1]]));
+}
+
+/// CON-8: a policy fault is reported as a fault, never as a silent physical failure.
+#[test]
+fn policy_fault_is_distinguished_from_normal_completion() {
+    use aisle_nano::runtime::policy_fault;
+    let fault = serde_json::json!({"done":true,"fault":true,"reason":"IK unreachable"});
+    assert_eq!(policy_fault(&fault).as_deref(), Some("IK unreachable"));
+    let normal = serde_json::json!({"done":true,"fault":false,"reason":"trajectory finished"});
+    assert_eq!(policy_fault(&normal), None);
+    assert_eq!(policy_fault(&serde_json::json!({})), None);
+}

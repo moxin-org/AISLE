@@ -11,6 +11,7 @@ use std::{
     os::unix::process::CommandExt,
     path::PathBuf,
     process::{Command, Stdio},
+    sync::atomic::{AtomicBool, Ordering},
     thread,
     time::{Duration, Instant},
 };
@@ -55,7 +56,13 @@ enum Action {
         wall_seconds: u64,
         #[arg(long)]
         drop_depth_once: Option<u64>,
+        #[arg(long, default_value_t = 15)]
+        grace_seconds: u64,
     },
+}
+static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+extern "C" fn interrupt(_: libc::c_int) {
+    INTERRUPTED.store(true, Ordering::SeqCst);
 }
 fn hash(path: &std::path::Path) -> Result<String> {
     Ok(format!("{:x}", Sha256::digest(fs::read(path)?)))
@@ -134,12 +141,14 @@ fn run() -> Result<serde_json::Value> {
             goal_y,
             wall_seconds,
             drop_depth_once,
+            grace_seconds,
         } => {
             ensure!(!output.exists(), "Use a new output directory");
             ensure!(
                 frames > 0 && frames <= 10000 && wall_seconds > 0 && wall_seconds <= 7200,
                 "Invalid rollout budget"
             );
+            ensure!(grace_seconds <= 60, "Invalid shutdown grace");
             ensure!(goal_x.is_finite() && goal_y.is_finite(), "Invalid goal");
             let model = model.canonicalize()?;
             let simulator = simulator.canonicalize()?;
@@ -161,7 +170,8 @@ fn run() -> Result<serde_json::Value> {
             };
             let objects = runtime::room(seed, station, &arm);
             let map = runtime::map(&objects);
-            map.plan([0., 0.], goal)?;
+            // The same route the policy drives from the scene origin.
+            runtime::route(&map, &task, [0., 0.], goal)?;
             let config = Config {
                 model: model.clone(),
                 output: output.clone(),
@@ -208,6 +218,12 @@ fn run() -> Result<serde_json::Value> {
                 &json!({"profile":"adora_nano_experimental_v1","seed":seed,"platform":std::env::consts::OS,"arch":std::env::consts::ARCH,"aisle_head_at_last_build":env!("AISLE_SOURCE_REVISION"),"policy_sha256":hash(&exe)?,"simulator_sha256":hash(&simulator)?,"model_sha256":hash(&model)?,"dora_sha256":hash(&dora)?,"assets_sha256":hash(&output.join("asset-manifest.json"))?,"cargo_lock_sha256":format!("{:x}",Sha256::digest(include_bytes!("../Cargo.lock"))),"scene_sha256":hash(&output.join("scene.json"))?,"graph_sha256":hash(&graph_path)?,"fault_injection":{"drop_head_depth_once":drop_depth_once}}),
             )?;
             let log = fs::File::create(output.join("dora.log"))?;
+            // Dora runs in its own process group, so the terminal's Ctrl-C never
+            // reaches it: the supervisor must stop that group itself.
+            unsafe {
+                libc::signal(libc::SIGINT, interrupt as *const () as libc::sighandler_t);
+                libc::signal(libc::SIGTERM, interrupt as *const () as libc::sighandler_t);
+            }
             let mut child = Command::new(dora)
                 .arg("run")
                 .arg(&graph_path)
@@ -216,33 +232,40 @@ fn run() -> Result<serde_json::Value> {
                 .process_group(0)
                 .spawn()?;
             let start = Instant::now();
+            let group = -(child.id() as i32);
             let mut finished = None;
+            let mut interrupted = false;
             loop {
                 if let Some(status) = child.try_wait()? {
                     finished = Some(status.success());
                     break;
                 }
-                if start.elapsed().as_secs() >= wall_seconds {
+                interrupted = INTERRUPTED.load(Ordering::SeqCst);
+                if interrupted || start.elapsed().as_secs() >= wall_seconds {
                     break;
                 }
                 thread::sleep(Duration::from_millis(200));
             }
-            if finished.is_none() {
-                // Only the owned Dora process group. SIGINT lets other native nodes finish.
+            if finished != Some(true) {
+                // Only the owned Dora process group. SIGINT lets native nodes finish;
+                // whatever outlives the grace period is killed, even after Dora exits.
+                let alive = || unsafe { libc::kill(group, 0) } == 0;
                 unsafe {
-                    libc::kill(-(child.id() as i32), libc::SIGINT);
+                    libc::kill(group, libc::SIGINT);
                 }
-                let deadline = Instant::now() + Duration::from_secs(15);
-                while child.try_wait()?.is_none() && Instant::now() < deadline {
+                let deadline = Instant::now() + Duration::from_secs(grace_seconds);
+                while alive() && Instant::now() < deadline {
+                    child.try_wait()?;
                     thread::sleep(Duration::from_millis(100));
                 }
-                if child.try_wait()?.is_none() {
+                if alive() {
                     unsafe {
-                        libc::kill(-(child.id() as i32), libc::SIGKILL);
+                        libc::kill(group, libc::SIGKILL);
                     }
                 }
                 child.wait()?;
             }
+            ensure!(!interrupted, "Rollout interrupted; processes stopped");
             let result = fs::read(output.join("result.json"))
                 .context("No independent result; inspect dora.log")?;
             let mut result: serde_json::Value = serde_json::from_slice(&result)?;
@@ -255,9 +278,17 @@ fn run() -> Result<serde_json::Value> {
                     .is_some_and(|v| v["ok"] == true && v["terminal_acknowledged"] == true)
             );
             result["dora_exited_successfully"] = json!(finished == Some(true));
+            // A policy that stopped on its own error is not a measured physical failure.
+            result["policy_fault"] = json!(
+                fs::read(output.join("policy-status.json"))
+                    .ok()
+                    .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                    .and_then(|status| runtime::policy_fault(&status))
+            );
             result["ok"] = json!(
                 result["ok"] == true
                     && result["capture_complete"] == true
+                    && result["policy_fault"].is_null()
                     && finished == Some(true)
             );
             result["success"] = json!(result["ok"] == true && result["success"] == true);

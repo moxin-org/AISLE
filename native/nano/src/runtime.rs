@@ -198,6 +198,22 @@ pub fn map(objects: &[Value]) -> Map {
             .collect(),
     }
 }
+/// The base route for a task. Pickup docks facing forward: turning beside the
+/// low work surface sweeps a folded shoulder into it even when the base fits.
+pub fn route(map: &Map, task: &str, start: [f64; 2], goal: [f64; 2]) -> Result<Vec<[f64; 2]>> {
+    if task == "pickup" && distance(start, goal) > 0.15 {
+        let pre = [goal[0] - 0.7, goal[1]];
+        let mut route = map.plan(start, pre).context("Pickup docking point")?;
+        route.extend(map.plan(pre, goal)?);
+        Ok(route)
+    } else {
+        map.plan(start, goal)
+    }
+}
+/// The reason a policy stopped on its own error, from its retained status.
+pub fn policy_fault(status: &Value) -> Option<String> {
+    (status["fault"] == true).then(|| status["reason"].as_str().unwrap_or("unknown").to_owned())
+}
 fn stamp(m: &Metadata) -> Result<(u64, u64)> {
     let n = |key| match m.parameters.get(key) {
         Some(Parameter::Integer(n)) if *n >= 0 => Ok(*n as u64),
@@ -343,13 +359,13 @@ pub fn node(role: &str) -> Result<()> {
                             dimension("w")?,
                             dimension("h")?,
                         );
-                        let (cmd, done, reason) = match response {
-                            Ok(v) => v,
-                            Err(e) => (vec![0.; 17], true, format!("{e:#}")),
+                        let (cmd, done, reason, fault) = match response {
+                            Ok((cmd, done, reason)) => (cmd, done, reason, false),
+                            Err(e) => (vec![0.; 17], true, format!("{e:#}"), true),
                         };
                         write(
                             &config.output.join("policy-status.json"),
-                            &json!({"frame":s.0,"stage":policy.stage,"pose_index":policy.pose_index,"done":done,"reason":reason,"target_rgb_m":policy.target,"command":cmd}),
+                            &json!({"frame":s.0,"stage":policy.stage,"pose_index":policy.pose_index,"done":done,"fault":fault,"reason":reason,"target_rgb_m":policy.target,"command":cmd}),
                         )?;
                         let done = done || s.0 >= config.max_frames;
                         let command: Vec<f32> = cmd.into_iter().map(|x| x as f32).collect();
@@ -580,16 +596,7 @@ impl Policy {
         if self.stage == "navigate" {
             if self.route.is_empty() {
                 let start = [state[0], state[1]];
-                // Reach the low work surface facing forward. Turning beside it
-                // sweeps a folded shoulder into the table even when the base fits.
-                if self.config.task == "pickup" && distance(start, self.config.goal) > 0.15 {
-                    let pre = [self.config.goal[0] - 0.7, self.config.goal[1]];
-                    self.route = self.config.map.plan(start, pre)?;
-                    self.route
-                        .extend(self.config.map.plan(pre, self.config.goal)?);
-                } else {
-                    self.route = self.config.map.plan(start, self.config.goal)?;
-                }
+                self.route = route(&self.config.map, &self.config.task, start, self.config.goal)?;
                 write(&self.config.output.join("route.json"), &self.route)?;
             }
             let next = self.route[self.waypoint];
