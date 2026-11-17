@@ -85,6 +85,8 @@ fn map_inflates_obstacles_and_bounds() {
     assert!(m.clear([0.95, 0.]));
     assert!(m.clear([0., 1.45]));
     assert!(!m.clear([2.8, 2.]));
+    assert!(!m.clear([-2.8, 2.]));
+    assert!(!m.clear([2., 2.8]));
     assert!(!m.clear([2., -2.8]));
     assert!(m.clear([2.5, -2.5]));
     assert!(!m.clear([f64::NAN, 0.]));

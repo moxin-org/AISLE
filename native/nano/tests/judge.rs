@@ -357,9 +357,10 @@ fn feed_rejects_changed_retries_gaps_and_clock_mismatch() {
     );
     assert_eq!((f.last(), f.verdict().unwrap().samples), (Some(1), 2));
 
+    // A skipped observation is refused even when its clock looks continuous.
     let mut f = observed();
-    f.offer(2, 2 * TICK, Input::Truth(&ROW)).unwrap();
-    assert!(f.offer(2, 2 * TICK, Input::State(&state(0.))).is_err());
+    f.offer(2, TICK, Input::Truth(&ROW)).unwrap();
+    assert!(f.offer(2, TICK, Input::State(&state(0.))).is_err());
 
     let mut f = observed();
     f.offer(1, TICK, Input::Truth(&ROW)).unwrap();
