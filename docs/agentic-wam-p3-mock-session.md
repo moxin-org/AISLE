@@ -79,3 +79,44 @@ continues to govern any future measured outcome.
 
 Tests cite the existing HAR-2/4/6/8, CON-5/8 and TC-8 constraints. This adds no
 spec requirement and changes no frozen source, runtime graph or registration.
+
+## Isolated local mock clients
+
+`tools/p3_isolated_mock.py` runs the evidence interface through fresh Python
+processes under the existing macOS confinement adapter. Each mock participant
+produces a small worker script; the controller captures its bounded source
+bytes after the participant exits and launches it in a separate fresh workspace.
+Both arms use identical scripts and raw operations. The controller alone binds
+the arm, session, immutable evidence manifest and call budget.
+
+The real OS capability audit must pass before each launch. Each process gets
+only its script, the recorded standard-library runtime and its own private
+HOME. Network access and reads of the evidence bundle, controller repository,
+scorer and peer files are denied; evidence is available only through the bounded
+RPC interface. The child inherits no operator credentials or extra descriptors.
+Hard CPU, individual-file-size, core-dump and no-fork limits are installed before
+authored code starts. These limits do not constitute a general disk quota or a
+resource-isolation claim for a future arbitrary coding-agent session.
+
+The controller retains OS audit results, runtime and source identities, exact
+RPC frames including incomplete messages, stderr, refusals, process termination
+and postflight verification. A failed check stops the mock suite and preserves
+all planned slots. Raw journal records, Arrow rows, artifact inventory and a
+bounded artifact chunk must match across each pair. An attempted arm override
+is refused in both arms; only the bound history arm receives the derived view.
+
+Use an output path outside the controller repository and input evidence tree:
+
+```sh
+PYTHONPATH=src UV_PROJECT_ENVIRONMENT=/path/to/aisle/.venv-unit \
+  uv run --no-sync python tools/p3_isolated_mock.py \
+  --bundle /path/to/exported-policy-evidence \
+  --out /private/tmp/aisle-p3-isolation-check --blocks 1
+```
+
+This command exercises four unscored processes per block: participant and
+generated worker in each arm. It makes no provider calls and cannot launch a
+robot policy. Passing these mock checks does not select the final task/action
+surface, prove session-level acceptance feasibility, or admit the measured
+pilot. The live task-specific worker integration, provider/model decision and
+frozen measured protocol remain separate work. P4 stays on hold.
