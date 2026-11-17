@@ -283,3 +283,67 @@ def test_specs_range_scopes_strict_gate(tmp_path):
     code, report = check("--root", str(root), "--strict", "--specs", "000-080")
     assert code != 0
     assert report["uncovered"] == ["AA-1"]
+
+
+def add_rust_test(root: Path, text: str) -> None:
+    """Add one Rust integration-test file under native/demo/tests/."""
+    tests_dir = root / "native" / "demo" / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "contract.rs").write_text(text)
+
+
+def test_rust_test_citing_undefined_id_fails(tmp_path):
+    """HAR-9: a Rust test under native/*/tests citing an undefined ID with a
+    known spec prefix fails the check, exactly like a Python test would."""
+    root = make_fixture(
+        tmp_path,
+        "- ZZ-1: Producers MUST publish heartbeats.\n",
+        'def test_a():\n    """ZZ-1: covered."""\n',
+    )
+    add_rust_test(root, "/// ZZ-1, ZZ-77: heartbeats.\n#[test]\nfn publishes() {}\n")
+    code, report = check("--root", str(root))
+    assert code != 0
+    assert report["unknown_citations"] == ["ZZ-77"]
+
+
+def test_rust_citations_are_reported_but_are_not_must_coverage(tmp_path):
+    """HAR-9: Rust citations are listed per ID ("relpath::fn") but do not
+    cover a MUST; the experimental native surface cannot fake normative
+    coverage (ADR-73)."""
+    root = make_fixture(tmp_path, "- ZZ-1: Producers MUST publish heartbeats.\n")
+    add_rust_test(
+        root,
+        '/// ZZ-1: heartbeats,\n/// continued.\n#[test]\n#[ignore = "slow"]\nfn publishes() {}\n',
+    )
+    code, report = check("--root", str(root))
+    assert code != 0
+    assert report["uncovered"] == ["ZZ-1"]
+    assert report["rust_citations"] == {"ZZ-1": ["native/demo/tests/contract.rs::publishes"]}
+
+
+def test_rust_doc_comments_outside_tests_are_not_citations(tmp_path):
+    """HAR-9: only doc comments on #[test] functions are Rust citations;
+    helpers and module docs may mention IDs freely."""
+    root = make_fixture(
+        tmp_path,
+        "- ZZ-1: Producers MUST publish heartbeats.\n",
+        'def test_a():\n    """ZZ-1: covered."""\n',
+    )
+    add_rust_test(
+        root,
+        "//! Module docs mention ZZ-77.\n"
+        "/// Helper mentions ZZ-78.\nfn helper() {}\n"
+        "/// ZZ-1: real.\n#[test]\nfn publishes() { helper() }\n",
+    )
+    code, report = check("--root", str(root))
+    assert code == 0, report
+    assert report["rust_citations"] == {"ZZ-1": ["native/demo/tests/contract.rs::publishes"]}
+
+
+def test_selfhost_lists_native_nano_citations():
+    """HAR-9: the repository's own native Nano Rust tests are scanned, so a
+    mistyped requirement ID there fails CI."""
+    _, report = check()
+    cited = report["rust_citations"]
+    assert "native/nano/tests/judge.rs::task_success_rules" in cited["TC-8"]
+    assert all(ref.startswith("native/") for refs in cited.values() for ref in refs)
