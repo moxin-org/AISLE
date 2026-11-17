@@ -6,6 +6,18 @@ on:
     branches: [main]
     tags: ["**"]
 jobs:
+  nano-rust:
+    name: ci/nano-rust
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check --manifest-path native/nano/Cargo.toml
+      - run: cargo clippy --locked --manifest-path native/nano/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --locked --manifest-path native/nano/Cargo.toml
+
   unit:
     name: ci/unit
     runs-on: macos-latest

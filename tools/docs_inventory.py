@@ -279,11 +279,12 @@ def _test_inventory(root: Path, tracked: set[str] | None) -> tuple[list[str], li
 # map cannot drift into claiming a directory that does not exist.
 _DIR_ROLES = {
     "analysis": "committed experiment findings and reports",
-    "assets": "robot/scene assets (so101 URDF)",
+    "assets": "robot/scene assets (SO-101 and experimental Nano URDFs)",
     "docs": "guides, design doc, ADRs, this generated appendix",
     "env": "topic CONTRACT.md and guard limits (config, not code)",
     "graphs": "dataflow YAMLs + committed ADR-30 turn plans",
     "harness": "the research-agent contract and budget ledger",
+    "native": "independent Rust runtimes and policies (experimental Nano)",
     "registry": "capability schema and typed node manifests",
     "runs": "gitignored: traces, videos, run manifests",
     "skills": "registered agent-authored skills",

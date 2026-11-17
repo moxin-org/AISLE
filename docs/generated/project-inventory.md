@@ -23,12 +23,13 @@ stayed outside it).
 | Directory | Role | Frozen paths it holds (CON-7) |
 |---|---|---|
 | `analysis/` | committed experiment findings and reports | — |
-| `assets/` | robot/scene assets (so101 URDF) | `assets/so101` |
+| `assets/` | robot/scene assets (SO-101 and experimental Nano URDFs) | `assets/so101` |
 | `docs/` | guides, design doc, ADRs, this generated appendix | — |
 | `env/` | topic CONTRACT.md and guard limits (config, not code) | `env` |
 | `experts/` |  | — |
 | `graphs/` | dataflow YAMLs + committed ADR-30 turn plans | `graphs/eval_*.yaml`, `graphs/expert_*.yaml`, `graphs/turn_plans/eval_*.json`, `graphs/turn_plans/expert_*.json` |
 | `harness/` | the research-agent contract and budget ledger | `harness/budget.toml` |
+| `native/` | independent Rust runtimes and policies (experimental Nano) | — |
 | `registry/` | capability schema and typed node manifests | — |
 | `runs/` | gitignored: traces, videos, run manifests | — |
 | `skills/` | registered agent-authored skills | — |
@@ -46,7 +47,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 95 |
+| ADR files | 96 |
 
 ## Graphs
 
@@ -280,6 +281,7 @@ inference.
 | [docs/decisions/ADR-70.md](../decisions/ADR-70.md) | ADR-70 — Engine wheels from PyPI, inside the lock | PROPOSED — owner review required under CON-14, with ADR-67 and ADR-68. |
 | [docs/decisions/ADR-71.md](../decisions/ADR-71.md) | ADR-71 — hardware readiness: platform order, Nexus as default engine, work order | ACCEPTED 2026-11-10 (owner direction given the same day; agent-drafted). |
 | [docs/decisions/ADR-72.md](../decisions/ADR-72.md) | ADR-72 — palm clearance in the top-down grasp plan | PROPOSED — owner review required (CON-7: changes the frozen scene |
+| [docs/decisions/ADR-73.md](../decisions/ADR-73.md) | ADR-73: Experimental Adora Nano, native Rust execution | proposed; separate from the frozen pharmacy benchmarks. |
 | [docs/decisions/ADR-8.md](../decisions/ADR-8.md) | ADR-8: T06 verifier/reset interpretations (SPEC 040) | ACCEPTED |
 | [docs/decisions/ADR-9.md](../decisions/ADR-9.md) | ADR-9: T07 budget-guard interpretations (SPEC 080) | ACCEPTED |
 | [docs/decisions/ADR-M0.md](../decisions/ADR-M0.md) | ADR-M0 — Milestone M0 sign-off (SPEC 090, M0-6) | SIGNED 2026-07-21 (option (a), M0-5 deferred); RE-AFFIRMED on |
