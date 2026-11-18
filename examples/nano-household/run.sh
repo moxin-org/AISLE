@@ -18,6 +18,8 @@ if [ "$prepare" = false ]; then
     AISLE_DORA=$(absolute "$AISLE_DORA")
     case "$("$AISLE_DORA" --version)" in *' 1.0.1') ;; *) echo 'Dora 1.0.1 is required' >&2; exit 2 ;; esac
     if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
+        # An exported empty key would stop the planner from reading the profile.
+        unset DEEPSEEK_API_KEY
         [ -r "${AISLE_OCTOS_PROFILE:-}" ] || { echo 'Set DEEPSEEK_API_KEY or AISLE_OCTOS_PROFILE' >&2; exit 2; }
     fi
     if [ -n "${AISLE_OCTOS_PROFILE:-}" ]; then export AISLE_OCTOS_PROFILE="$(absolute "$AISLE_OCTOS_PROFILE")"; fi
@@ -39,6 +41,13 @@ if [ -n "${AISLE_STUDIO_JIT:-}" ]; then
     set -- --live-socket "$output/preview.sock" --screen live
     if [ "${AISLE_STUDIO_VIDEO:-0}" = 1 ]; then set -- --video "$@"; fi
     DOROBOT_STUDIO_STATE_DIR="$output/studio-state" "$AISLE_STUDIO_JIT" "$@" >"$output/studio.log" 2>&1 &
+    studio=$!
 fi
-(cd "$output" && "$AISLE_DORA" run dataflow.yaml)
+# A failed run must not leave the viewer running. It stays open after a completed one.
+(cd "$output" && "$AISLE_DORA" run dataflow.yaml) || {
+    status=$?
+    if [ -n "${studio:-}" ]; then kill "$studio" 2>/dev/null || true; fi
+    printf 'Dora exited with status %s; the recording was not audited.\n' "$status" >&2
+    exit "$status"
+}
 exec "$root/tools/aisle-jit" nano run audit-household --label-replay --output "$output"

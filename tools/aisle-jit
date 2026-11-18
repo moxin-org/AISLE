@@ -52,7 +52,10 @@ prepare_transport_std() {
                 return
             fi
             std_attempt=$((std_attempt + 1))
-            [ "$std_attempt" -lt 200 ] || fail
+            [ "$std_attempt" -lt 200 ] || {
+                printf 'Timed out waiting for %s; remove it if no other aisle-jit is preparing std.\n' "$std_lock" >&2
+                fail
+            }
             sleep 0.05
         done
         std_stage=""
@@ -67,9 +70,12 @@ prepare_transport_std() {
         [ ! -e "$std_target" ] || fail
         std_stage="$(mktemp -d "$std_cache/.std-XXXXXX")"
         cp -pR "$std_source/." "$std_stage/"
-        if ! rg -q 'pub const fn as_mut_ptr_range' "$std_stage/core/slice/inherent.rs"; then
-            patch -s -d "$std_stage" -p1 < "$std_patch" >&2 || fail
+        # POSIX grep only, and never let patch guess a reversal: either would
+        # silently remove the fix from a std that already has it.
+        if ! grep -q 'pub const fn as_mut_ptr_range' "$std_stage/core/slice/inherent.rs"; then
+            patch -N -s -d "$std_stage" -p1 < "$std_patch" >&2 || fail
         fi
+        grep -q 'pub const fn as_mut_ptr_range' "$std_stage/core/slice/inherent.rs" || fail
         printf '%s\n' "$std_key" > "$std_stage/.aisle-std-ready"
         mv -- "$std_stage" "$std_target"
         std_stage=""

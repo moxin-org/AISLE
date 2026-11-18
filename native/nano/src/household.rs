@@ -37,7 +37,8 @@ pub fn prepare(
     start_at: Option<&str>,
 ) -> Result<Value> {
     let model = model.canonicalize()?;
-    let assets = crate::assets::manifest(&model)?;
+    // Refuse a model with missing meshes before the output directory exists.
+    crate::assets::meshes(&model)?;
     let sim = sim.canonicalize()?;
     let helper = helper.map(Path::canonicalize).transpose()?;
     let launcher = launcher.canonicalize()?;
@@ -100,10 +101,34 @@ pub fn prepare(
     }
     fs::create_dir(out)?;
     let out = out.canonicalize()?;
+    // A refused preparation must not consume the output directory.
+    write_run(
+        &out, &model, &sim, helper, &launcher, map, &entries, &objects,
+    )
+    .inspect_err(|_| {
+        let _ = fs::remove_dir_all(&out);
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_run(
+    out: &Path,
+    model: &Path,
+    sim: &Path,
+    helper: Option<std::path::PathBuf>,
+    launcher: &Path,
+    map: crate::navigation::Map,
+    entries: &[Station],
+    objects: &[Value],
+) -> Result<Value> {
     let file = |s: &str| out.join(s);
+    // Every node executes a frozen copy, so later edits to the source model
+    // cannot change the run or invalidate its recorded hashes.
+    let model = crate::assets::snapshot(model, &file("model"))?;
+    let assets = crate::assets::manifest(&model)?;
     let config = Config {
         model: model.clone(),
-        output: out.clone(),
+        output: out.to_path_buf(),
         map,
         goal: entries[0].goal,
         drop: entries[0].drop,
@@ -217,8 +242,26 @@ mod tests {
                     format!("sim/{rgb}")
                 );
             }
+            // Nodes execute the frozen copy, not the caller's model.
+            let frozen = out.canonicalize()?.join("model/model.urdf");
+            assert_eq!(fs::read(&frozen)?, fs::read(&model)?);
+            let policy: Value = serde_json::from_slice(&fs::read(out.join("policy.json"))?)?;
+            assert_eq!(policy["model"], json!(frozen));
+            for id in ["sim", "policy", "guard", "receipt"] {
+                assert_eq!(node(id)["env"]["AISLE_NANO_MODEL"], json!(frozen));
+            }
             assert!(prepare(&out, &model, &executable, helper, &launcher, start).is_err());
         }
+        // A model whose mesh is missing is refused without consuming the output directory.
+        let broken = temp.join("broken.urdf");
+        fs::write(
+            &broken,
+            r#"<robot name="fixture"><link name="base"><visual><geometry>
+            <mesh filename="meshes/absent.stl"/></geometry></visual></link></robot>"#,
+        )?;
+        let refused = temp.join("refused");
+        assert!(prepare(&refused, &broken, &executable, None, &launcher, None).is_err());
+        assert!(!refused.exists());
         fs::remove_dir_all(&temp)?;
         Ok(())
     }

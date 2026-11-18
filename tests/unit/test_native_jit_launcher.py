@@ -159,3 +159,35 @@ def test_dora_mode_cannot_copy_relax_as_native_rollout(environment):
     result = run(["nano", "dora-run", "rollout"], environment)
     assert result.returncode != 0
     assert json.loads(result.stdout)["ok"] is False
+
+
+def test_dora_mode_keeps_an_already_fixed_std_without_ripgrep(environment, tmp_path):
+    """CON-3/5: a std that already has the fix is never reverse-patched, with only POSIX tools."""
+    source = tmp_path / "std"
+    (source / "core/slice").mkdir(parents=True)
+    path = source / "core/slice/inherent.rs"
+    path.write_text(
+        """impl<T> [T] {
+    pub fn element_offset(&self, element: &T) -> Option<usize> {
+        let offset = byte_offset / size;
+        if offset < self.len() { Some(offset) } else { None }
+    }
+    #[track_caller]
+    pub fn swap(&mut self, a: usize, b: usize) {
+        super::swap(self, a, b)
+    }
+}
+"""
+    )
+    environment["AISLE_JIT_STD_SOURCE"] = str(source)
+    environment["PATH"] = "/usr/bin:/bin"
+    first = run(["nano", "dora-run", "node", "guard"], environment)
+    assert first.returncode == 0, first.stdout + first.stderr
+    fixed = (Path(json.loads(first.stdout)["std"]) / "core/slice/inherent.rs").read_text()
+    assert fixed.count("pub const fn as_mut_ptr_range") == 1
+    path.write_text(fixed)
+    second = run(["nano", "dora-run", "node", "guard"], environment)
+    assert second.returncode == 0, second.stdout + second.stderr
+    again = Path(json.loads(second.stdout)["std"])
+    assert again != Path(json.loads(first.stdout)["std"])
+    assert (again / "core/slice/inherent.rs").read_text() == fixed

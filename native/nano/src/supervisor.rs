@@ -137,9 +137,10 @@ pub fn run() -> Result<()> {
                             )?;
                             continue;
                         }
-                        let text = String::try_from(&data).map_err(|e| anyhow::anyhow!("{e}"))?;
-                        ensure!(text.len() <= 65536, "planner response too large");
-                        let v: Value = serde_json::from_str(&text)?;
+                        let v = String::try_from(&data)
+                            .map_err(|e| e.to_string())
+                            .and_then(|text| crate::admission::reply(&text))
+                            .unwrap_or_else(|reason| json!({"refused":reason}));
                         admission.cancel();
                         if v.pointer("/aisle/proposal").is_some() {
                             proposal = Some(v["aisle"]["proposal"].clone());
