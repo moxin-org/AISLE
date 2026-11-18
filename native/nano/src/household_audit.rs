@@ -146,11 +146,15 @@ pub fn audit(root: &Path) -> Result<Value> {
             .unwrap();
         let lifted = scene.frames[peak].transforms[id][14] - z0;
         let mut pinched = false;
-        for i in peak.saturating_sub(9)..=(peak + 9).min(n - 1) {
-            if scene.frames[i].transforms[id][14] - z0 < 0.035 {
+        let first = peak.saturating_sub(9);
+        for (offset, frame) in scene.frames[first..=(peak + 9).min(n - 1)]
+            .iter()
+            .enumerate()
+        {
+            if frame.transforms[id][14] - z0 < 0.035 {
                 continue;
             }
-            if contacts(&data, i, id)?
+            if contacts(&data, first + offset, id)?
                 .values()
                 .any(|peers| peers.range(bodies..).count() >= 2)
             {
