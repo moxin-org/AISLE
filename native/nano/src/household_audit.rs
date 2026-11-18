@@ -192,10 +192,10 @@ pub fn audit(root: &Path) -> Result<Value> {
         .sum();
     let diag = read("single-body-diagnostics/judge-progress.json")?;
     let pass_count = items.iter().filter(|v| v["passed"] == true).count();
-    let passed = pass_count == entries.len()
-        && diag["furniture_contacts"] == 0
-        && capture["terminal_acknowledged"] == true;
-    let result = json!({"success":passed,"deliveries":pass_count,"required":entries.len(),"base_travel_m":travel,"frames":n,"cameras":capture["cameras"],"furniture_contact_samples":diag["furniture_contacts"],"terminal_acknowledged":capture["terminal_acknowledged"],"items":items});
+    let delivered = pass_count == entries.len() && capture["terminal_acknowledged"] == true;
+    let contact_free = diag["furniture_contacts"] == 0;
+    let passed = delivered && contact_free;
+    let result = json!({"success":passed,"all_deliveries_verified":delivered,"zero_robot_furniture_contacts":contact_free,"deliveries":pass_count,"required":entries.len(),"base_travel_m":travel,"frames":n,"cameras":capture["cameras"],"furniture_contact_samples":diag["furniture_contacts"],"terminal_acknowledged":capture["terminal_acknowledged"],"items":items});
     aisle_nano::runtime::write(&root.join("household-result.json"), &result)?;
     Ok(result)
 }

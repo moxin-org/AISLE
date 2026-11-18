@@ -582,7 +582,7 @@ impl Policy {
         let initial = &state[7..];
         // Keep the same shoulder/elbow branch over the reachable work surface.
         // A high transfer point near the workspace boundary can force an elbow flip.
-        let solve = |clearance: f64| -> Result<Vec<Vec<f64>>> {
+        let solve = |clearance: f64, align_jaws: bool| -> Result<Vec<Vec<f64>>> {
             let mut previous = initial.to_vec();
             let mut poses = Vec::new();
             for (p, grip) in [
@@ -610,10 +610,17 @@ impl Policy {
                         tcp,
                         point,
                         Vector3::x(),
-                        Some(dir),
+                        if align_jaws { Some(dir) } else { None },
                         &q,
                     )?;
                     crate::safety::validate_arm_transition(&q, &next, &arm[..5])?;
+                    if !align_jaws {
+                        let jaw = self.robot.fk(&link, &next)?.rotation * Vector3::x();
+                        ensure!(
+                            jaw.dot(&dir) > 0.82,
+                            "placement would rotate loaded jaws too far"
+                        );
+                    }
                     q = next;
                 }
                 crate::safety::validate_arm_transition(&previous, &q, &arm[..5])?;
@@ -626,14 +633,23 @@ impl Policy {
         let poses = if self.transit.is_some() {
             let mut selected = None;
             for clearance in [0.055, 0.075, 0.045, 0.10] {
-                if let Ok(p) = solve(clearance) {
+                if let Ok(p) = solve(clearance, true) {
                     selected = Some(p);
                     break;
                 }
             }
+            if selected.is_none() {
+                // Release needs position and stable grasp, without exact world-axis alignment.
+                for clearance in [0.055, 0.075, 0.045] {
+                    if let Ok(p) = solve(clearance, false) {
+                        selected = Some(p);
+                        break;
+                    }
+                }
+            }
             selected.context("no continuous placement trajectory above this surface")?
         } else {
-            solve(0.10)?
+            solve(0.10, true)?
         };
         self.poses = poses;
         self.pose_index = 0;
@@ -912,6 +928,67 @@ pub fn wheel_rates(forward: f64, lateral: f64, turn: f64) -> [f64; 3] {
 #[cfg(test)]
 mod household_tests {
     use super::*;
+    /// TC-8. Reproduce the loaded reading-nook pose at which exact world alignment had no continuous solution.
+    #[test]
+    fn release_from_measured_reading_nook_pose() {
+        let model = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/robots/adora_nano/model.urdf");
+        let out = std::env::temp_dir().join(format!("household-reading-{}", std::process::id()));
+        std::fs::create_dir_all(&out).unwrap();
+        let station = crate::household::stations()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.station == "reading nook")
+            .unwrap();
+        let config = Config {
+            model: model.clone(),
+            output: out.clone(),
+            map: Map {
+                bounds: [-6., 6., -5., 5.],
+                clearance: 0.55,
+                obstacles: vec![],
+            },
+            goal: station.goal,
+            drop: station.drop,
+            task: "household".into(),
+            arm: "right".into(),
+            seed: 0,
+            max_frames: 1000,
+        };
+        let mut p = Policy::new(config, Robot::read(&model).unwrap()).unwrap();
+        p.prepare_place(
+            &[
+                2.41714025,
+                1.05060768,
+                -8.103e-05,
+                -6.9e-06,
+                -4.801e-05,
+                -0.00274267,
+                0.9999963,
+                4.27364922,
+                167.3596344,
+                -161.27023315,
+                -0.62000275,
+                0.30000874,
+                0.20003128,
+                0.00035142,
+                0.35828468,
+                -0.99806941,
+                2.667e-05,
+                -0.01774822,
+                1.37618268,
+                -0.82181215,
+                0.0012179,
+                -0.24429029,
+                -0.00025353,
+                0.31660393,
+            ],
+            0,
+        )
+        .unwrap();
+        assert_eq!(p.poses.len(), 4);
+        std::fs::remove_dir_all(out).unwrap();
+    }
     /// TC-8 / MOB-3. Regression for the measured hall grasp that formerly produced an elbow flip.
     #[test]
     fn plan_four_placements_without_a_joint_branch_jump() {
