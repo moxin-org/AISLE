@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/dorobot-org/dorobot-studio",
+  "revision": "f21809507e81e9c80ccee6fa0853c73c7a9423a1",
+  "path": "data/adora_nano/adora_nano.urdf",
+  "sha256": "342da414bca32361ad6be12e76ac769289dc56e382ad44e811361809c5e48529",
+  "purpose": "URDF kinematics reference; simulator meshes must accompany the runtime model"
+}

@@ -47,7 +47,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 96 |
+| ADR files | 97 |
 
 ## Graphs
 
@@ -282,6 +282,7 @@ inference.
 | [docs/decisions/ADR-71.md](../decisions/ADR-71.md) | ADR-71 — hardware readiness: platform order, Nexus as default engine, work order | ACCEPTED 2026-11-10 (owner direction given the same day; agent-drafted). |
 | [docs/decisions/ADR-72.md](../decisions/ADR-72.md) | ADR-72 — palm clearance in the top-down grasp plan | PROPOSED — owner review required (CON-7: changes the frozen scene |
 | [docs/decisions/ADR-73.md](../decisions/ADR-73.md) | ADR-73: Experimental Adora Nano, native Rust execution | proposed; separate from the frozen pharmacy benchmarks. |
+| [docs/decisions/ADR-74.md](../decisions/ADR-74.md) | ADR-74 — experimental PEAR-style inference runtime | IMPLEMENTED for local bring-up; not registered or benchmark accepted. |
 | [docs/decisions/ADR-8.md](../decisions/ADR-8.md) | ADR-8: T06 verifier/reset interpretations (SPEC 040) | ACCEPTED |
 | [docs/decisions/ADR-9.md](../decisions/ADR-9.md) | ADR-9: T07 budget-guard interpretations (SPEC 080) | ACCEPTED |
 | [docs/decisions/ADR-M0.md](../decisions/ADR-M0.md) | ADR-M0 — Milestone M0 sign-off (SPEC 090, M0-6) | SIGNED 2026-07-21 (option (a), M0-5 deferred); RE-AFFIRMED on |

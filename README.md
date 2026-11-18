@@ -298,6 +298,14 @@ The supported Linux clone and archive quickstarts passed in
 These are development runs; the benchmark's independent-user, release and
 physical-evidence gates remain outstanding.
 
+For an experimental RGB-and-proprioception policy that emits bounded pose
+actions, see [PEAR-style runtime inference](docs/pear-runtime.md). Franka and
+Nano dual-arm adapters support Codex, local OminiX-MLX PEAR, or a vision model server, with
+paused or asynchronous inference. Nano includes a Nexus arm fixture with three
+RGB cameras and a verified Codex observation/action/feedback loop. Grasping and
+PEAR checkpoint task-success results remain unevaluated. The guide includes the
+local checkpoint conversion, server, Nano graph, and opt-in runtime checks.
+
 ## Repository map
 
 ```
