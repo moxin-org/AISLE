@@ -1,5 +1,9 @@
+pub mod admission;
 pub mod assets;
+#[cfg(feature = "dora")]
+pub mod control;
 pub mod delivery;
+pub mod household;
 pub mod judge;
 pub mod kinematics;
 pub mod navigation;
@@ -7,3 +11,7 @@ pub mod oracle;
 pub mod perception;
 pub mod runtime;
 pub mod safety;
+pub mod skills;
+#[cfg(feature = "dora")]
+pub mod supervisor;
+pub mod workflow;

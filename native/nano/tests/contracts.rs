@@ -540,3 +540,49 @@ fn policy_fault_is_distinguished_from_normal_completion() {
     assert_eq!(policy_fault(&normal), None);
     assert_eq!(policy_fault(&serde_json::json!({})), None);
 }
+
+/// MOB-2/3: traversing the room reserves the full base and arm envelope beside other workstations.
+#[test]
+fn household_docking_clearance_is_local_to_the_final_lane() {
+    use aisle_nano::navigation::{Box2, Map};
+    let dock = Map {
+        bounds: [-3., 3., -3., 3.],
+        clearance: 0.55,
+        obstacles: vec![Box2 {
+            center: [0.5, 0.],
+            half: [0.10, 0.08],
+            clearance: Some(0.225),
+        }],
+    };
+    let beside = [0.5, -0.36];
+    assert!(dock.clear(beside));
+    let transit = dock.transit();
+    assert!(!transit.clear(beside));
+    let start = [-0.9, 0.];
+    let dest = [1.6, -0.3];
+    let mut from = start;
+    for point in transit.plan(start, dest).unwrap() {
+        assert!(transit.clear_segment(from, point));
+        from = point;
+    }
+}
+
+/// MOB-2. Regression from the bedroom turnaround. The disc clears the sofa corner by 2 mm.
+#[test]
+fn leave_a_square_grid_corner_only_with_full_disc_clearance() {
+    use aisle_nano::navigation::{Box2, Map};
+    let map = Map {
+        bounds: [-8., 6., -9., 3.],
+        clearance: 0.55,
+        obstacles: vec![Box2 {
+            center: [-2.13, -0.80],
+            half: [1.30, 0.11],
+            clearance: None,
+        }],
+    };
+    let start = [-0.639, -0.172];
+    assert!(!map.clear(start));
+    let route = map.transit_route(start, [1., 1.]).unwrap();
+    assert!(map.clear(route[0]));
+    assert!(map.transit_route([-0.66, -0.20], [1., 1.]).is_err());
+}

@@ -1,0 +1,95 @@
+[package]
+name = "static_init"
+version = "1.0.4"
+authors = ["Olivier Kannengieser <okannen@gmail.com>"]
+edition = "2021"
+description = "Safe mutable static and non const static initialization, and code execution at program startup/exit."
+keywords = ["no_std","optimization","static","preformance","constructor"]
+categories = ["no-std","rust-patterns","memory-management"]
+repository = "https://gitlab.com/okannen/static_init"
+license = "MIT OR Apache-2.0"
+rust-version = "1.82"
+
+[workspace]
+members = [
+      "static_init_macro",
+      ]
+
+[features]
+
+# for detection of lazy static cyclic initialization 
+# and detection of dynamic statics access while not initialized
+debug_order = ["static_init_macro/debug_order","parking_lot"]
+
+thread_local = []
+
+spin_loop = []
+
+# to be used when benching because the stable criterion black box
+# does not work here
+bench_nightly = ["criterion/real_blackbox"]
+
+# internal feature to enable tests
+test_no_global_lazy_hint = []
+
+# internal feature to force use of pthread keys for droped thread local on linux
+test_pthread_support = ["thread_local"]
+
+# internal feature to retrieve lock statics during tests
+lock_statistics = []
+
+default = []
+
+[dependencies]
+bitflags = "1"
+parking_lot = {version = "0.12", optional=true}
+parking_lot_core = {version = "0.9", optional=true}
+
+[dependencies.static_init_macro]
+version="1.0.4"
+path="static_init_macro"
+
+[dev-dependencies]
+lazy_static = "1"
+ctor = "0.2"
+libc = "0.2"
+parking_lot = "0.12"
+criterion = {version = "0.6", features = ["html_reports"]}
+crossbeam = "0.8"
+double-checked-cell = {version = "2.1", features = ["parking_lot_mutex"]}
+
+[[bench]]
+name = "multi_threaded"
+harness = false
+
+[build-dependencies]
+cfg_aliases = "0.2"
+
+#[profile.bench]
+#lto = true
+
+[profile.dev]
+panic="abort"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[target.'cfg(target_os="windows")'.dependencies.winapi]
+version = "0.3"
+features = ["minwindef", "winnt", "winbase","synchapi"]
+
+[target.'cfg(target_os="linux")'.dependencies.libc]
+version = "0.2"
+default-features = false
+
+[target.'cfg(target_os="android")'.dependencies.libc]
+version = "0.2"
+default-features = false
+
+[target.'cfg(not(any(target_os="linux",target_os="android")))'.dependencies]
+parking_lot = "0.12"
+parking_lot_core = "0.9"
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(debug_mode)'] }

@@ -1,0 +1,114 @@
+[
+  {
+    "station": "hall bench",
+    "object": "folded red shirt",
+    "destination": "hall laundry basket",
+    "kind": "basket",
+    "goal": [
+      0.17,
+      0.0
+    ],
+    "color": "red",
+    "size": [
+      0.064,
+      0.04,
+      0.031
+    ],
+    "drop": [
+      0.525,
+      -0.328,
+      0.219
+    ],
+    "surface_z": 0.11,
+    "region": [
+      0.525,
+      -0.328,
+      0.084,
+      0.073
+    ]
+  },
+  {
+    "station": "play corner",
+    "object": "blue building brick",
+    "destination": "playroom coffee table",
+    "kind": "table",
+    "goal": [
+      2.45,
+      -1.4
+    ],
+    "color": "blue",
+    "size": [
+      0.06,
+      0.04,
+      0.041
+    ],
+    "drop": [
+      2.805,
+      -1.765,
+      0.2045
+    ],
+    "surface_z": 0.18,
+    "region": [
+      2.805,
+      -1.765,
+      0.097,
+      0.088
+    ]
+  },
+  {
+    "station": "reading nook",
+    "object": "green stacking block",
+    "destination": "lounge coffee table",
+    "kind": "table",
+    "goal": [
+      2.45,
+      1.05
+    ],
+    "color": "green",
+    "size": [
+      0.044,
+      0.04,
+      0.045
+    ],
+    "drop": [
+      2.805,
+      0.685,
+      0.2065
+    ],
+    "surface_z": 0.18,
+    "region": [
+      2.805,
+      0.685,
+      0.097,
+      0.088
+    ]
+  },
+  {
+    "station": "bedroom bench",
+    "object": "folded yellow shorts",
+    "destination": "bedroom laundry basket",
+    "kind": "basket",
+    "goal": [
+      2.3,
+      3.9
+    ],
+    "color": "yellow",
+    "size": [
+      0.058,
+      0.04,
+      0.032
+    ],
+    "drop": [
+      2.655,
+      3.572,
+      0.219
+    ],
+    "surface_z": 0.11,
+    "region": [
+      2.655,
+      3.572,
+      0.084,
+      0.073
+    ]
+  }
+]

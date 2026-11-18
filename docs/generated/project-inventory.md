@@ -26,6 +26,7 @@ stayed outside it).
 | `assets/` | robot/scene assets (SO-101 and experimental Nano URDFs) | `assets/so101` |
 | `docs/` | guides, design doc, ADRs, this generated appendix | — |
 | `env/` | topic CONTRACT.md and guard limits (config, not code) | `env` |
+| `examples/` | runnable use cases with setup and validation instructions | — |
 | `experts/` |  | — |
 | `graphs/` | dataflow YAMLs + committed ADR-30 turn plans | `graphs/eval_*.yaml`, `graphs/expert_*.yaml`, `graphs/turn_plans/eval_*.json`, `graphs/turn_plans/expert_*.json` |
 | `harness/` | the research-agent contract and budget ledger | `harness/budget.toml` |

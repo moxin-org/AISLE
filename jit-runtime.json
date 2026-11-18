@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/makepad/relax.git",
+  "revision": "442f13bc333ed5cb4b3d75de62693251acd39dd7",
+  "compatibility_patchset_git_blob": "5da0d91d387d6ec2addeb8ff502efb871f256317",
+  "compatible_setup": "Octos scripts/jit/setup-relax.sh",
+  "runner_environment": "AISLE_JIT_RUNNER",
+  "default_runner": "~/.octos-jit/relax/target/release/relax",
+  "packages": ["aisle-nano", "aisle-octos"],
+  "cargo_features": "core modes: --no-default-features; dora-* modes: default dora feature",
+  "nano_binary": "aisle-nano-dev",
+  "octos_binary": "aisle-octos",
+  "dora_transport_jit": true,
+  "validated_platform": "macOS aarch64",
+  "compatibility_sources": "native/compat/README.md",
+  "std_backport": "makepad/makepad@3ec45e06b698d4c1eaaf034b7fb4a7129c4967e8",
+  "std_environment": "AISLE_JIT_STD_SOURCE (matching installed std; copied privately)",
+  "native_application_fallback": false,
+  "purpose": "development; live source changes are not frozen benchmark evidence"
+}

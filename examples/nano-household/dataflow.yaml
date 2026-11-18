@@ -1,0 +1,26 @@
+# The launcher resolves node executables, assets and output paths for this template.
+nodes:
+  - id: sim
+    args: aisle-node
+    inputs: {command: guard/joint_cmd_safe, done: policy/done, judge_ack: receipt/ack}
+    outputs: [state, truth, finished, rgb_head, depth_head, pose_head, rgb_left_wrist, depth_left_wrist, pose_left_wrist, rgb_right_wrist, depth_right_wrist, pose_right_wrist]
+  - id: policy
+    args: nano dora-run node supervisor
+    inputs: {state: sim/state, rgb_head: sim/rgb_head, rgb_left_wrist: sim/rgb_left_wrist, rgb_right_wrist: sim/rgb_right_wrist, depth: sim/depth_head, camera: sim/pose_head, finished: sim/finished, subgoal_msg: planner/subgoal_msg, status_result: planner/status_result, control_msg: control/control_msg}
+    outputs: [joint_cmd, done, observation_msg, cancel_msg, skill_result]
+  - id: guard
+    args: node guard
+    inputs: {state: sim/state, command: policy/joint_cmd, finished: sim/finished}
+    outputs: [joint_cmd_safe]
+  - id: receipt
+    args: node judge
+    inputs: {state: sim/state, truth: sim/truth, done: policy/done, finished: sim/finished}
+    outputs: [ack]
+  - id: planner
+    args: octos dora-run node --timeout-ms 25000
+    inputs: {observation_msg: policy/observation_msg, cancel_msg: policy/cancel_msg, finished: sim/finished}
+    outputs: [subgoal_msg, status_result]
+  - id: control
+    args: node control
+    inputs: {tick: dora/timer/millis/100, finished: sim/finished}
+    outputs: [control_msg]

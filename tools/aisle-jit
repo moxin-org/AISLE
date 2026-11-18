@@ -1,0 +1,105 @@
+#!/bin/sh
+# Source-based development entrypoint. Never builds or substitutes a native app.
+set -eu
+fail() { printf '%s\n' '{"ok":false,"error":"Invalid JIT command or missing Relax runner. Use tools/aisle-jit --help; set AISLE_JIT_RUNNER to an existing compatible executable."}'; exit 1; }
+if [ "${1:-}" = '--help' ] || [ "$#" -eq 0 ]; then
+    printf '%s\n' '{"ok":true,"usage":"tools/aisle-jit <nano|octos> <run|check|test|test-live|dora-run|dora-check|dora-test|dora-test-live> [arguments]","runner":"AISLE_JIT_RUNNER or ~/.octos-jit/relax/target/release/relax","cache":"AISLE_JIT_CACHE_ROOT/<component> or native/<component>/target/relax","note":"Dora modes retain transport and use an isolated std source patch. Live reload stays enabled. No native application fallback."}'
+    exit 0
+fi
+component="$1"; shift
+case "$component" in nano|octos) ;; *) fail ;; esac
+mode="${1:-run}"
+if [ "$#" -gt 0 ]; then shift; fi
+transport=false
+case "$mode" in dora-*) transport=true; mode="${mode#dora-}" ;; esac
+case "$mode" in run|check|test|test-live) ;; *) fail ;; esac
+if [ "$transport" = true ] && [ "$mode" = run ]; then
+    case "${1:-}" in node|--help) ;; *) fail ;; esac
+fi
+root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+runner="${AISLE_JIT_RUNNER:-$HOME/.octos-jit/relax/target/release/relax}"
+case "$runner" in /*) ;; *) fail ;; esac
+[ -x "$runner" ] || fail
+if [ -n "${AISLE_JIT_CACHE_ROOT:-}" ]; then
+    mkdir -p -- "$AISLE_JIT_CACHE_ROOT"
+    AISLE_JIT_CACHE_ROOT="$(CDPATH= cd -- "$AISLE_JIT_CACHE_ROOT" && pwd -P)"
+    export AISLE_JIT_CACHE_ROOT
+fi
+
+prepare_transport_std() {
+    std_source="${AISLE_JIT_STD_SOURCE:-$(dirname -- "$runner")/../../libs/relax/compiler/std}"
+    [ -f "$std_source/core/slice/inherent.rs" ] || {
+        printf '%s\n' 'Set AISLE_JIT_STD_SOURCE to the existing matching Relax std source directory.' >&2
+        fail
+    }
+    std_source="$(CDPATH= cd -- "$std_source" && pwd -P)"
+    std_patch="$root/native/compat/relax-std.patch"
+    # Content-keyed snapshot: other running JIT sessions keep their installed std.
+    std_sources_digest="$(cd "$std_source" && find . -type f -exec shasum -a 256 {} +)" || fail
+    std_patch_digest="$(shasum -a 256 "$std_patch")" || fail
+    std_digest="$(printf '%s\n%s\n' "$std_sources_digest" "$std_patch_digest" | LC_ALL=C sort | shasum -a 256)"
+    std_key="${std_digest%% *}"
+    std_cache="${AISLE_JIT_CACHE_ROOT:-$root/native/.jit}"
+    mkdir -p -- "$std_cache"
+    std_cache="$(CDPATH= cd -- "$std_cache" && pwd -P)"
+    std_target="$std_cache/std-$std_key"
+    if [ ! -f "$std_target/.aisle-std-ready" ]; then
+        std_lock="$std_cache/lock-$std_key"
+        std_attempt=0
+        while ! mkdir -- "$std_lock" 2>/dev/null; do
+            if [ -f "$std_target/.aisle-std-ready" ]; then
+                export RELAX_STD="$std_target"
+                return
+            fi
+            std_attempt=$((std_attempt + 1))
+            [ "$std_attempt" -lt 200 ] || fail
+            sleep 0.05
+        done
+        std_stage=""
+        trap '[ -z "$std_stage" ] || rm -rf -- "$std_stage"; rmdir -- "$std_lock" 2>/dev/null || true' 0
+        trap 'exit 1' 1 2 15
+        if [ -f "$std_target/.aisle-std-ready" ]; then
+            rmdir -- "$std_lock"
+            trap - 0 1 2 15
+            export RELAX_STD="$std_target"
+            return
+        fi
+        [ ! -e "$std_target" ] || fail
+        std_stage="$(mktemp -d "$std_cache/.std-XXXXXX")"
+        cp -pR "$std_source/." "$std_stage/"
+        if ! rg -q 'pub const fn as_mut_ptr_range' "$std_stage/core/slice/inherent.rs"; then
+            patch -s -d "$std_stage" -p1 < "$std_patch" >&2 || fail
+        fi
+        printf '%s\n' "$std_key" > "$std_stage/.aisle-std-ready"
+        mv -- "$std_stage" "$std_target"
+        std_stage=""
+        rmdir -- "$std_lock"
+        trap - 0 1 2 15
+    fi
+    export RELAX_STD="$std_target"
+}
+if [ "$transport" = true ]; then prepare_transport_std; fi
+export AISLE_JIT_RUNNER="$runner" AISLE_JIT_ROOT="$root" AISLE_JIT_LAUNCHER="$root/tools/aisle-jit"
+if [ -n "${AISLE_JIT_CACHE_ROOT:-}" ]; then
+    export RELAX_CACHE_DIR="$AISLE_JIT_CACHE_ROOT/$component"
+else
+    export RELAX_CACHE_DIR="$root/native/$component/target/relax"
+fi
+cd "$root/native/$component"
+package="aisle-$component"
+binary="$package"
+if [ "$transport" = true ]; then
+    case "$mode" in
+        run) exec "$runner" run --allow-c --ahead=minimal "$package" --bin "$binary" -- "$@" ;;
+        check) exec "$runner" check --allow-c "$package" --bin "$binary" "$@" ;;
+        test) exec "$runner" test --allow-c "$package" "$@" ;;
+        test-live) exec "$runner" test --allow-c --live "$package" "$@" ;;
+    esac
+fi
+if [ "$component" = nano ]; then binary=aisle-nano-dev; fi
+case "$mode" in
+    run) exec "$runner" run --allow-c --ahead=minimal "$package" --no-default-features --bin "$binary" -- "$@" ;;
+    check) exec "$runner" check --allow-c "$package" --no-default-features --bin "$binary" "$@" ;;
+    test) exec "$runner" test --allow-c "$package" --no-default-features "$@" ;;
+    test-live) exec "$runner" test --allow-c --live "$package" --no-default-features "$@" ;;
+esac

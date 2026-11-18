@@ -1,0 +1,682 @@
+[
+ {
+  "name": "hall_bench_source_shelf",
+  "size": [
+   0.19,
+   0.12,
+   0.025
+  ],
+  "position": [
+   0.61,
+   -0.2175,
+   0.1675
+  ],
+  "color": [
+   0.36,
+   0.31,
+   0.28,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "hall_bench_source_support",
+  "size": [
+   0.07,
+   0.09,
+   0.19
+  ],
+  "position": [
+   0.645,
+   -0.215,
+   0.062
+  ],
+  "color": [
+   0.29,
+   0.26,
+   0.22,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "folded red shirt",
+  "size": [
+   0.064,
+   0.04,
+   0.031
+  ],
+  "position": [
+   0.574,
+   -0.23,
+   0.1985
+  ],
+  "color": [
+   0.96,
+   0.06,
+   0.04,
+   1
+  ],
+  "fixed": false
+ },
+ {
+  "name": "hall laundry basket",
+  "size": [
+   0.19,
+   0.17,
+   0.012
+  ],
+  "position": [
+   0.525,
+   -0.328,
+   0.104
+  ],
+  "color": [
+   0.56,
+   0.45,
+   0.33,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "hall_bench_basket_end_0",
+  "size": [
+   0.011,
+   0.17,
+   0.038
+  ],
+  "position": [
+   0.4355,
+   -0.328,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "hall_bench_basket_side_0",
+  "size": [
+   0.17,
+   0.012,
+   0.038
+  ],
+  "position": [
+   0.525,
+   -0.407,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "hall_bench_basket_end_1",
+  "size": [
+   0.011,
+   0.17,
+   0.038
+  ],
+  "position": [
+   0.6145,
+   -0.328,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "hall_bench_basket_side_1",
+  "size": [
+   0.17,
+   0.012,
+   0.038
+  ],
+  "position": [
+   0.525,
+   -0.249,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "hall_bench_basket_stand",
+  "size": [
+   0.14,
+   0.13,
+   0.132
+  ],
+  "position": [
+   0.525,
+   -0.328,
+   0.031
+  ],
+  "color": [
+   0.43,
+   0.37,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "play_corner_source_shelf",
+  "size": [
+   0.19,
+   0.12,
+   0.025
+  ],
+  "position": [
+   2.89,
+   -1.6175,
+   0.1675
+  ],
+  "color": [
+   0.36,
+   0.31,
+   0.28,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "play_corner_source_support",
+  "size": [
+   0.07,
+   0.09,
+   0.19
+  ],
+  "position": [
+   2.925,
+   -1.615,
+   0.062
+  ],
+  "color": [
+   0.29,
+   0.26,
+   0.22,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "blue building brick",
+  "size": [
+   0.06,
+   0.04,
+   0.041
+  ],
+  "position": [
+   2.854,
+   -1.63,
+   0.2035
+  ],
+  "color": [
+   0.06,
+   0.16,
+   0.97,
+   1
+  ],
+  "fixed": false
+ },
+ {
+  "name": "playroom coffee table",
+  "size": [
+   0.36,
+   0.34,
+   0.028
+  ],
+  "position": [
+   2.865,
+   -1.845,
+   0.166
+  ],
+  "color": [
+   0.44,
+   0.29,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "play_corner_table_leg_0",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   2.73,
+   -1.975,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "play_corner_table_leg_1",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   2.73,
+   -1.715,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "play_corner_table_leg_2",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   3.0,
+   -1.975,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "play_corner_table_leg_3",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   3.0,
+   -1.715,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "reading_nook_source_shelf",
+  "size": [
+   0.19,
+   0.12,
+   0.025
+  ],
+  "position": [
+   2.89,
+   0.8325,
+   0.1675
+  ],
+  "color": [
+   0.36,
+   0.31,
+   0.28,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "reading_nook_source_support",
+  "size": [
+   0.07,
+   0.09,
+   0.19
+  ],
+  "position": [
+   2.925,
+   0.835,
+   0.062
+  ],
+  "color": [
+   0.29,
+   0.26,
+   0.22,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "green stacking block",
+  "size": [
+   0.044,
+   0.04,
+   0.045
+  ],
+  "position": [
+   2.854,
+   0.82,
+   0.2055
+  ],
+  "color": [
+   0.04,
+   0.8,
+   0.12,
+   1
+  ],
+  "fixed": false
+ },
+ {
+  "name": "lounge coffee table",
+  "size": [
+   0.36,
+   0.34,
+   0.028
+  ],
+  "position": [
+   2.865,
+   0.605,
+   0.166
+  ],
+  "color": [
+   0.44,
+   0.29,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "reading_nook_table_leg_0",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   2.73,
+   0.475,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "reading_nook_table_leg_1",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   2.73,
+   0.735,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "reading_nook_table_leg_2",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   3.0,
+   0.475,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "reading_nook_table_leg_3",
+  "size": [
+   0.035,
+   0.035,
+   0.186
+  ],
+  "position": [
+   3.0,
+   0.735,
+   0.059
+  ],
+  "color": [
+   0.33,
+   0.23,
+   0.16,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_source_shelf",
+  "size": [
+   0.19,
+   0.12,
+   0.025
+  ],
+  "position": [
+   2.74,
+   3.6825,
+   0.1675
+  ],
+  "color": [
+   0.36,
+   0.31,
+   0.28,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_source_support",
+  "size": [
+   0.07,
+   0.09,
+   0.19
+  ],
+  "position": [
+   2.775,
+   3.685,
+   0.062
+  ],
+  "color": [
+   0.29,
+   0.26,
+   0.22,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "folded yellow shorts",
+  "size": [
+   0.058,
+   0.04,
+   0.032
+  ],
+  "position": [
+   2.704,
+   3.67,
+   0.199
+  ],
+  "color": [
+   0.98,
+   0.8,
+   0.035,
+   1
+  ],
+  "fixed": false
+ },
+ {
+  "name": "bedroom laundry basket",
+  "size": [
+   0.19,
+   0.17,
+   0.012
+  ],
+  "position": [
+   2.655,
+   3.572,
+   0.104
+  ],
+  "color": [
+   0.56,
+   0.45,
+   0.33,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_basket_end_0",
+  "size": [
+   0.011,
+   0.17,
+   0.038
+  ],
+  "position": [
+   2.5655,
+   3.572,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_basket_side_0",
+  "size": [
+   0.17,
+   0.012,
+   0.038
+  ],
+  "position": [
+   2.655,
+   3.493,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_basket_end_1",
+  "size": [
+   0.011,
+   0.17,
+   0.038
+  ],
+  "position": [
+   2.7445,
+   3.572,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_basket_side_1",
+  "size": [
+   0.17,
+   0.012,
+   0.038
+  ],
+  "position": [
+   2.655,
+   3.651,
+   0.129
+  ],
+  "color": [
+   0.55,
+   0.43,
+   0.31,
+   1
+  ],
+  "fixed": true
+ },
+ {
+  "name": "bedroom_bench_basket_stand",
+  "size": [
+   0.14,
+   0.13,
+   0.132
+  ],
+  "position": [
+   2.655,
+   3.572,
+   0.031
+  ],
+  "color": [
+   0.43,
+   0.37,
+   0.31,
+   1
+  ],
+  "fixed": true
+ }
+]

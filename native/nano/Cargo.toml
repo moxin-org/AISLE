@@ -3,13 +3,39 @@ name = "aisle-nano"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+default-run = "aisle-nano"
 
 [workspace]
 
+[patch.crates-io]
+zenoh-protocol = { path = "../compat/zenoh-protocol" }
+zenoh = { path = "../compat/zenoh" }
+static_init = { path = "../compat/static_init" }
+psm = { path = "../compat/psm" }
+
+[features]
+default = ["dora"]
+dora = ["dep:dora-node-api"]
+
+[[bin]]
+name = "aisle-nano"
+path = "src/main.rs"
+required-features = ["dora"]
+
+[[bin]]
+name = "aisle-nano-dev"
+path = "src/dev.rs"
+
+[[test]]
+name = "cli"
+required-features = ["dora"]
+
 [dependencies]
+base64 = "0.22"
+png = "0.17"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-dora-node-api = { version = "=1.0.1", default-features = false }
+dora-node-api = { version = "=1.0.1", default-features = false, optional = true }
 nalgebra = "0.34"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
