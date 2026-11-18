@@ -272,6 +272,15 @@ class Controller:
         self.pending, self.feedback = None, "executing"
         return True
 
+    def answer(self, ticket: Ticket, text: str, now_ns: int) -> bool:
+        """Parse a model reply and accept it; a malformed reply becomes feedback."""
+        try:
+            action = self.adapter.parse_action(text)
+        except ValueError as error:
+            self.reject(ticket, f"answer_refused: {error}")
+            return False
+        return self.accept(ticket, action, text, now_ns)
+
     def advance(self, now_ns: int):
         if self.motion is None or self.joints is None:
             return None, None
@@ -369,7 +378,7 @@ def main() -> None:  # pragma: no cover — exercised by the runtime acceptance 
 
     def land(active, reply, metadata):
         now = integer(metadata.get("sim_time_ns"), "sim_time_ns")
-        accepted = control.accept(active, adapter.parse_action(reply.answer), reply.answer, now)
+        accepted = control.answer(active, reply.answer, now)
         report(
             {
                 "event": "model_reply",

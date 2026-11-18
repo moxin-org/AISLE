@@ -172,3 +172,23 @@ def test_trace_metadata_projects_only_serializable_contract_fields():
         "seq": 2,
         "goal_id": "g",
     }
+
+
+def test_malformed_answer_is_refused_with_its_reason_as_feedback():
+    """TC-5: a reply that is not a valid action executes nothing and tells the model why."""
+    c, _ = ready_controller()
+    ticket = c.prepare(100_000_000)
+    assert c.answer(ticket, 'done\n```json\n{"arm": {}}\n```', 100_000_000) is False
+    assert c.motion is None and c.pending is None
+    assert c.feedback.startswith("answer_refused: ") and "arm" in c.feedback
+
+
+def test_valid_answer_is_planned_like_a_parsed_action():
+    """TC-5: a well-formed reply is parsed and accepted through the same checks."""
+    c, _ = ready_controller()
+    ticket = c.prepare(100_000_000)
+    text = (
+        '```json\n{"arm":{"x":0,"y":0,"z":1,"roll":0,"pitch":0,"yaw":0},"gripper":{"width":0}}\n```'
+    )
+    assert c.answer(ticket, text, 100_000_000) is True
+    assert c.motion is not None and c.feedback == "executing"

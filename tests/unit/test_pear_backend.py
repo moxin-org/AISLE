@@ -189,3 +189,18 @@ def test_http_client_measures_transport_latency_without_replacing_server_usage()
         "client_wall_time_s": 2.75,
     }
     assert usage["client_wall_time_s"] == 999
+
+
+def test_oversized_integer_action_is_a_value_error():
+    """TC-5, BG-1: an integer too large for a float is refused as a malformed action."""
+    text = answer().replace('"x": 0', '"x": 1' + "0" * 400)
+    assert "1" + "0" * 400 in text
+    with pytest.raises(ValueError):
+        parse_action(text)
+
+
+@pytest.mark.parametrize("url", ["http://:secret@127.0.0.1:9/v1", "http://user:pw@127.0.0.1:9/v1"])
+def test_endpoint_with_any_credentials_is_refused(url):
+    """CON-8: no credential may be written into a prepared graph through the endpoint."""
+    with pytest.raises(ValueError):
+        ChatClient(url, "pear")

@@ -239,5 +239,83 @@ def test_tracking_displacement_cannot_override_nano_velocity_limit():
     q[robot.arms["left"][0]] = 0.1
     guard.observe(q, 10_000_000)
     safe, reasons = guard.apply(q, 10_000_000)
-    np.testing.assert_array_equal(safe, first)
+    assert np.max(np.abs(safe - first)) <= 0.003001
     assert "tracking_interval_conflict" in reasons
+
+
+def test_nano_guard_recovers_after_a_blocked_joint_relaxes():
+    """BG-2/3: a tracking conflict is left at the velocity limit, not held for the whole run."""
+    robot = NanoAdapter()
+    guard = NanoGuard(robot)
+    joint = robot.arms["left"][0]
+    q = np.zeros(17)
+    target = q.copy()
+    target[joint] = 1.0
+    guard.observe(q, 0)
+    for tick in range(1, 20):  # blocked joint: the command runs ahead to the tracking bound
+        guard.observe(q, tick * 10_000_000)
+        ahead, _ = guard.apply(target, tick * 10_000_000)
+    assert ahead[joint] == pytest.approx(0.03, abs=1e-6)
+    q[joint] = -0.005  # the joint relaxes away from the command
+    previous = ahead
+    for tick in range(20, 40):
+        guard.observe(q, tick * 10_000_000)
+        safe, reasons = guard.apply(q, tick * 10_000_000)
+        assert abs(safe[joint] - previous[joint]) <= 0.003001
+        previous = safe
+    assert reasons == []
+    assert safe[joint] == pytest.approx(-0.005, abs=1e-6)
+
+
+def test_nano_guard_anchors_on_a_float32_joint_limit():
+    """BG-1: a measured joint resting on its limit in float32 is anchored inside the limit."""
+    robot = NanoAdapter()
+    guard = NanoGuard(robot)
+    joint = robot.grippers["left"]
+    q = np.zeros(17, dtype=np.float32)
+    q[joint] = np.nextafter(np.float32(robot.lower[joint]), np.float32(-np.inf))
+    guard.observe(q, 0)
+    safe, _ = guard.apply(q, 0)
+    assert robot.lower[joint] <= guard.last[joint] <= robot.upper[joint]
+    assert safe.shape == (17,)
+    q[joint] = robot.lower[joint] - 0.01
+    with pytest.raises(ValueError):
+        NanoGuard(robot).observe(q, 0)
+
+
+@pytest.mark.parametrize(
+    "bad", [np.full(17, np.nan), np.zeros(16), np.array(["x"] * 17), np.full(17, np.inf)]
+)
+def test_nano_guard_holds_on_a_malformed_command(bad):
+    """BG-1/2: non-finite, wrong-length or non-numeric commands hold the last safe command."""
+    robot = NanoAdapter()
+    guard = NanoGuard(robot)
+    guard.observe(np.zeros(17), 0)
+    first, _ = guard.apply(np.zeros(17), 0)
+    safe, reasons = guard.apply(bad, 10_000_000)
+    np.testing.assert_array_equal(safe, first)
+    assert reasons == ["malformed_command"]
+
+
+def test_nano_guard_holds_on_stale_joint_state():
+    """BG-2: a command without a fresh measurement holds the last safe command."""
+    robot = NanoAdapter()
+    guard = NanoGuard(robot)
+    guard.observe(np.zeros(17), 0)
+    first, _ = guard.apply(np.zeros(17), 0)
+    target = np.zeros(17)
+    target[robot.arms["left"][0]] = 0.1
+    safe, reasons = guard.apply(target, 200_000_000)
+    np.testing.assert_array_equal(safe, first)
+    assert reasons == ["stale_joint_state"]
+
+
+def test_nano_action_with_an_oversized_integer_is_a_value_error():
+    """TC-5, BG-1: an integer too large for a float is refused as a malformed action."""
+    answer = (
+        '```json\n{"left_arm":{"x":1' + "0" * 400 + ',"y":0,"z":0,"pitch":0,"roll":0},'
+        '"right_arm":{"x":0,"y":0,"z":0,"pitch":0,"roll":0},'
+        '"left_gripper":{"angle":0},"right_gripper":{"angle":0}}\n```'
+    )
+    with pytest.raises(ValueError):
+        NanoAdapter.parse_action(answer)

@@ -172,3 +172,29 @@ def test_generated_watchdog_accepts_the_inference_budget(tmp_path, embodiment):
         verdict_s=float(env.get("AISLE_VERDICT_TURN_WATCHDOG_S", "15")),
         clock=lambda: 0,
     )
+
+
+def test_cli_reports_json_failure_for_an_unparseable_nano_urdf(capsys, tmp_path):
+    """CON-8: a Nano URDF that is not well-formed XML is refused as JSON, not a traceback."""
+    urdf = tmp_path / "broken.urdf"
+    urdf.write_text("<robot><joint")
+    status = main(
+        [
+            "prepare",
+            "--out",
+            str(tmp_path / "run"),
+            "--endpoint",
+            "http://127.0.0.1:9/v1",
+            "--model",
+            "pear",
+            "--embodiment",
+            "nano",
+            "--nano-urdf",
+            str(urdf),
+        ]
+    )
+    report = json.loads(capsys.readouterr().out)
+    assert status == 1
+    assert report["ok"] is False
+    assert "URDF" in report["error"]
+    assert not (tmp_path / "run").exists()

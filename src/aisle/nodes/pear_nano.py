@@ -10,7 +10,12 @@ from pathlib import Path
 import numpy as np
 
 from aisle.kinematics import load_urdf_chain
-from aisle.nodes.pear_backend import final_action_json, observation_messages, rotation_to_rpy
+from aisle.nodes.pear_backend import (
+    final_action_json,
+    finite_number,
+    observation_messages,
+    rotation_to_rpy,
+)
 
 MODEL = Path(__file__).resolve().parents[3] / "assets/adora_nano/adora_nano.urdf"
 SIDES = ("left", "right")
@@ -47,7 +52,10 @@ class NanoAdapter:
     def __init__(self, path: Path = MODEL):
         self.path = Path(path).resolve()
         self.sha256 = hashlib.sha256(self.path.read_bytes()).hexdigest()
-        root = ET.parse(self.path).getroot()
+        try:
+            root = ET.parse(self.path).getroot()
+        except ET.ParseError as error:
+            raise ValueError(f"Nano URDF is not well-formed XML: {error}") from error
         joints = [j for j in root.findall("joint") if j.get("type") != "fixed"]
         self.names = tuple(j.get("name") for j in joints)
         expected = {
@@ -153,10 +161,7 @@ class NanoAdapter:
                 raise ValueError("Nano arm has xyz, pitch and roll; no independent yaw")
             if not isinstance(grip, dict) or set(grip) != {"angle"}:
                 raise ValueError("Nano gripper uses angle, not jaw width")
-            if any(
-                type(v) not in (int, float) or not math.isfinite(v)
-                for v in (*arm.values(), *grip.values())
-            ):
+            if not all(finite_number(v) for v in (*arm.values(), *grip.values())):
                 raise ValueError("Nano action values must be finite numbers")
             if (
                 math.hypot(*(arm[k] for k in ("x", "y", "z"))) > 5
@@ -281,9 +286,11 @@ class NanoGuard:
         self.q = self.robot.joint_vector(q)
         self.stamp = stamp
         if self.anchor is None:
-            if np.any(self.q < self.robot.lower) or np.any(self.q > self.robot.upper):
+            # Measurements arrive as float32: a joint resting on a limit may read 1e-7 past it.
+            if np.any(self.q < self.robot.lower - 1e-6) or np.any(self.q > self.robot.upper + 1e-6):
                 raise ValueError("cannot anchor Nano guard outside URDF limits")
-            self.anchor, self.last = self.q.copy(), self.q.copy()
+            self.anchor = np.clip(self.q, self.robot.lower, self.robot.upper)
+            self.last = self.anchor.copy()
 
     def apply(self, request, now_ns):
         if self.last is None:
@@ -304,15 +311,15 @@ class NanoGuard:
             return self.last.copy(), ["malformed_command"]
         if not 0 <= now_ns - self.stamp <= 100_000_000:
             return self.last.copy(), ["stale_joint_state"]
-        lower = np.maximum.reduce(
-            [self.robot.lower, self.last - self.robot.speed * dt, self.q - 0.03]
-        )
-        upper = np.minimum.reduce(
-            [self.robot.upper, self.last + self.robot.speed * dt, self.q + 0.03]
-        )
-        if np.any(lower > upper):
-            return self.last.astype(np.float32), ["tracking_interval_conflict"]
-        bounded = np.clip(command, lower, upper)
+        # Joint and velocity limits always hold. The tracking window around the
+        # measurement is applied first, so when it has drifted out of reach of the
+        # last command the output returns toward it at the velocity limit instead
+        # of holding for the rest of the run.
+        lower = np.maximum(self.robot.lower, self.last - self.robot.speed * dt)
+        upper = np.minimum(self.robot.upper, self.last + self.robot.speed * dt)
+        if np.any(self.q - 0.03 > upper) or np.any(self.q + 0.03 < lower):
+            violations.append("tracking_interval_conflict")
+        bounded = np.clip(np.clip(command, self.q - 0.03, self.q + 0.03), lower, upper)
         bounded[self.robot.held] = self.anchor[self.robot.held]
         self.corrected_joints = [self.robot.names[i] for i in np.flatnonzero(bounded != command)]
         if not np.array_equal(bounded, command):

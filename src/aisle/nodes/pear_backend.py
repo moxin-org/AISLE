@@ -100,6 +100,11 @@ class ActionDelta:
     gripper_cm: float
 
 
+def finite_number(value) -> bool:
+    """A real int/float usable as a float; booleans and oversized integers are not."""
+    return type(value) in (int, float) and abs(value) < 1e300 and math.isfinite(value)
+
+
 def _unique(pairs):
     result = {}
     for name, value in pairs:
@@ -126,7 +131,7 @@ def parse_action(answer: str) -> ActionDelta:
     for part, fields in (("arm", set(names)), ("gripper", {"width"})):
         if not isinstance(action[part], dict) or set(action[part]) != fields:
             raise ValueError(f"invalid {part} fields")
-        if any(type(v) not in (int, float) or not math.isfinite(v) for v in action[part].values()):
+        if not all(finite_number(v) for v in action[part].values()):
             raise ValueError("action quantities must be finite numbers, not booleans")
     position = tuple(float(action["arm"][key]) for key in names[:3])
     rotation = tuple(float(action["arm"][key]) for key in names[3:])
@@ -245,7 +250,8 @@ class ChatClient:
         if (
             url.scheme not in {"http", "https"}
             or not url.hostname
-            or url.username
+            or url.username is not None
+            or url.password is not None
             or url.query
             or url.fragment
         ):
