@@ -282,6 +282,7 @@ _DIR_ROLES = {
     "assets": "robot/scene assets (SO-101 and experimental Nano URDFs)",
     "docs": "guides, design doc, ADRs, this generated appendix",
     "env": "topic CONTRACT.md and guard limits (config, not code)",
+    "examples": "runnable use cases with setup and validation instructions",
     "graphs": "dataflow YAMLs + committed ADR-30 turn plans",
     "harness": "the research-agent contract and budget ledger",
     "native": "independent Rust runtimes and policies (experimental Nano)",

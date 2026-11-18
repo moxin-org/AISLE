@@ -43,6 +43,57 @@ pub fn distance(a: [f64; 2], b: [f64; 2]) -> f64 {
     (a[0] - b[0]).hypot(a[1] - b[1])
 }
 impl Map {
+    /// Close clearances at work surfaces apply only to the straight docking lane.
+    pub fn transit(&self) -> Self {
+        let mut map = self.clone();
+        for obstacle in &mut map.obstacles {
+            if obstacle.clearance.is_some_and(|c| c < map.clearance) {
+                obstacle.clearance = None;
+            }
+        }
+        map
+    }
+    /// The grid inflates box corners into squares. A measured pose can be in that
+    /// extra corner even though its full circular envelope has the required clearance.
+    /// Check the connecting segment against the true rounded footprint before rejoining the grid.
+    pub fn transit_route(&self, start: [f64; 2], goal: [f64; 2]) -> Result<Vec<[f64; 2]>> {
+        if self.clear(start) {
+            return self.plan(start, goal);
+        }
+        let disc_clear = |p: [f64; 2]| {
+            p[0] >= self.bounds[0] + self.clearance
+                && p[0] <= self.bounds[1] - self.clearance
+                && p[1] >= self.bounds[2] + self.clearance
+                && p[1] <= self.bounds[3] - self.clearance
+                && self.obstacles.iter().all(|b| {
+                    let dx = ((p[0] - b.center[0]).abs() - b.half[0]).max(0.);
+                    let dy = ((p[1] - b.center[1]).abs() - b.half[1]).max(0.);
+                    dx.hypot(dy) > b.clearance.unwrap_or(self.clearance)
+                })
+        };
+        ensure!(disc_clear(start), "inside required transit clearance");
+        for radius in [0.08, 0.15, 0.24, 0.34] {
+            for index in 0..16 {
+                let angle = index as f64 * std::f64::consts::TAU / 16.;
+                let delta = [radius * angle.cos(), radius * angle.sin()];
+                let end = [start[0] + delta[0], start[1] + delta[1]];
+                if self.clear(end)
+                    && (1..=40).all(|n| {
+                        disc_clear([
+                            start[0] + delta[0] * n as f64 / 40.,
+                            start[1] + delta[1] * n as f64 / 40.,
+                        ])
+                    })
+                    && let Ok(route) = self.plan(end, goal)
+                {
+                    let mut full = vec![end];
+                    full.extend(route);
+                    return Ok(full);
+                }
+            }
+        }
+        bail!("no clearance-preserving connection to the transit grid")
+    }
     pub fn clear(&self, p: [f64; 2]) -> bool {
         p.iter().all(|v| v.is_finite())
             && p[0] >= self.bounds[0] + self.clearance

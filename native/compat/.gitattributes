@@ -1,0 +1,8 @@
+# Keep vendored sources and license notices byte-for-byte apart from documented patches.
+psm/** linguist-vendored -whitespace
+static_init/** linguist-vendored -whitespace
+zenoh/** linguist-vendored -whitespace
+zenoh-protocol/** linguist-vendored -whitespace
+ZENOH-LICENSE -whitespace
+ZENOH-NOTICE.md -whitespace
+relax-std.patch -whitespace

@@ -1,19 +1,26 @@
 use crate::{
     kinematics::Robot,
     navigation::{Box2, Map, distance},
-    oracle::{Feed, Input, Step},
     perception::{Color, detect},
+};
+#[cfg(feature = "dora")]
+use crate::{
+    oracle::{Feed, Input, Step},
     safety::Guard,
 };
 use anyhow::{Context, Result, bail, ensure};
+#[cfg(feature = "dora")]
 use dora_node_api::futures::{StreamExt, executor::block_on};
+#[cfg(feature = "dora")]
 use dora_node_api::{DoraNode, Event, Metadata, MetadataParameters, Parameter};
-use nalgebra::{Isometry3, Matrix3, Quaternion, Translation3, UnitQuaternion, Vector3};
+use nalgebra::Matrix3;
+use nalgebra::{Isometry3, Quaternion, Translation3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+#[cfg(feature = "dora")]
+use std::io::Write;
 use std::{
     fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -214,7 +221,8 @@ pub fn route(map: &Map, task: &str, start: [f64; 2], goal: [f64; 2]) -> Result<V
 pub fn policy_fault(status: &Value) -> Option<String> {
     (status["fault"] == true).then(|| status["reason"].as_str().unwrap_or("unknown").to_owned())
 }
-fn stamp(m: &Metadata) -> Result<(u64, u64)> {
+#[cfg(feature = "dora")]
+pub(crate) fn stamp(m: &Metadata) -> Result<(u64, u64)> {
     let n = |key| match m.parameters.get(key) {
         Some(Parameter::Integer(n)) if *n >= 0 => Ok(*n as u64),
         _ => bail!("Missing or invalid {key}"),
@@ -226,10 +234,12 @@ fn stamp(m: &Metadata) -> Result<(u64, u64)> {
     n("seq")?;
     Ok((n("observation_id")?, n("sim_time_ns")?))
 }
+#[cfg(feature = "dora")]
 fn send(node: &mut DoraNode, id: &str, p: MetadataParameters, v: Vec<f32>) -> Result<()> {
     node.send_output(id.to_owned().into(), p, v)
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
+#[cfg(feature = "dora")]
 fn decode32(data: &dora_node_api::DoraArray) -> Result<Vec<f64>> {
     let v: &[f32] = data.try_into().map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(v.iter().map(|x| *x as f64).collect())
@@ -252,7 +262,13 @@ pub fn transform(v: &[f64]) -> Result<Isometry3<f64>> {
         UnitQuaternion::from_matrix(&rotation),
     ))
 }
+#[cfg(feature = "dora")]
 pub fn node(role: &str) -> Result<()> {
+    match role {
+        "supervisor" => return crate::supervisor::run(),
+        "control" => return crate::control::run(),
+        _ => {}
+    }
     let config: Config = serde_json::from_slice(&fs::read(
         std::env::var_os("AISLE_NANO_CONFIG").context("Config missing")?,
     )?)?;
@@ -511,20 +527,28 @@ pub fn node(role: &str) -> Result<()> {
     Ok(())
 }
 
-struct Policy {
-    config: Config,
-    robot: Robot,
-    stage: String,
-    route: Vec<[f64; 2]>,
-    waypoint: usize,
-    stage_frame: u64,
-    target: Option<[f64; 3]>,
-    poses: Vec<Vec<f64>>,
-    pose_index: usize,
+pub(crate) struct Policy {
+    pub(crate) config: Config,
+    pub(crate) robot: Robot,
+    pub(crate) stage: String,
+    pub(crate) route: Vec<[f64; 2]>,
+    pub(crate) waypoint: usize,
+    pub(crate) stage_frame: u64,
+    pub(crate) target: Option<[f64; 3]>,
+    pub(crate) item_color: Color,
+    pub(crate) item_height: f64,
+    pub(crate) depart_from: Option<[f64; 2]>,
+    transit: Option<Map>,
+    pub(crate) poses: Vec<Vec<f64>>,
+    pub(crate) pose_index: usize,
+    pub(crate) external_skill: bool,
+    pub(crate) pose_offset: usize,
 }
 impl Policy {
-    fn new(config: Config, robot: Robot) -> Result<Self> {
+    pub(crate) fn new(config: Config, robot: Robot) -> Result<Self> {
+        let transit = (config.task == "household").then(|| config.map.transit());
         Ok(Self {
+            transit,
             config,
             robot,
             stage: "navigate".into(),
@@ -532,12 +556,111 @@ impl Policy {
             waypoint: 0,
             stage_frame: 0,
             target: None,
+            item_color: Color::Red,
+            item_height: 0.04,
+            depart_from: None,
             poses: Vec::new(),
             pose_index: 0,
+            external_skill: false,
+            pose_offset: 0,
         })
     }
+    pub(crate) fn prepare_place(&mut self, state: &[f64], seq: u64) -> Result<()> {
+        let base = Isometry3::from_parts(
+            Translation3::new(state[0], state[1], state[2]),
+            UnitQuaternion::new_normalize(Quaternion::new(state[6], state[3], state[4], state[5])),
+        );
+        let drop = base
+            .inverse_transform_point(&Vector3::from(self.config.drop).into())
+            .coords;
+        let dir = base.rotation.inverse()
+            * Vector3::y()
+            * if self.config.arm == "left" { 1. } else { -1. };
+        let arm = self.robot.arm(&self.config.arm)?;
+        let link = format!("{}_wrist_housing", self.config.arm);
+        let tcp = Vector3::new(0.012, 0., -0.12);
+        let initial = &state[7..];
+        // Keep the same shoulder/elbow branch over the reachable work surface.
+        // A high transfer point near the workspace boundary can force an elbow flip.
+        let solve = |clearance: f64, align_jaws: bool| -> Result<Vec<Vec<f64>>> {
+            let mut previous = initial.to_vec();
+            let mut poses = Vec::new();
+            for (p, grip) in [
+                (drop + Vector3::z() * clearance, 0.75),
+                (drop + Vector3::z() * 0.015, 0.75),
+                (drop + Vector3::z() * 0.015, -0.2),
+                (drop + Vector3::z() * clearance, -0.2),
+            ] {
+                let start = self
+                    .robot
+                    .fk(&link, &previous)?
+                    .transform_point(&tcp.into())
+                    .coords;
+                let count = if self.transit.is_some() {
+                    ((p - start).norm() / 0.022).ceil().max(1.) as usize
+                } else {
+                    1
+                };
+                let mut q = previous.clone();
+                for step in 1..=count {
+                    let point = start + (p - start) * (step as f64 / count as f64);
+                    let next = self.robot.ik_axis(
+                        &self.config.arm,
+                        &link,
+                        tcp,
+                        point,
+                        Vector3::x(),
+                        if align_jaws { Some(dir) } else { None },
+                        &q,
+                    )?;
+                    crate::safety::validate_arm_transition(&q, &next, &arm[..5])?;
+                    if !align_jaws {
+                        let jaw = self.robot.fk(&link, &next)?.rotation * Vector3::x();
+                        ensure!(
+                            jaw.dot(&dir) > 0.82,
+                            "placement would rotate loaded jaws too far"
+                        );
+                    }
+                    q = next;
+                }
+                crate::safety::validate_arm_transition(&previous, &q, &arm[..5])?;
+                q[arm[5]] = grip;
+                previous = q.clone();
+                poses.push(q);
+            }
+            Ok(poses)
+        };
+        let poses = if self.transit.is_some() {
+            let mut selected = None;
+            for clearance in [0.055, 0.075, 0.045, 0.10] {
+                if let Ok(p) = solve(clearance, true) {
+                    selected = Some(p);
+                    break;
+                }
+            }
+            if selected.is_none() {
+                // Release needs position and stable grasp, without exact world-axis alignment.
+                for clearance in [0.055, 0.075, 0.045] {
+                    if let Ok(p) = solve(clearance, false) {
+                        selected = Some(p);
+                        break;
+                    }
+                }
+            }
+            selected.context("no continuous placement trajectory above this surface")?
+        } else {
+            solve(0.10, true)?
+        };
+        self.poses = poses;
+        self.pose_index = 0;
+        self.pose_offset = 4;
+        self.stage = "manipulate".into();
+        self.stage_frame = seq;
+        write(&self.config.output.join("place-plan.json"), &self.poses)?;
+        Ok(())
+    }
     #[allow(clippy::too_many_arguments)]
-    fn step(
+    pub(crate) fn step(
         &mut self,
         seq: u64,
         t: u64,
@@ -574,9 +697,59 @@ impl Policy {
         );
         let yaw = base.rotation.euler_angles().2;
         if self.stage == "navigate" {
+            if let Some(origin) = self.depart_from {
+                // Reverse straight out before rotating the extended wrist past a workstation.
+                if state[0] > origin[0] - 0.8 {
+                    v[..3].copy_from_slice(&wheel_rates(
+                        -0.095,
+                        0.,
+                        (-1.4 * yaw).clamp(-0.25, 0.25),
+                    ));
+                    return Ok((v, false, "backing out of station".into()));
+                }
+                let mut error = 0.0_f64;
+                for (i, park) in self
+                    .robot
+                    .arm(&self.config.arm)?
+                    .into_iter()
+                    .zip([0.2, 0., 0.35, -1., 0., 0.])
+                {
+                    let e = park - q[i];
+                    error = error.max(e.abs());
+                    v[i] = (e * 1.6).clamp(-0.40, 0.40);
+                }
+                if error > 0.035 {
+                    return Ok((v, false, "stowing arm".into()));
+                }
+                v[5..].fill(0.);
+                self.depart_from = None;
+            }
             if self.route.is_empty() {
                 let start = [state[0], state[1]];
-                self.route = route(&self.config.map, &self.config.task, start, self.config.goal)?;
+                // Reach the low work surface facing forward. Turning beside it
+                // sweeps a folded shoulder into the table even when the base fits.
+                let facing_dock = (self.config.goal[1] - start[1]).abs() < 0.025
+                    && (0.0..0.70).contains(&(self.config.goal[0] - start[0]))
+                    && yaw.abs() < 0.04
+                    && self.config.map.clear_segment(start, self.config.goal);
+                if self.transit.is_none() {
+                    self.route =
+                        route(&self.config.map, &self.config.task, start, self.config.goal)?;
+                } else if self.config.task == "pickup"
+                    && distance(start, self.config.goal) > 0.15
+                    && !facing_dock
+                {
+                    let pre = [self.config.goal[0] - 0.7, self.config.goal[1]];
+                    self.route = if let Some(transit) = &self.transit {
+                        transit.transit_route(start, pre)?
+                    } else {
+                        self.config.map.plan(start, pre)?
+                    };
+                    self.route
+                        .extend(self.config.map.plan(pre, self.config.goal)?);
+                } else {
+                    self.route = self.config.map.plan(start, self.config.goal)?;
+                }
                 write(&self.config.output.join("route.json"), &self.route)?;
             }
             let next = self.route[self.waypoint];
@@ -616,7 +789,7 @@ impl Policy {
                 width,
                 height,
                 height as f64 / (2. * 35f64.to_radians().tan()),
-                Color::Red,
+                self.item_color,
                 t,
                 t,
                 camera,
@@ -626,8 +799,8 @@ impl Policy {
                 .find(|h| h.extent.max() < 0.12 && h.position.z > 0.15 && h.position.z < 0.3);
             if let Some(hit) = hit {
                 let mut target = hit.position;
-                // The upper visible face locates cube center using the declared 4 cm size.
-                target.z = hit.position.z + hit.extent.z / 2. - 0.02;
+                // Convert the top face measured in RGB-D to the declared grasp center.
+                target.z = hit.position.z + hit.extent.z / 2. - self.item_height / 2.;
                 self.target = Some([target.x, target.y, target.z]);
                 let local = base.inverse_transform_point(&target.into()).coords;
                 let link = format!("{}_wrist_housing", self.config.arm);
@@ -658,27 +831,29 @@ impl Policy {
                     self.poses.push(solved.clone());
                     initial = solved;
                 }
-                let drop = base
-                    .inverse_transform_point(&Vector3::from(self.config.drop).into())
-                    .coords;
-                for (p, grip) in [
-                    (drop + Vector3::z() * 0.10, 0.75),
-                    (drop + Vector3::z() * 0.015, 0.75),
-                    (drop + Vector3::z() * 0.015, -0.2),
-                    (drop + Vector3::z() * 0.10, -0.2),
-                ] {
-                    let mut solved = self.robot.ik_axis(
-                        &self.config.arm,
-                        &link,
-                        offset,
-                        p,
-                        Vector3::x(),
-                        Some(dir),
-                        &initial,
-                    )?;
-                    solved[arm[5]] = grip;
-                    self.poses.push(solved.clone());
-                    initial = solved;
+                if !self.external_skill {
+                    let drop = base
+                        .inverse_transform_point(&Vector3::from(self.config.drop).into())
+                        .coords;
+                    for (p, grip) in [
+                        (drop + Vector3::z() * 0.10, 0.75),
+                        (drop + Vector3::z() * 0.015, 0.75),
+                        (drop + Vector3::z() * 0.015, -0.2),
+                        (drop + Vector3::z() * 0.10, -0.2),
+                    ] {
+                        let mut solved = self.robot.ik_axis(
+                            &self.config.arm,
+                            &link,
+                            offset,
+                            p,
+                            Vector3::x(),
+                            Some(dir),
+                            &initial,
+                        )?;
+                        solved[arm[5]] = grip;
+                        self.poses.push(solved.clone());
+                        initial = solved;
+                    }
                 }
                 let mut previous = q;
                 for pose in &self.poses {
@@ -700,7 +875,7 @@ impl Policy {
             let mut error = 0f64;
             // Carrying a friction-held object needs lower arm acceleration than
             // the unloaded approach. The gripper keeps its independent closure.
-            let carrying = matches!(self.pose_index, 3..=5);
+            let carrying = matches!(self.pose_index + self.pose_offset, 3..=5);
             for &i in &arm {
                 let e = goal[i] - q[i];
                 let gripper = i == arm[5];
@@ -714,7 +889,7 @@ impl Policy {
                     error = error.max(e.abs());
                 }
             }
-            let minimum = if matches!(self.pose_index, 2 | 6) {
+            let minimum = if matches!(self.pose_index + self.pose_offset, 2 | 6) {
                 15
             } else {
                 5
@@ -737,7 +912,6 @@ impl Policy {
         Ok((v, false, "".into()))
     }
 }
-/// Wheel rates for the three-wheel base, scaled into the 5 rad/s motor envelope.
 pub fn wheel_rates(forward: f64, lateral: f64, turn: f64) -> [f64; 3] {
     let mut r = [
         lateral / 0.034 - 3.4 * turn,
@@ -749,4 +923,135 @@ pub fn wheel_rates(forward: f64, lateral: f64, turn: f64) -> [f64; 3] {
         *v *= scale;
     }
     r
+}
+
+#[cfg(test)]
+mod household_tests {
+    use super::*;
+    /// TC-8. Reproduce the loaded reading-nook pose at which exact world alignment had no continuous solution.
+    #[test]
+    fn release_from_measured_reading_nook_pose() {
+        let model = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/robots/adora_nano/model.urdf");
+        let out = std::env::temp_dir().join(format!("household-reading-{}", std::process::id()));
+        std::fs::create_dir_all(&out).unwrap();
+        let station = crate::household::stations()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.station == "reading nook")
+            .unwrap();
+        let config = Config {
+            model: model.clone(),
+            output: out.clone(),
+            map: Map {
+                bounds: [-6., 6., -5., 5.],
+                clearance: 0.55,
+                obstacles: vec![],
+            },
+            goal: station.goal,
+            drop: station.drop,
+            task: "household".into(),
+            arm: "right".into(),
+            seed: 0,
+            max_frames: 1000,
+        };
+        let mut p = Policy::new(config, Robot::read(&model).unwrap()).unwrap();
+        p.prepare_place(
+            &[
+                2.41714025,
+                1.05060768,
+                -8.103e-05,
+                -6.9e-06,
+                -4.801e-05,
+                -0.00274267,
+                0.9999963,
+                4.27364922,
+                167.3596344,
+                -161.27023315,
+                -0.62000275,
+                0.30000874,
+                0.20003128,
+                0.00035142,
+                0.35828468,
+                -0.99806941,
+                2.667e-05,
+                -0.01774822,
+                1.37618268,
+                -0.82181215,
+                0.0012179,
+                -0.24429029,
+                -0.00025353,
+                0.31660393,
+            ],
+            0,
+        )
+        .unwrap();
+        assert_eq!(p.poses.len(), 4);
+        std::fs::remove_dir_all(out).unwrap();
+    }
+    /// TC-8 / MOB-3. Regression for the measured hall grasp that formerly produced an elbow flip.
+    #[test]
+    fn plan_four_placements_without_a_joint_branch_jump() {
+        let model = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/robots/adora_nano/model.urdf");
+        let output =
+            std::env::temp_dir().join(format!("household-place-regression-{}", std::process::id()));
+        std::fs::create_dir_all(&output).unwrap();
+        for station in crate::household::stations().unwrap() {
+            let robot = Robot::read(&model).unwrap();
+            let config = Config {
+                model: model.clone(),
+                output: output.clone(),
+                map: Map {
+                    bounds: [-6., 6., -5., 5.],
+                    clearance: 0.55,
+                    obstacles: vec![],
+                },
+                goal: station.goal,
+                drop: station.drop,
+                task: "household".into(),
+                arm: "right".into(),
+                seed: 0,
+                max_frames: 1000,
+            };
+            let mut policy = Policy::new(config, robot).unwrap();
+            let state = vec![
+                station.goal[0] - 0.031,
+                station.goal[1] + 0.0044,
+                -0.0001,
+                0.,
+                0.,
+                -0.0143,
+                0.999898,
+                0.,
+                0.,
+                0.,
+                -0.603,
+                0.30,
+                0.2,
+                0.,
+                0.358,
+                -0.998,
+                0.,
+                -0.054,
+                1.446,
+                -1.012,
+                0.280,
+                -0.257,
+                0.,
+                0.341,
+            ];
+            for (y_offset, yaw) in [(0.0044, -0.0286), (-0.018, 0.022), (0.018, -0.022)] {
+                let mut measured = state.clone();
+                measured[1] = station.goal[1] + y_offset;
+                measured[5] = (0.5_f64 * yaw).sin();
+                measured[6] = (0.5_f64 * yaw).cos();
+                policy
+                    .prepare_place(&measured, 100)
+                    .unwrap_or_else(|e| panic!("{} ({y_offset}, {yaw}): {e}", station.station));
+                assert_eq!(policy.poses.len(), 4);
+            }
+        }
+        std::fs::remove_dir_all(output).unwrap();
+    }
 }

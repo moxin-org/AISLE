@@ -16,7 +16,8 @@ impl Color {
             Self::Red => r > 65. && r > g * 2.5 && r > b * 2.,
             Self::Blue => b > 70. && b > r * 1.8 && b > g * 1.15,
             Self::Green => g > 65. && g > r * 1.8 && g > b * 1.3,
-            Self::Yellow => r > 90. && g > 65. && b < g * 0.65 && g > r * 0.65,
+            // Desaturated shelf-edge pixels carry background depth, which can shift a small grasp by centimeters.
+            Self::Yellow => r > 90. && g > 65. && b < g * 0.5 && g > r * 0.75,
         }
     }
 }
@@ -115,4 +116,16 @@ pub fn detect(
     }
     out.sort_by_key(|d| std::cmp::Reverse(d.pixels));
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    /// TC-5. Preserve saturated garment pixels and reject the blended edge carrying wood-shelf depth.
+    #[test]
+    fn yellow_garment_excludes_antialiased_shelf_depth() {
+        assert!(Color::Yellow.matches(&[236, 215, 34]));
+        assert!(Color::Yellow.matches(&[247, 226, 75]));
+        assert!(!Color::Yellow.matches(&[230, 210, 124]));
+    }
 }

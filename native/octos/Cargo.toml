@@ -1,0 +1,49 @@
+[package]
+name = "aisle-octos"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Bounded Octos multimodal inference for AISLE Dora policies"
+
+[workspace]
+
+[patch.crates-io]
+zenoh-protocol = { path = "../compat/zenoh-protocol" }
+zenoh = { path = "../compat/zenoh" }
+static_init = { path = "../compat/static_init" }
+psm = { path = "../compat/psm" }
+
+[features]
+default = ["dora"]
+dora = ["dep:dora-node-api"]
+test-fixtures = ["dora"]
+
+[[test]]
+name = "dora_metadata"
+required-features = ["dora"]
+
+[[bin]]
+name = "aisle-octos-fixture"
+path = "tests/support/dora_fixture.rs"
+required-features = ["test-fixtures"]
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+dora-node-api = { version = "=1.0.1", default-features = false, optional = true }
+octos-core = { git = "https://github.com/octos-org/octos.git", rev = "5fb009a7d6ba1bff8264236428fee48968505f0e" }
+octos-llm = { git = "https://github.com/octos-org/octos.git", rev = "5fb009a7d6ba1bff8264236428fee48968505f0e" }
+png = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[lints.rust]
+unsafe_code = "forbid"
