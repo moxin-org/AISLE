@@ -7,20 +7,34 @@ use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use base64::{Engine, engine::general_purpose::STANDARD};
 use octos_llm::openai::{ModelHints, OpenAIProvider, ReasoningStyle};
 use serde_json::{Value, json};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, time::Duration};
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::{
+    sync::{Mutex, Notify},
+    task::JoinHandle,
+};
+
+// HTTP contract tests can cold-compile the client and server under Relax.
+const HTTP_DEADLINE: Duration = Duration::from_secs(25);
 
 struct Upstream {
     requests: Mutex<Vec<Value>>,
     status: StatusCode,
     reply: Value,
     delay: Duration,
+    hold_next: AtomicBool,
+    entered: Notify,
+    release: Notify,
 }
 async fn respond(
     State(s): State<Arc<Upstream>>,
     Json(body): Json<Value>,
 ) -> (StatusCode, Json<Value>) {
     s.requests.lock().await.push(body);
+    if s.hold_next.swap(false, Ordering::SeqCst) {
+        s.entered.notify_one();
+        s.release.notified().await;
+    }
     tokio::time::sleep(s.delay).await;
     (s.status, Json(s.reply.clone()))
 }
@@ -44,6 +58,9 @@ async fn fixture(
 ) -> Fixture {
     let upstream = Arc::new(Upstream {
         requests: Mutex::new(vec![]),
+        hold_next: AtomicBool::new(false),
+        entered: Notify::new(),
+        release: Notify::new(),
         status,
         reply,
         delay,
@@ -109,7 +126,7 @@ async fn real_octos_http_path_preserves_rgb_and_disables_thinking_and_tools() {
         StatusCode::OK,
         reply(&hold()),
         Duration::ZERO,
-        Duration::from_secs(2),
+        HTTP_DEADLINE,
         30000,
     )
     .await;
@@ -139,7 +156,7 @@ async fn vision_refusal_has_exactly_one_upstream_request() {
         StatusCode::BAD_REQUEST,
         json!({"error":{"message":"image_url is not supported"}}),
         Duration::ZERO,
-        Duration::from_secs(2),
+        HTTP_DEADLINE,
         30000,
     )
     .await;
@@ -158,7 +175,7 @@ async fn subgoal_uses_same_multimodal_provider_but_separate_contract() {
         StatusCode::OK,
         reply(r#"{"kind":"pick","object":"red cube","arm":"right"}"#),
         Duration::ZERO,
-        Duration::from_secs(2),
+        HTTP_DEADLINE,
         30000,
     )
     .await;
@@ -185,7 +202,7 @@ async fn refuses_incomplete_tool_and_oversize_actions() {
             StatusCode::OK,
             body,
             Duration::ZERO,
-            Duration::from_secs(2),
+            HTTP_DEADLINE,
             30000,
         )
         .await;
@@ -200,28 +217,32 @@ async fn stale_after_inference_and_deadline_both_fail_closed() {
         Mode::Action,
         StatusCode::OK,
         reply(&hold()),
-        Duration::from_millis(80),
-        Duration::from_secs(2),
-        40,
+        Duration::from_millis(2500),
+        HTTP_DEADLINE,
+        2000,
     )
     .await;
+    let mut req = request();
+    req.observation.as_mut().unwrap().captured_at_ms = now_ms();
     assert_eq!(
-        f.service.infer(request()).await.unwrap_err().status,
+        f.service.infer(req).await.unwrap_err().status,
         StatusCode::CONFLICT
     );
     let f = fixture(
         Mode::Action,
         StatusCode::OK,
         reply(&hold()),
-        Duration::from_millis(80),
+        Duration::ZERO,
         Duration::from_millis(20),
         30000,
     )
     .await;
+    f.upstream.hold_next.store(true, Ordering::SeqCst);
     assert_eq!(
         f.service.infer(request()).await.unwrap_err().status,
         StatusCode::GATEWAY_TIMEOUT
     );
+    f.upstream.release.notify_one();
 }
 
 /// CON-3/8: no queued commands; aborting an owner releases its inference slot.
@@ -231,25 +252,24 @@ async fn concurrent_request_is_rejected_and_cancellation_releases_slot() {
         Mode::Action,
         StatusCode::OK,
         reply(&hold()),
-        Duration::from_millis(100),
-        Duration::from_secs(2),
+        Duration::ZERO,
+        HTTP_DEADLINE,
         30000,
     )
     .await;
+    f.upstream.hold_next.store(true, Ordering::SeqCst);
     let s = f.service.clone();
     let task = tokio::spawn(async move { s.infer(request()).await });
-    for _ in 0..100 {
-        if !f.upstream.requests.lock().await.is_empty() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(2)).await;
-    }
+    tokio::time::timeout(HTTP_DEADLINE, f.upstream.entered.notified())
+        .await
+        .unwrap();
     assert_eq!(
         f.service.infer(request()).await.unwrap_err().status,
         StatusCode::CONFLICT
     );
     task.abort();
     let _ = task.await;
+    f.upstream.release.notify_one();
     assert!(f.service.infer(request()).await.is_ok());
 }
 
@@ -261,7 +281,7 @@ async fn loopback_service_accepts_existing_chat_client_wire_shape() {
         StatusCode::OK,
         reply(&hold()),
         Duration::ZERO,
-        Duration::from_secs(2),
+        HTTP_DEADLINE,
         30000,
     )
     .await;

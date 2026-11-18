@@ -65,3 +65,10 @@ tools/aisle-jit nano run audit-household --output /tmp/nano-live
 ```
 
 Read `household-result.json` for the per-object verdict and frame count. Each delivery requires initial shelf contact, a lift of at least 4 cm, contact with two robot links while lifted, release, destination support, and ten settled samples inside the destination. The overall result also requires a terminal simulator acknowledgement and zero robot–furniture contact samples. The command exits nonzero on a failed mission. DeepSeek choices and physics outcomes can vary between runs. A completed capture can be replayed even when a delivery fails.
+
+To exercise the outer loop offline, run the Dora integration test below. Its local HTTP fixture checks a three-camera request/reply, cancellation of an in-flight request and replacement by a newer subgoal. It uses neither a provider key nor the simulator.
+
+```sh
+AISLE_TEST_DORA="$AISLE_DORA" AISLE_TEST_JIT_BOOT_SECONDS=240 \
+  tools/aisle-jit octos dora-test --features test-fixtures --test dora_flow -- --ignored
+```
