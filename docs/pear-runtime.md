@@ -373,7 +373,7 @@ These Franka transport tests do not evaluate PEAR weights, camera understanding,
 contact physics, or success on the generated Nexus scene. The additional Nano
 test below runs real Nexus physics and cameras, with a stand-in model. RL
 training and registry promotion remain separate work.
-See [ADR-73](decisions/ADR-73.md) for the design and upstream references.
+See [ADR-74](decisions/ADR-74.md) for the design and upstream references.
 
 ## Adora Nano: two arms and three RGB cameras
 

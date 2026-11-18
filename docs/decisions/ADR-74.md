@@ -1,4 +1,4 @@
-# ADR-73 — experimental PEAR-style inference runtime
+# ADR-74 — experimental PEAR-style inference runtime
 
 Status: IMPLEMENTED for local bring-up; not registered or benchmark accepted.
 Scope approved on 2026-11-16: runtime inference first, without RL training;

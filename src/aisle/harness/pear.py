@@ -1,4 +1,4 @@
-"""Prepare an unregistered PEAR bring-up graph; no benchmark-acceptance claim (ADR-73)."""
+"""Prepare an unregistered PEAR bring-up graph; no benchmark-acceptance claim (ADR-74)."""
 
 from __future__ import annotations
 

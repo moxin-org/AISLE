@@ -1,4 +1,4 @@
-"""Runtime lifecycle and guarded action boundaries for ADR-73."""
+"""Runtime lifecycle and guarded action boundaries for ADR-74."""
 
 import numpy as np
 import pyarrow as pa

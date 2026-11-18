@@ -1,4 +1,4 @@
-"""PEAR-style RGB/proprioception -> Cartesian-delta inference (ADR-73).
+"""PEAR-style RGB/proprioception -> Cartesian-delta inference (ADR-74).
 
 This is an inference adapter, not PEAR training or a bundled model. The server
 must provide vision-capable Chat Completions and final answers separate from

@@ -1,4 +1,4 @@
-"""Experimental PEAR-style Dora policy; every command requires budget-guard (ADR-73)."""
+"""Experimental PEAR-style Dora policy; every command requires budget-guard (ADR-74)."""
 
 from __future__ import annotations
 
