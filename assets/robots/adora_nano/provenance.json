@@ -1,0 +1,69 @@
+{
+  "upstream_commit": "43f94e2ae32352464e056f25a4aedb7912136669",
+  "base_step_sha256": "bcc110e6f883ef1119a7c354b355a36828bba445efef6dafd05e8c43da832d80",
+  "arm_step_sha256": "21d663a970f7eaaa4e8a55184a6da3a1f442283dec3eee01c33f19f362df38e1",
+  "links": {
+    "shoulder": {
+      "visual_faces": 218288,
+      "collision_hulls": 8,
+      "replaced_parts": []
+    },
+    "upper_arm": {
+      "visual_faces": 73946,
+      "collision_hulls": 8,
+      "replaced_parts": []
+    },
+    "wrist_roll": {
+      "visual_faces": 45572,
+      "collision_hulls": 8,
+      "replaced_parts": [
+        {
+          "name": "D2",
+          "old_faces_matched": 1794,
+          "new_faces": 11460
+        }
+      ]
+    },
+    "wrist_housing": {
+      "visual_faces": 41255,
+      "collision_hulls": 8,
+      "replaced_parts": [
+        {
+          "name": "E1",
+          "old_faces_matched": 1956,
+          "new_faces": 13468
+        },
+        {
+          "name": "E3",
+          "old_faces_matched": 682,
+          "new_faces": 3588
+        }
+      ]
+    }
+  },
+  "source_repository": "https://github.com/DoraCN/AdoraNano",
+  "source_urdf_sha256": "a4189fc9c7a25ac568dff76ff6714c7af1576d8262e846ecb936cafdc042ba3f",
+  "studio_urdf_sha256": "a03319b78dcf338cbd64bed7bdc2062066af6f8a189cdb2cb67f9ba1e9b6b627",
+  "adaptation": "Relative mesh paths; Studio colours and split base surfaces; local symmetric simulation assembly: left chain reflected from right across base_link Y=0. Source CAD has same-handed arms. Joint names and limits retained; left frames, axes, meshes and inertia mirrored. Not hardware calibration.",
+  "arm_symmetry_override": {
+    "plane": "base_link Y=0 (XZ plane)",
+    "reference": "right arm",
+    "local_reflection": [
+      1,
+      -1,
+      1
+    ],
+    "angular_axis_reflection": [
+      -1,
+      1,
+      -1
+    ],
+    "convention": "equal left/right joint values produce mirrored poses",
+    "source_cad": "two identically oriented instances separated by 460 mm",
+    "hardware_validated": false,
+    "supersedes": "left mount yaw +180 degrees",
+    "generator": "dorobot-org/dorobot-studio:tools/mirror_nano_arm.py",
+    "floating_xml_updated": true,
+    "mirrored_meshes": 53
+  }
+}

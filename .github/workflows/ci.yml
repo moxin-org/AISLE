@@ -6,6 +6,21 @@ on:
     branches: [main]
     tags: ["**"]
 jobs:
+  nano-rust:
+    name: ci/nano-rust
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned release: `-D warnings` on a floating toolchain turns unrelated
+      # PRs red whenever a new stable adds a lint. Bump it deliberately.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.100.0"
+          components: rustfmt, clippy
+      - run: cargo fmt --check --manifest-path native/nano/Cargo.toml
+      - run: cargo clippy --locked --manifest-path native/nano/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --locked --manifest-path native/nano/Cargo.toml
+
   unit:
     name: ci/unit
     runs-on: macos-latest
