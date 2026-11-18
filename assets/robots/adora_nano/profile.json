@@ -1,0 +1,20 @@
+{
+  "id": "adora_nano_experimental_v1",
+  "status": "experimental simulation, not a registered benchmark skill",
+  "runtime": "native/nano/Cargo.toml",
+  "kinematic_model": "model.urdf",
+  "visual_and_collision_assets": "dorobot-org/dorobot-studio:data/adora_nano",
+  "asset_base_revision": "c76b6c5",
+  "simulator_adapter_revision": "de6ba8d",
+  "model_note": "model.urdf is the exact Studio kinematic model. Meshes are resolved from the full Studio asset directory supplied to --model.",
+  "cameras": ["head", "left_wrist", "right_wrist"],
+  "joint_count": 17,
+  "arm_joints": ["j1_yaw", "j2_pitch", "j3_pitch", "j4_pitch", "j5_roll", "j6_gripper"],
+  "arm_prefixes": ["left", "right"],
+  "base": "three wheel omni geometry; forward/turn control for solid collision wheels",
+  "physics_hz": 100,
+  "sensor_control_hz": 5,
+  "hardware_calibrated": false,
+  "object_attachments": false,
+  "root_teleport_during_rollout": false
+}

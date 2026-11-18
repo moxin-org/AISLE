@@ -5,6 +5,10 @@ New contributor? Start with the
 project overview, architecture, use cases, extension guide, code map, research
 status, and known limitations.
 
+**Adora Nano development:** the [native Rust indoor profile](docs/nano-native.md)
+connects Nano, three cameras and DoRobot Studio recording through Dora/Nexus.
+It is experimental and separate from the frozen benchmark results below.
+
 **Student, or here for a hackathon?** The
 **[technical report](docs/AISLE-technical-report.md)** doubles as the course
 text (~50 pages). It assumes no background in dataflow runtimes, robot

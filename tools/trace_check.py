@@ -7,6 +7,10 @@ and scans test_* function docstrings under tests/ for citations. Exits nonzero l
 uncovered MUSTs, citations or waivers of undefined IDs, duplicate IDs, and
 unparseable test files.
 
+Rust tests under native/*/tests/ are scanned too: doc comments on #[test]
+functions are checked for undefined IDs and listed as `rust_citations`, but
+they do not count as MUST coverage (experimental native surface, ADR-73).
+
 Pre-M0, not-yet-implemented specs are waived in tools/trace_waivers.toml
 (id + reason, reviewable); --strict ignores waivers and --specs NNN-MMM
 scopes the MUST universe by spec number (the M0 gate runs
@@ -24,6 +28,8 @@ from pathlib import Path
 ID_PATTERN = r"[A-Z][A-Z0-9]*-[A-Z]?\d+"
 REQ_BULLET = re.compile(rf"^- ({ID_PATTERN}):(.*)$")
 MUST_KEYWORD = re.compile(r"\b(MUST|REQUIRED|SHALL)\b")
+RUST_TEST_ATTRIBUTE = re.compile(r"#\[(\w+::)*test\b")
+RUST_FN = re.compile(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+(\w+)")
 
 
 def extract_requirements(specs_dir: Path) -> tuple[dict[str, str], dict[str, set[str]], set[str]]:
@@ -82,6 +88,30 @@ def extract_citations(tests_dir: Path) -> tuple[dict[str, list[str]], list[str]]
     return {rid: sorted(refs) for rid, refs in cited.items()}, parse_errors
 
 
+def extract_rust_citations(root: Path) -> dict[str, list[str]]:
+    """Map requirement ID -> sorted Rust test references ("relpath::fn") from
+    `///` doc comments directly above #[test] functions in native/*/tests/.
+    Module docs and helper functions do not count."""
+    cited: dict[str, set[str]] = {}
+    for path in sorted((root / "native").glob("*/tests/**/*.rs")):
+        ref_base = path.relative_to(root).as_posix()
+        doc: list[str] = []
+        is_test = False
+        for line in path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith("///"):
+                doc.append(stripped)
+            elif stripped.startswith("#["):
+                is_test = is_test or bool(RUST_TEST_ATTRIBUTE.match(stripped))
+            else:
+                match = RUST_FN.match(stripped)
+                if match and is_test:
+                    for rid in re.findall(ID_PATTERN, " ".join(doc)):
+                        cited.setdefault(rid, set()).add(f"{ref_base}::{match.group(1)}")
+                doc, is_test = [], False
+    return {rid: sorted(refs) for rid, refs in cited.items()}
+
+
 def load_waivers(root: Path) -> dict[str, str]:
     """Flat id → reason table under [waivers]."""
     path = root / "tools" / "trace_waivers.toml"
@@ -130,9 +160,14 @@ def main() -> int:
     known_prefixes = {rid.split("-")[0] for rid in requirements}
     citation_map = {c: t for c, t in citation_map.items() if c.split("-")[0] in known_prefixes}
     cited = set(citation_map)
+    rust_map = {
+        c: t
+        for c, t in extract_rust_citations(args.root).items()
+        if c.split("-")[0] in known_prefixes
+    }
     waivers = {} if args.strict else load_waivers(args.root)
 
-    unknown_citations = sorted(cited - requirements.keys())
+    unknown_citations = sorted((cited | set(rust_map)) - requirements.keys())
     unknown_waivers = sorted(set(waivers) - requirements.keys())
     uncovered = sorted(must_ids - cited - waivers.keys())
     if not requirements:
@@ -150,6 +185,8 @@ def main() -> int:
         "covered": sorted(must_ids & cited),
         # deterministic MUST-ID -> citing-test mapping (audit finding 6)
         "coverage_map": {rid: citation_map[rid] for rid in sorted(must_ids & cited)},
+        # checked for undefined IDs only; never MUST coverage (ADR-73)
+        "rust_citations": {rid: rust_map[rid] for rid in sorted(rust_map)},
         "waived": sorted(set(waivers) & must_ids),
         "uncovered": uncovered,
         "unknown_citations": unknown_citations,

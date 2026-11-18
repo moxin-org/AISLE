@@ -1,0 +1,5 @@
+#!/bin/sh
+# Native Rust entry point; Cargo diagnostics stay on stderr, CLI reports are JSON.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec cargo run --release --locked --manifest-path "$root/native/nano/Cargo.toml" -- "$@"
