@@ -53,10 +53,10 @@ fn rows(file: &Path) -> Result<Vec<[i64; 3]>> {
             && header.contains(", 3)"),
         "invalid contact array"
     );
-    let bytes = &b[header_end..];
-    ensure!(bytes.len() % 24 == 0, "truncated contact rows");
-    Ok(bytes
-        .chunks_exact(24)
+    let (rows, remainder) = b[header_end..].as_chunks::<24>();
+    ensure!(remainder.is_empty(), "truncated contact rows");
+    Ok(rows
+        .iter()
         .map(|r| {
             std::array::from_fn(|i| i64::from_le_bytes(r[i * 8..i * 8 + 8].try_into().unwrap()))
         })

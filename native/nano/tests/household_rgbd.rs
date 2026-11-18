@@ -38,9 +38,11 @@ fn captured_household_grasp_plans_from_rgbd() {
     let mut control = Controller::new(config.clone(), Robot::read(&config.model).unwrap()).unwrap();
     let rgb = fs::read(root.join("rgb")).unwrap();
     let bytes = fs::read(root.join("depth")).unwrap();
-    let depth = bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+    let (samples, remainder) = bytes.as_chunks::<4>();
+    assert!(remainder.is_empty(), "truncated depth sample");
+    let depth = samples
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
         .collect::<Vec<_>>();
     let m = frame.camera;
     let rotation = Matrix3::from_fn(|i, j| m[i][j]);
