@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 from p3_evidence import digest
@@ -202,8 +203,16 @@ def launch_client(
     runtime,
     hidden_roots,
     timeout_s=30,
+    service_factory=None,
 ):
-    """Fresh fixed-authority Python process; source bytes never execute in the host."""
+    """Fresh fixed-authority Python process; source bytes never execute in the host.
+
+    An optional trusted factory wraps evidence RPC with an unscored task service.
+    It receives the admitted source hash and a controller-private output path;
+    neither the factory nor its objects are exposed to the child.
+    """
+    if service_factory is not None and not callable(service_factory):
+        raise ValueError("invalid controller service factory")
     workspace, controller, bundle = (Path(p).absolute() for p in (workspace, controller, bundle))
     if bundle.is_symlink() or digest(bundle / "manifest.json") != manifest_sha256:
         raise ValueError("bound evidence changed")
@@ -300,21 +309,27 @@ def launch_client(
             session_id=session_id,
             output=controller / "evidence",
             max_calls=16,
-        ) as service:
-            with (controller / "stderr.log").open("xb") as stderr:
-                process = spawn_isolated_process(
-                    wrapped,
-                    cwd=home,
-                    environment=environment,
-                    environment_record=environment_record,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=stderr,
-                )
-                result["client"] = supervise_client(
-                    process, service, controller / "rpc", timeout_s=timeout_s
-                )
-            service._verify_bundle()
+        ) as evidence:
+            service_context = (
+                nullcontext(evidence)
+                if service_factory is None
+                else service_factory(evidence, controller / "task", source_hash)
+            )
+            with service_context as service:
+                with (controller / "stderr.log").open("xb") as stderr:
+                    process = spawn_isolated_process(
+                        wrapped,
+                        cwd=home,
+                        environment=environment,
+                        environment_record=environment_record,
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=stderr,
+                    )
+                    result["client"] = supervise_client(
+                        process, service, controller / "rpc", timeout_s=timeout_s
+                    )
+            evidence._verify_bundle()
         verify_runtime(runtime)
         wrap_verified_command(command, compiled, profile, attestation, policy=policy)
         if (
