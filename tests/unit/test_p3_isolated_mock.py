@@ -215,3 +215,20 @@ def test_cli_invalid_scope_emits_one_json_failure(tmp_path, capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["ok"] is False and result["provider_calls"] == 0
     assert not output.exists()
+
+
+@pytest.mark.parametrize("source", ["finish()\n", "import time;time.sleep(10)\n"])
+def test_group_cleanup_refusal_retains_failure_and_reaps_owned_child(
+    tmp_path, evidence, monkeypatch, source
+):
+    """HAR-4; TRT-10: denied group cleanup cannot erase the terminal receipt or claim success."""
+    import p3_isolated_mock as tool
+
+    def denied(*args):
+        raise PermissionError("synthetic group signal refusal")
+
+    monkeypatch.setattr(tool.os, "killpg", denied)
+    result = run_child(tmp_path, evidence, source, timeout=0.15)
+    assert not result["ok"]
+    assert result["returncode"] is not None
+    assert "group signal" in result["cleanup_error"]
