@@ -47,7 +47,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 98 |
+| ADR files | 99 |
 
 ## Graphs
 
@@ -300,6 +300,7 @@ inference.
 | [docs/decisions/ADR-h6-operation-protocol.md](../decisions/ADR-h6-operation-protocol.md) | ADR-h6-operation-protocol — H6 (Operation) campaign protocol | ACCEPTED (CON-15 — interpretation recorded, proceeding). |
 | [docs/decisions/ADR-m3-protocol.md](../decisions/ADR-m3-protocol.md) | ADR-m3-protocol — M3: neural-env ranking agreement, v0 surrogate | ACCEPTED (CON-15 — protocol pre-registered before any scored |
 | [docs/decisions/ADR-p3-chain-completion.md](../decisions/ADR-p3-chain-completion.md) | ADR-p3-chain-completion — Require the recovery result before completion | implementation interpretation of HAR-1/2/4, TC-7 and ADR-32; |
+| [docs/decisions/ADR-p3-dora-task-transport.md](../decisions/ADR-p3-dora-task-transport.md) | ADR-p3-dora-task-transport — Public task RPC over lockstep Arrow transport | engineering implementation of TC-2/6/7 and VAL-2/6; no protocol freeze, |
 | [docs/decisions/ADR-p3-public-task-worker.md](../decisions/ADR-p3-public-task-worker.md) | ADR-p3-public-task-worker — Public T4 requests across an isolated worker boundary | implementation interpretation of TC-6/7/8, VAL-2/6 and the existing |
 | [docs/decisions/ADR-p3-recovery-sequencing.md](../decisions/ADR-p3-recovery-sequencing.md) | ADR-p3-recovery-sequencing — Wait for correlated executor completion | proposed implementation interpretation of TC-2/7, HAR-3 and ADR-32; |
 | [docs/decisions/ADR-p3-return-orientation.md](../decisions/ADR-p3-return-orientation.md) | ADR-p3-return-orientation — Point the return gripper toward the tray | implementation interpretation of CAP-5, TC-1/2 and ADR-32; |
