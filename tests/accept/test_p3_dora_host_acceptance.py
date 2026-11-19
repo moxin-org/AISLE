@@ -26,9 +26,10 @@ pytestmark = [
 
 DRIVER = """
 import json, os
+from pathlib import Path
 import pyarrow as pa
 from dora import Node
-node=Node(); stage=-1; seen=set()
+node=Node(); stage=-1; seen=set(); feedback=[]
 def start(stage):
     meta=dict(env_id=0,seq=stage+1,turn_epoch=7,turn_id=stage,sim_time_ns=stage*10000000)
     if stage==0:
@@ -51,12 +52,18 @@ for event in node:
     topic=event["id"]
     if topic=="tick" and stage==-1:
         stage=0;start(stage)
-    elif topic in ("robot_msg","target_request","turn_done"):
+    elif topic in ("robot_msg","target_request","episode_feedback","turn_done"):
         seen.add(topic)
+        if topic=="episode_feedback":
+            payload=json.loads(event["value"][0].as_py())
+            assert payload["retries"]==payload["dialogue_corrections"]==0
+            feedback.append(dict(turn_id=event["metadata"]["turn_id"],payload=payload))
+            Path("feedback.json").write_text(json.dumps(feedback))
         if topic=="target_request":
             identity={k:event["metadata"][k] for k in ("goal_id","request_id")}
-        expected={"turn_done"}|[{"robot_msg"},{"target_request"},set()][stage]
-        if seen==expected:
+        expected={"turn_done","episode_feedback"}|[{"robot_msg"},{"target_request"},set()][stage]
+        count=sum(row["turn_id"]==stage for row in feedback)
+        if seen==expected and count==[2,2,1][stage]:
             if os.environ["FIXTURE_BLOCK"]=="1": continue
             if stage==2: break
             seen=set();stage+=1;start(stage)
@@ -141,7 +148,12 @@ def test_confined_worker_native_host_and_blocked_callback_cleanup(tmp_path, arm,
                                         "tick": "dora/timer/millis/100",
                                         **{
                                             k: q(f"task/{k}")
-                                            for k in ("robot_msg", "target_request", "turn_done")
+                                            for k in (
+                                                "robot_msg",
+                                                "target_request",
+                                                "episode_feedback",
+                                                "turn_done",
+                                            )
                                         },
                                     },
                                     outputs=["reset_done", "human_msg", "plan_done", "turn"],
@@ -163,7 +175,7 @@ def test_confined_worker_native_host_and_blocked_callback_cleanup(tmp_path, arm,
                                         PYTHONPATH=str(ROOT / "src"),
                                         AISLE_LOCKSTEP="1",
                                         AISLE_TURN_NODE="task",
-                                        AISLE_TURN_OUTPUTS="robot_msg,target_request,return_request,turn_done",
+                                        AISLE_TURN_OUTPUTS="robot_msg,target_request,return_request,episode_feedback,turn_done",
                                     ),
                                     inputs={
                                         k: q(f"driver/{k}")
@@ -173,6 +185,7 @@ def test_confined_worker_native_host_and_blocked_callback_cleanup(tmp_path, arm,
                                         "robot_msg",
                                         "target_request",
                                         "return_request",
+                                        "episode_feedback",
                                         "turn_done",
                                     ],
                                 ),
@@ -251,6 +264,7 @@ def test_confined_worker_native_host_and_blocked_callback_cleanup(tmp_path, arm,
     summary = json.loads((controller / "task/summary.json").read_text())
     assert summary["ok"] is (not blocked)
     assert summary["input_exhausted"] is (not blocked)
+    assert len(json.loads((controller / "feedback.json").read_text())) == (2 if blocked else 5)
     assert result["provider_calls"] == result["measured_sessions"] == 0
     if blocked:
         assert rpc["elapsed_s"] < 8 and rpc["error"]

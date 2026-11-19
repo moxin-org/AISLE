@@ -59,7 +59,7 @@ def transport(events):
         dict(
             AISLE_LOCKSTEP="1",
             AISLE_TURN_NODE="task",
-            AISLE_TURN_OUTPUTS="robot_msg,target_request,return_request,turn_done",
+            AISLE_TURN_OUTPUTS="robot_msg,target_request,return_request,episode_feedback,turn_done",
         ),
     )
     return DoraTaskTransport(node, turn_epoch=7), raw
@@ -105,6 +105,7 @@ def test_arrow_projection_output_stamps_and_host_turn_acknowledgement():
         "robot_msg": 1,
         "target_request": 1,
         "return_request": 0,
+        "episode_feedback": 0,
         "turn_done": 1,
     }
     with pytest.raises(ValueError, match="closed"):
@@ -285,3 +286,36 @@ def test_turn_replay_is_refused():
     service.next_event()
     with pytest.raises(ValueError, match="monotonic"):
         service.next_event()
+
+
+def test_controller_feedback_uses_fixed_wire_fields_and_goal_correlation():
+    """TC-2/7; HAR-3: controller feedback travels as stamped Arrow with separate counters."""
+    service, raw = transport(turn_events([reset()]))
+    service.next_event()
+    payload = dict(t=1.0, phase="delivering", retries=2, dialogue_corrections=1)
+    service.send("episode_feedback", payload, {"goal_id": "g"})
+    assert raw.sent[0][0] == "episode_feedback"
+    assert json.loads(raw.sent[0][1][0]) == payload
+    assert raw.sent[0][2] == {**stamp(), "goal_id": "g"}
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("t", float("nan")),
+        ("t", -1),
+        ("phase", "success"),
+        ("retries", 9),
+        ("retries", True),
+        ("dialogue_corrections", -1),
+    ],
+)
+def test_malformed_feedback_is_refused(field, value):
+    """TC-7/8; HAR-3: feedback cannot inject outcome labels or invalid retry accounting."""
+    service, raw = transport(turn_events([reset()]))
+    service.next_event()
+    payload = dict(t=0, phase="confirming", retries=0, dialogue_corrections=0)
+    payload[field] = value
+    with pytest.raises(ValueError):
+        service.send("episode_feedback", payload, {"goal_id": "g"})
+    assert not raw.sent

@@ -2,8 +2,9 @@
 
 `aisle.harness.p3_dora_transport.DoraTaskTransport` connects the decoded
 `TaskSession` interface to the trusted lockstep `Node`. It accepts only the
-three high-level outputs `robot_msg`, `target_request` and `return_request`.
-The host owns `turn_done`; direct actuator and reset outputs are refused.
+three authored high-level outputs `robot_msg`, `target_request` and
+`return_request`, plus controller-owned `episode_feedback`. The host owns
+`turn_done`; direct actuator and reset outputs are refused.
 
 The constructor requires an exact producer `turn_epoch` and a lockstep node
 with those outputs plus `turn_done`, without wall-output grants. Arrow reset
@@ -33,7 +34,9 @@ provider. The result remains `physical_completion: unknown`.
 This is a transport component, not a live P3 launcher. It does not verify
 graph routes or capture actual guard traversal. The caller must supply an
 outer process deadline because a trusted Node iterator may block. Source and
-confinement preprovisioning, production graph admission, feedback/retry
-accounting, private scoring and session resource checks remain required.
+confinement preprovisioning, production graph admission,
+private scoring and session resource checks remain required. Controller feedback
+and bounded request-repeat accounting are described in the
+[feedback decision](decisions/ADR-p3-task-feedback.md).
 The [design decision](decisions/ADR-p3-dora-task-transport.md) records these
 limits and the reset-order interpretation.

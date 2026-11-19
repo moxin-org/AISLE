@@ -47,7 +47,7 @@ stayed outside it).
 | Graphs | 27 |
 | Capability manifests | 43 |
 | CLI command entries | 39 |
-| ADR files | 100 |
+| ADR files | 101 |
 
 ## Graphs
 
@@ -305,6 +305,7 @@ inference.
 | [docs/decisions/ADR-p3-public-task-worker.md](../decisions/ADR-p3-public-task-worker.md) | ADR-p3-public-task-worker — Public T4 requests across an isolated worker boundary | implementation interpretation of TC-6/7/8, VAL-2/6 and the existing |
 | [docs/decisions/ADR-p3-recovery-sequencing.md](../decisions/ADR-p3-recovery-sequencing.md) | ADR-p3-recovery-sequencing — Wait for correlated executor completion | proposed implementation interpretation of TC-2/7, HAR-3 and ADR-32; |
 | [docs/decisions/ADR-p3-return-orientation.md](../decisions/ADR-p3-return-orientation.md) | ADR-p3-return-orientation — Point the return gripper toward the tray | implementation interpretation of CAP-5, TC-1/2 and ADR-32; |
+| [docs/decisions/ADR-p3-task-feedback.md](../decisions/ADR-p3-task-feedback.md) | ADR-p3-task-feedback — Controller-owned P3 task feedback | implementation decision; measured P3 admission remains pending. |
 | [docs/decisions/ADR-phase6-prep.md](../decisions/ADR-phase6-prep.md) | ADR-phase6-prep — the hardware entry, prepared while gated | ACCEPTED (CON-15). Date: 2026-08-27. Scope: next-phases |
 | [docs/decisions/ADR-pilot-public-observations.md](../decisions/ADR-pilot-public-observations.md) | ADR-pilot-public-observations — Public observations for the admitted L2 candidate | PROPOSED; Class C review required before merge (CON-10). |
 | [docs/decisions/ADR-powder-spike.md](../decisions/ADR-powder-spike.md) | ADR-powder-spike — T20 solver spike for the powder family (SPEC 300 PW-0) | **ACCEPTED** — ratified by the owner 2026-08-27 ("ratify PW-0 |
