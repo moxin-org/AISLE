@@ -5,6 +5,7 @@ test_search_cli_json (CAP-4), test_registry_completeness (CAP-5).
 """
 
 import json
+import shutil
 import subprocess
 
 import pytest
@@ -146,10 +147,52 @@ def test_search_no_match_is_ok_empty():
     assert report["matches"] == []
 
 
+@pytest.mark.parametrize(
+    "safety_class,evaluated,tier,origin,accepted",
+    [
+        ("decision", False, "sandbox", "agent-authored", True),
+        ("perception", False, "sandbox", "agent-authored", True),
+        ("motion", False, "sandbox", "agent-authored", False),
+        ("decision", True, "sandbox", "agent-authored", False),
+        ("motion", True, "sandbox", "agent-authored", False),
+        ("decision", False, None, "agent-authored", False),
+        ("motion", False, None, "agent-authored", False),
+        ("decision", False, "reviewed", "agent-authored", False),
+        ("decision", True, None, "agent-authored", True),
+        ("motion", True, "reviewed", "agent-authored", True),
+        ("decision", False, "sandbox", "hub", False),
+        ("decision", True, None, "hub", False),
+    ],
+)
+def test_completeness_gate_enforces_sandbox_exception(
+    tmp_path, monkeypatch, safety_class, evaluated, tier, origin, accepted
+):
+    """CAP-5/7: sandbox admission preserves null evalcards, no motion, and authored provenance."""
+    manifests = tmp_path / "manifests"
+    shutil.copytree(MANIFESTS_DIR, manifests)
+    candidate = valid_manifest(
+        id="completeness-fixture",
+        safety_class=safety_class,
+        origin=origin,
+        eval={"suite": "fixture", "pass_rate": 0.75, "last_run": "2026-11-19"}
+        if evaluated
+        else None,
+    )
+    if tier is not None:
+        candidate["trust_tier"] = tier
+    (manifests / "completeness-fixture.yaml").write_text(yaml.safe_dump(candidate))
+    monkeypatch.setitem(globals(), "MANIFESTS_DIR", manifests)
+    if accepted:
+        test_registry_completeness()
+    else:
+        with pytest.raises(AssertionError, match="completeness-fixture"):
+            test_registry_completeness()
+
+
 def test_registry_completeness():
-    """CAP-5 as evolved by T18: the CURATED core is pinned exactly, and any
-    manifest beyond it must be a REGISTERED SKILL — origin agent-authored
-    WITH a written evalcard (the §8.4 governance path is the only way in).
+    """CAP-5/7: pin the curated core; non-core entries must be agent-authored
+    registered skills with evalcards, or non-motion sandbox entries with null
+    evalcards (ADR-40). Sandbox admission makes no library-skill quality claim.
     The deliberate gap holds: no CURATED capability provides rearrangement
     (an agent-authored rearrangement skill is the intended fill, §3)."""
     import tomllib
@@ -164,7 +207,11 @@ def test_registry_completeness():
     for m in manifests:
         if m["id"] not in EXPECTED_IDS:
             assert m["origin"] == "agent-authored", m["id"]
-            assert m["eval"] is not None, f"{m['id']} installed without an evalcard"
+            if m.get("trust_tier") == "sandbox":
+                assert m["eval"] is None, f"{m['id']} sandbox entry carries an evalcard"
+                assert m["safety_class"] != "motion", f"{m['id']} sandbox entry can actuate"
+            else:
+                assert m["eval"] is not None, f"{m['id']} installed without an evalcard"
     core_provides = {p for m in manifests if m["id"] in EXPECTED_IDS for p in m["provides"]}
     assert not any("rearrang" in p for p in core_provides)
 
