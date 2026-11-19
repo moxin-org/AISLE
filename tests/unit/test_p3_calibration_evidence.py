@@ -120,13 +120,12 @@ def test_failed_initial_attempt_is_not_an_observed_initial_delivery():
     assert result["recovery_sequence"] is False
 
 
-def test_assessment_joins_source_verdicts_and_policy_capture(tmp_path):
-    """HAR-4; TC-8: the assessment checks real file bindings before deriving chain facts."""
+def calibration_run_fixture(tmp_path):
+    """One source-bound two-goal run, shared with the private feasibility reader tests."""
     import hashlib
     import json
 
     import pyarrow as pa
-    from p3_calibration_evidence import assess_run
     from test_p3_evidence import run_fixture
 
     from aisle.harness.trace_recorder import TRACE_SCHEMA, trace_identity
@@ -197,6 +196,14 @@ def test_assessment_joins_source_verdicts_and_policy_capture(tmp_path):
         env_fingerprint="b" * 64,
         skill_sources={"src/aisle/nodes/ik_trajectory.py": "c" * 64},
     )
+    return run, args
+
+
+def test_assessment_joins_source_verdicts_and_policy_capture(tmp_path):
+    """HAR-4; TC-8: the assessment checks real file bindings before deriving chain facts."""
+    from p3_calibration_evidence import assess_run
+
+    run, args = calibration_run_fixture(tmp_path)
     result = assess_run(run, tmp_path / "assessment", **args)
     assert result["status"] == "complete" and result["success"] is False
     assert result["recovery_sequence"] is False
