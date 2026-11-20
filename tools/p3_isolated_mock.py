@@ -160,12 +160,25 @@ def supervise_client(process, session, output, *, timeout_s):
     finally:
         # Kill the owned group even when its leader already exited; descendants
         # must not preserve pipes or session state after the retained terminal event.
-        process.poll()  # Reap a zombie leader before signaling its remaining group.
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait()
+            process.poll()  # Reap a zombie leader before signaling its remaining group.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except PermissionError as exc:
+                # A denied group signal after leader exit is possible on macOS.
+                # Preserve uncertainty instead of dropping the terminal receipt
+                # or claiming all group members were stopped. The owned child
+                # can still be terminated directly if it remains alive.
+                result.update(ok=False, cleanup_error=str(exc))
+                result["error"] = result["error"] or "worker group cleanup unresolved"
+                if process.poll() is None:
+                    process.kill()
+            process.wait(timeout=5)
+        except (OSError, subprocess.SubprocessError) as exc:
+            result.update(ok=False, cleanup_error=str(exc))
+            result["error"] = result["error"] or "worker cleanup unresolved"
         for stream in (process.stdin, process.stdout):
             if stream is not None:
                 stream.close()
