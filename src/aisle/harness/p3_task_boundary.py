@@ -63,6 +63,40 @@ class TaskBoundary:
         self.active = self.active_metadata = None
         self.confirmed = False
         self.confirm_requested = None
+        self.sim_time_ns = self.goal_start_sim_ns = 0
+        self.motion_counts = {"deliver": 0, "return": 0}
+        self.dialogue_corrections = 0
+
+    def feedback(self):
+        """Controller accounting for requested retries, never a physical outcome."""
+        if self.goal_id is None:
+            return None
+        phase = "confirming"
+        if self.confirmed:
+            if self.active is None:
+                phase = "awaiting_motion"
+            elif self.active_metadata["goal_id"] != self.goal_id:
+                phase = "waiting_previous"
+            else:
+                phase = "returning" if self.active["kind"] == "return" else "delivering"
+        return dict(
+            topic="episode_feedback",
+            payload=dict(
+                t=(self.sim_time_ns - self.goal_start_sim_ns) / 1_000_000_000,
+                phase=phase,
+                retries=self._retries(),
+                dialogue_corrections=self.dialogue_corrections,
+            ),
+            metadata=dict(goal_id=self.goal_id),
+        )
+
+    def _retries(self):
+        return sum(max(0, count - 1) for count in self.motion_counts.values())
+
+    def _observed(self, event, metadata):
+        if event is not None:
+            self.sim_time_ns = max(self.sim_time_ns, metadata["sim_time_ns"])
+        return event
 
     def snapshot(self):
         return copy.deepcopy(
@@ -107,6 +141,9 @@ class TaskBoundary:
             self.active = self.active_metadata = None
             self.confirmed, self.confirm_requested = False, None
             self.seen_goals.clear()
+            self.sim_time_ns = self.goal_start_sim_ns = metadata["sim_time_ns"]
+            self.motion_counts = {"deliver": 0, "return": 0}
+            self.dialogue_corrections = 0
             return dict(kind="reset", generation=self.epoch, state=self.snapshot())
         _require(self.epoch > 0, "task input precedes reset")
         if metadata["sim_time_ns"] < self.reset_sim_ns:
@@ -115,7 +152,9 @@ class TaskBoundary:
             if seq <= self.last_human_seq:
                 return None
             self.last_human_seq = seq
-            return self._human(payload, metadata.get("goal_id"))
+            return self._observed(
+                self._human(payload, metadata.get("goal_id"), metadata["sim_time_ns"]), metadata
+            )
         if topic == "plan_done":
             if self.active is None or any(
                 metadata.get(k) != v for k, v in self.active_metadata.items()
@@ -127,21 +166,29 @@ class TaskBoundary:
             )
             invocation = self.active["motion_id"]
             self.active = self.active_metadata = None
-            return dict(
-                kind="motion_returned",
-                motion_id=invocation,
-                physical_completion="unknown",
-                state=self.snapshot(),
+            return self._observed(
+                dict(
+                    kind="motion_returned",
+                    motion_id=invocation,
+                    physical_completion="unknown",
+                    state=self.snapshot(),
+                ),
+                metadata,
             )
         if topic == "violation":
             _require(
                 isinstance(payload, dict) and _identifier(payload.get("reason")),
                 "invalid guard violation",
             )
-            return dict(kind="guard_violation", reason=payload["reason"], state=self.snapshot())
-        return dict(kind="tick", sim_time_ns=metadata["sim_time_ns"], state=self.snapshot())
+            return self._observed(
+                dict(kind="guard_violation", reason=payload["reason"], state=self.snapshot()),
+                metadata,
+            )
+        return self._observed(
+            dict(kind="tick", sim_time_ns=metadata["sim_time_ns"], state=self.snapshot()), metadata
+        )
 
-    def _human(self, payload, goal):
+    def _human(self, payload, goal, sim_time_ns):
         _require(isinstance(goal, str) and 0 < len(goal) <= 256, "invalid dialogue goal identity")
         _require(
             isinstance(payload, dict)
@@ -164,11 +211,15 @@ class TaskBoundary:
             self.seen_goals.add(goal)
             self.goal_id = goal
             self.request = dict(med=med, text=payload["text"], return_med=return_med)
+            self.goal_start_sim_ns = max(self.sim_time_ns, sim_time_ns)
+            self.motion_counts = {"deliver": 0, "return": 0}
+            self.dialogue_corrections = 0
         elif goal != self.goal_id:
             return None
         elif kind == "correction":
             _require(not self.confirmed, "correction follows confirmed motion task")
             self.request.update(med=med, text=payload["text"])
+            self.dialogue_corrections += 1
         else:
             if self.confirmed or self.confirm_requested != med or self.request["med"] != med:
                 return None
@@ -209,11 +260,17 @@ class TaskBoundary:
         _require(self.confirmed, "task is not confirmed", TaskRefusal)
         _require(self.active is None, "fixed library is busy", TaskRefusal)
         _require(
+            self.motion_counts[kind] == 0 or self._retries() < 8,
+            "request retry budget exhausted",
+            TaskRefusal,
+        )
+        _require(
             self.motion_requests < self.max_motion_requests,
             "motion request budget exhausted",
             TaskRefusal,
         )
         self.motion_requests += 1
+        self.motion_counts[kind] += 1
         invocation = f"motion-{self.epoch}-{self.motion_requests}"
         self.active = dict(motion_id=invocation, revision=self.revision, kind=kind, med=med)
         self.active_metadata = dict(
@@ -273,6 +330,7 @@ class TaskSession:
                     medicines=list(medicines),
                     max_calls=max_calls,
                     max_motion_requests=max_motion_requests,
+                    max_request_retries_per_goal=8,
                 )
             )
         )
@@ -281,6 +339,13 @@ class TaskSession:
     def _retain(self, value):
         self.log.write(_json(value))
         self.log.flush()
+
+    def _feedback(self):
+        command = self.boundary.feedback()
+        if command is not None:
+            self._retain(dict(kind="feedback_proposal", command=command))
+            self.transport.send(command["topic"], command["payload"], command["metadata"])
+            self._retain(dict(kind="feedback_dispatched", command=command))
 
     def call(self, request):
         _require(not self.closed and not self.exhausted, "task session is closed or exhausted")
@@ -327,6 +392,7 @@ class TaskSession:
                     self._retain(dict(kind="input", event=raw))
                     event = self.boundary.observe(*raw)
                     if event is not None:
+                        self._feedback()
                         break
                 else:
                     raise ValueError("task input budget exhausted")
@@ -336,6 +402,7 @@ class TaskSession:
                 self._retain(dict(kind="proposal", command=command))
                 self.transport.send(command["topic"], command["payload"], command["metadata"])
                 self._retain(dict(kind="dispatched", command=command))
+                self._feedback()
                 response = dict(
                     ok=True, motion_id=command["motion_id"], state=self.boundary.snapshot()
                 )

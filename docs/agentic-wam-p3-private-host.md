@@ -23,7 +23,8 @@ The trusted host entry point accepts `--config` and `--config-sha256`. Its exact
 JSON configuration binds the socket, private token, session and candidate,
 producer epoch, timeout, output receipt and fixed adapter source hashes. Config
 and source checks precede Dora attachment and repeat at normal completion.
-Outputs remain the fixed public task requests. The receipt reports zero measured
+Outputs remain the fixed public task requests and controller-owned feedback.
+The receipt reports zero measured
 sessions and leaves guard traversal unverified.
 
 The existing launcher's service factory is called after the actual OS audit.
@@ -43,7 +44,7 @@ It does not start physics or call a provider. The [decision record](decisions/AD
 explains why ownership stays in the controller.
 
 This component does not admit a production graph or a measured P3 session.
-Fixed-skill guard capture, private chain shutdown, feedback/retry accounting,
+Fixed-skill guard capture, private chain shutdown,
 candidate identity across acceptance chains, protocol resources and independent
 scoring remain to be integrated. Transport exhaustion alone is not a successful
 physical outcome or an infrastructure-versus-agent classification.

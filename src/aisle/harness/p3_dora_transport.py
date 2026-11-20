@@ -8,6 +8,7 @@ code must receive TaskSession RPC, never this object or its Node.
 from __future__ import annotations
 
 import json
+import math
 from collections import deque
 
 import pyarrow as pa
@@ -16,7 +17,9 @@ from aisle.harness.p3_task_boundary import _identifier, _require
 from aisle.topics import make_sender
 from aisle.turn_node import Node
 
-OUTPUTS = frozenset({"robot_msg", "target_request", "return_request", "turn_done"})
+OUTPUTS = frozenset(
+    {"robot_msg", "target_request", "return_request", "episode_feedback", "turn_done"}
+)
 INPUTS = frozenset({"reset_done", "human_msg", "plan_done", "violation"})
 STAMP_KEYS = ("env_id", "seq", "sim_time_ns", "turn_epoch", "turn_id")
 
@@ -163,8 +166,13 @@ class DoraTaskTransport:
                 "target_request": {"target_med"},
                 "return_request": {"return_med"},
                 "robot_msg": {"kind", "med", "text"},
+                "episode_feedback": {"t", "phase", "retries", "dialogue_corrections"},
             }[topic]
-            identities = {"goal_id"} if topic == "robot_msg" else {"goal_id", "request_id"}
+            identities = (
+                {"goal_id"}
+                if topic in {"robot_msg", "episode_feedback"}
+                else {"goal_id", "request_id"}
+            )
             _require(
                 isinstance(payload, dict) and set(payload) == fields, "invalid task output payload"
             )
@@ -181,6 +189,25 @@ class DoraTaskTransport:
                     and isinstance(payload["text"], str)
                     and len(payload["text"]) <= 2048,
                     "invalid task dialogue output",
+                )
+            elif topic == "episode_feedback":
+                _require(
+                    type(payload["t"]) in (int, float)
+                    and math.isfinite(payload["t"])
+                    and payload["t"] >= 0
+                    and payload["phase"]
+                    in {
+                        "confirming",
+                        "waiting_previous",
+                        "awaiting_motion",
+                        "returning",
+                        "delivering",
+                    }
+                    and type(payload["retries"]) is int
+                    and 0 <= payload["retries"] <= 8
+                    and type(payload["dialogue_corrections"]) is int
+                    and payload["dialogue_corrections"] >= 0,
+                    "invalid task feedback",
                 )
             else:
                 _require(_identifier(next(iter(payload.values()))), "invalid task medicine")

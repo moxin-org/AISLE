@@ -43,6 +43,9 @@ while True:
         command = boundary.action(dict(revision=boundary.revision, med="a",
                           kind="confirm" if event["kind"] == "request" else "deliver"))
         transport.send(command["topic"], command["payload"], command["metadata"])
+    feedback=boundary.feedback()
+    if feedback is not None:
+        transport.send(feedback["topic"],feedback["payload"],feedback["metadata"])
 assert [r["kind"] for r in events] == ["reset", "request", "confirm_reply", "motion_returned"]
 assert boundary.active is None and boundary.motion_requests == 1
 assert "PRIVATE-SENTINEL" not in json.dumps(events)
@@ -86,15 +89,19 @@ for event in node:
     if topic == "tick" and stage == -1:
         stage = 0
         send_stage(stage)
-    elif topic in ("robot_msg", "target_request", "turn_done"):
+    elif topic in ("robot_msg", "target_request", "episode_feedback", "turn_done"):
         meta = event["metadata"]
         assert meta["turn_epoch"] == 7 and meta["turn_id"] == stage
         seen[topic] = True
         rows.append(dict(topic=topic, metadata=dict(meta)))
+        if topic == "episode_feedback":
+            feedback=json.loads(event["value"][0].as_py())
+            assert feedback["retries"]==feedback["dialogue_corrections"]==0
         if topic == "target_request":
             assert json.loads(event["value"][0].as_py()) == {"target_med": "a"}
             identity = {k: meta[k] for k in ("goal_id", "request_id")}
-        expected = {"turn_done"} | [{"robot_msg"}, {"target_request"}, set()][stage]
+        actions = [{"robot_msg"}, {"target_request"}, set()][stage]
+        expected = {"turn_done", "episode_feedback"} | actions
         if set(seen) == expected:
             if stage == 2: break
             seen = {}
@@ -119,7 +126,12 @@ Path("wire.json").write_text(json.dumps(rows, default=str))
                             "tick": "dora/timer/millis/100",
                             **{
                                 k: q(f"task/{k}")
-                                for k in ("robot_msg", "target_request", "turn_done")
+                                for k in (
+                                    "robot_msg",
+                                    "target_request",
+                                    "episode_feedback",
+                                    "turn_done",
+                                )
                             },
                         },
                         outputs=["reset_done", "human_msg", "plan_done", "turn"],
@@ -132,13 +144,19 @@ Path("wire.json").write_text(json.dumps(rows, default=str))
                             PYTHONPATH=str(ROOT / "src"),
                             AISLE_LOCKSTEP="1",
                             AISLE_TURN_NODE="task",
-                            AISLE_TURN_OUTPUTS="robot_msg,target_request,return_request,turn_done",
+                            AISLE_TURN_OUTPUTS="robot_msg,target_request,return_request,episode_feedback,turn_done",
                         ),
                         inputs={
                             k: q(f"driver/{k}")
                             for k in ("reset_done", "human_msg", "plan_done", "turn")
                         },
-                        outputs=["robot_msg", "target_request", "return_request", "turn_done"],
+                        outputs=[
+                            "robot_msg",
+                            "target_request",
+                            "return_request",
+                            "episode_feedback",
+                            "turn_done",
+                        ],
                     ),
                 ]
             )
@@ -149,6 +167,10 @@ Path("wire.json").write_text(json.dumps(rows, default=str))
     rows = json.loads((base / "wire.json").read_text())
     done = [r["metadata"] for r in rows if r["topic"] == "turn_done"]
     assert [r["turn_id"] for r in done] == [0, 1, 2]
-    assert [r["emitted_counts"] for r in done] == [[0, 1, 0, 1], [0, 0, 1, 1], [0, 0, 0, 1]]
+    assert [r["emitted_counts"] for r in done] == [
+        [1, 0, 1, 0, 1],
+        [1, 0, 0, 1, 1],
+        [1, 0, 0, 0, 1],
+    ]
     events = json.loads((base / "public.json").read_text())
     assert events[-1]["physical_completion"] == "unknown"

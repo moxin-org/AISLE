@@ -35,6 +35,16 @@ obsolete traffic cannot release newer motion. Reset does not replenish the
 motion-request allowance. A transport or evidence failure closes the task service
 and retains its reason.
 
+After each accepted public event and action, the controller publishes retained,
+goal-correlated `episode_feedback`. Simulation ticks provide the 1 Hz cadence.
+Dialogue corrections have their own counter. Each goal's first return and first
+delivery are initial requests; subsequent requests of either kind share a cap
+of eight repeats. A medicine change does not renew that allowance, and reset
+does not renew the separate session motion budget. These counters describe
+requests, not verified skill executions or physical failures. The worker cannot
+publish feedback, and executor completion never reports physical success. See
+the [feedback decision](decisions/ADR-p3-task-feedback.md).
+
 The admitted input vocabulary is `reset_done`, `human_msg`, `plan_done`,
 `violation` and `tick`. Public fields are projected explicitly. Oracle state,
 private episode goals/results and client episode metadata are refused. The

@@ -87,6 +87,7 @@ class ScriptedTaskTransport:
 
     def __init__(self):
         self.sent = []
+        self.feedback = []
         self.sequence = 0
         self.events = self._events()
 
@@ -147,7 +148,8 @@ class ScriptedTaskTransport:
         return next(self.events)
 
     def send(self, topic, payload, metadata):
-        self.sent.append(copy.deepcopy(dict(topic=topic, payload=payload, metadata=metadata)))
+        destination = self.feedback if topic == "episode_feedback" else self.sent
+        destination.append(copy.deepcopy(dict(topic=topic, payload=payload, metadata=metadata)))
 
 
 def run_mock(bundle, output):
