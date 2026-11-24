@@ -72,11 +72,52 @@ def build(send, environ=None):
     return clock, pump, runtime.decode
 
 
+class _RawEventLog:
+    """``AISLE_SPEC_DEBUG=1``: print every raw dora event before the turn wrapper buffers
+    it (input, turn stamp, seq, and this node's ready-plan entry), to see what a stuck
+    turn is waiting for."""
+
+    def __init__(self, raw, node_id: str) -> None:
+        self.raw = raw
+        self.node_id = node_id
+
+    def send_output(self, *args, **kwargs):
+        return self.raw.send_output(*args, **kwargs)
+
+    def __iter__(self):
+        import json as _json
+
+        for event in self.raw:
+            meta = event.get("metadata") or {}
+            fields = {
+                k: meta[k] for k in ("turn_epoch", "turn_id", "seq", "sim_time_ns") if k in meta
+            }
+            if event.get("id") == "turn" and isinstance(meta.get("ready_plan"), str):
+                own = _json.loads(meta["ready_plan"]).get(self.node_id)
+                fields["ready"] = own and {
+                    k: own.get(k)
+                    for k in ("expected_inputs", "expected_counts", "expected_turn_ids")
+                }
+            print(
+                f"spec-so101 raw: {event.get('type')} {event.get('id')} {fields}",
+                file=sys.stderr,
+                flush=True,
+            )
+            yield event
+
+
 def main() -> None:
     from aisle.topics import make_sender
     from aisle.turn_node import Node
 
-    dora_node = Node()
+    if os.environ.get("AISLE_SPEC_DEBUG") == "1":
+        from dora import Node as DoraNode
+
+        dora_node = Node(
+            raw_node=_RawEventLog(DoraNode(), os.environ.get("AISLE_TURN_NODE", "spec-so101"))
+        )
+    else:
+        dora_node = Node()
     sender = make_sender(dora_node)  # TC-2: per-topic seq; the turn wrapper adds the turn stamp
     clock, pump, decode = build(lambda topic, value: sender(topic, value, {}))
     for event in dora_node:

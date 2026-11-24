@@ -2,6 +2,9 @@
 # expert_t0 with ik-trajectory replaced by spec-so101-planner (the expert's
 # StagedPlan as move_to_joint_state requests) and the shipping SO-101 vendor
 # node spec-so101 executing them through budget-guard.
+# AISLE_TURN_WATCHDOG_S 60 (verdict 75, which must stay >= ordinary): an SO-101 StagedPlan solve takes ~11 s inside one turn, over
+# the default 10 s watchdog (AISLE's own SO-101 expert hits the same at its second
+# episode). Wall-clock only; lockstep scheduling is unchanged.
 nodes:
 - id: dora-genesis
   path: ../src/aisle/nodes/dora_genesis.py
@@ -255,8 +258,8 @@ nodes:
   path: ../src/aisle/nodes/turn_barrier.py
   env:
     AISLE_TURN_PLAN: turn_plans/spec_so101_pick.json
-    AISLE_TURN_WATCHDOG_S: '10'
-    AISLE_VERDICT_TURN_WATCHDOG_S: '15'
+    AISLE_TURN_WATCHDOG_S: '60'
+    AISLE_VERDICT_TURN_WATCHDOG_S: '75'
   inputs:
     tick: dora/timer/millis/100
     sim_turn:
