@@ -143,7 +143,15 @@ def test_every_shipped_graph_validates(graph):
     `ok` (not zero warnings) because the sibling tests above own the
     stricter no-warnings claim for the graphs they name."""
     mobile = {"expert_s1", "eval_s1_driver_v2", "eval_s3_driver_v1", "agent_campaign"}
-    extra = ["--embodiment", "mobile"] if graph.stem in mobile else []
+    # the SPEC vendor-node graphs drive the SO-101 adapter, whose manifest is so101-only
+    so101 = {"spec_so101_pick", "spec_so101_smoke"}
+    extra = (
+        ["--embodiment", "mobile"]
+        if graph.stem in mobile
+        else ["--embodiment", "so101"]
+        if graph.stem in so101
+        else []
+    )
     code, report = run_validate(graph, *extra)
     assert code == 0, report
     assert report["ok"] is True and report["errors"] == [], report["errors"]

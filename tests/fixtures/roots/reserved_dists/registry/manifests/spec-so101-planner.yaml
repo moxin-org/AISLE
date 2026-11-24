@@ -1,0 +1,25 @@
+# Pick-and-place planner over SPEC verbs: the expert's StagedPlan waypoints sent
+# as move_to_joint_state requests to a SPEC vendor node (spec-so101). It never
+# commands joints itself, so it is a decision node.
+id: spec-so101-planner
+kind: node
+provides: [spec_pick_place_planning]
+requires: [grasp_planning, spec_vendor_node]
+inputs:
+  grasp_pose: {schema: pose7d_f32, rate_hz: 30}
+  # reply back-edge: each response is read on the turn after it is sent
+  cmd_response: {schema: json_utf8, rate_hz: 5, turn_edge: episodic}
+  reset_done: {schema: reset_done_u32, rate_hz: 1}
+  turn: {schema: sim_turn_u64, rate_hz: 100, is_clock: true}
+outputs:
+  cmd_request: {schema: json_utf8, latency_class: best_effort}
+  turn_done: {schema: sim_turn_u64, latency_class: hard_rt}
+embodiment:
+  arm: [so101]
+  gripper: parallel
+safety_class: decision
+eval: null
+origin: agent-authored
+# Sandbox admission (ADR-40): no library-skill quality claim until it has an evalcard.
+trust_tier: sandbox
+source: src/aisle/nodes/spec_so101_planner.py
