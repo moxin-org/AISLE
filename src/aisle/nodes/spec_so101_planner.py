@@ -34,6 +34,11 @@ import pyarrow as pa
 NS = "vendor.lerobot.so101"
 ARM_JOINTS = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
 RAD_S = math.degrees(1.0)  # the expert's 1 rad/s joint speed, in deg/s
+# The vendor node eases each move with a cosine profile whose PEAK is the requested
+# speed, so its mean is 2/pi of it; the expert marches at a constant ``vel`` rad/s.
+# Asking for pi/2 times the expert's speed gives each hop the expert's mean speed
+# (seeds 1 and 9 missed the 150 s per-episode wall clamp by 1-2 s without it).
+EASE_PEAK = math.pi / 2
 ABORT_CODES = {
     "TRACKING_ERROR",
     "LIMIT_VIOLATION",
@@ -63,7 +68,7 @@ def plan_steps(stages, stride_deg: float, max_speed_deg_s: float) -> list[Step]:
     last: np.ndarray | None = None
     for stage in stages:
         path = [np.degrees(np.asarray(q, dtype=np.float64)) for q in stage.path]
-        speed = round(min(max_speed_deg_s, RAD_S * float(stage.vel)), 2)
+        speed = round(min(max_speed_deg_s, EASE_PEAK * RAD_S * float(stage.vel)), 2)
         for index, q in enumerate(path):
             final = index == len(path) - 1
             if not final and last is not None and float(np.max(np.abs(q - last))) < stride_deg:

@@ -40,7 +40,10 @@ def test_thinning_keeps_stage_ends_and_bounds_each_hop():
 
 def test_speed_follows_stage_velocity_scale_and_cap():
     steps = plan_steps([stage("transfer", [[10, 0, 0, 0, 0]], vel=0.35)], 8.0, 60)
-    assert steps[0].params["speed_deg_s"] == pytest.approx(math.degrees(0.35), abs=0.01)
+    # the vendor's cosine ease peaks at pi/2 x its mean: ask for the expert's MEAN speed
+    assert steps[0].params["speed_deg_s"] == pytest.approx(
+        math.pi / 2 * math.degrees(0.35), abs=0.01
+    )
     fast = plan_steps([stage("rise", [[10, 0, 0, 0, 0]], vel=2.0)], 8.0, 60)
     assert fast[0].params["speed_deg_s"] == 60
 
