@@ -1,0 +1,23 @@
+# Scripted SPEC verb sequence for smoke-testing a SPEC vendor node in lockstep.
+# Plumbing check only: it does not try to solve the episode's task.
+id: spec-verb-script
+kind: node
+provides: [spec_verb_script]
+requires: [spec_vendor_node]
+inputs:
+  # reply back-edge: the script reads each response on the turn after it is sent
+  cmd_response: {schema: json_utf8, rate_hz: 5, turn_edge: episodic}
+  reset_done: {schema: reset_done_u32, rate_hz: 1}
+  turn: {schema: sim_turn_u64, rate_hz: 100, is_clock: true}
+outputs:
+  cmd_request: {schema: json_utf8, latency_class: best_effort}
+  turn_done: {schema: sim_turn_u64, latency_class: hard_rt}
+embodiment:
+  arm: [so101]
+  gripper: parallel
+safety_class: decision
+eval: null
+origin: agent-authored
+# Sandbox admission (ADR-40): a non-motion smoke tool with no library-skill quality claim.
+trust_tier: sandbox
+source: src/aisle/nodes/spec_verb_script.py
