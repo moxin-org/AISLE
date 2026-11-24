@@ -3,14 +3,15 @@
 # verb sequence. Derived from expert_t0. Plumbing check only; the episode's task
 # is not attempted, so the verifier's verdict is not meaningful here. No task state
 # machine: nothing here consumes its target requests.
-# AISLE_TURN_WATCHDOG_S 60 (verdict 75, which must stay >= ordinary): an SO-101 StagedPlan solve takes ~11 s inside one turn, over
-# the default 10 s watchdog (AISLE's own SO-101 expert hits the same at its second
-# episode). Wall-clock only; lockstep scheduling is unchanged.
+# AISLE_TURN_WATCHDOG_S 60 (verdict 75, which must stay >= ordinary), as in
+# spec_so101_pick, so the two dev graphs share one barrier setup. Wall-clock only;
+# lockstep scheduling is unchanged.
 nodes:
 - id: dora-genesis
   path: ../src/aisle/nodes/dora_genesis.py
   env:
     AISLE_LOCKSTEP: '1'
+    AISLE_EMBODIMENT: so101
     AISLE_TURN_OUTPUTS: bridge_info,joint_state,gripper_state,oracle_state,poses,rgb_overhead,rgb_wrist,depth_overhead,reset_done,sim_turn
   inputs:
     tick: dora/timer/millis/10

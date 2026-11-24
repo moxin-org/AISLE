@@ -10,6 +10,7 @@ nodes:
   path: ../src/aisle/nodes/dora_genesis.py
   env:
     AISLE_LOCKSTEP: '1'
+    AISLE_EMBODIMENT: so101
     AISLE_TURN_OUTPUTS: bridge_info,joint_state,gripper_state,oracle_state,poses,rgb_overhead,rgb_wrist,depth_overhead,reset_done,sim_turn
   inputs:
     tick: dora/timer/millis/10
