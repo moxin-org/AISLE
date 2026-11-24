@@ -1,6 +1,6 @@
 {
   "benchmark_version": "aisle-benchmark-v1-draft",
-  "manifest_sha256": "0ec8834d5fc28105ff42c63bbfa5ffa652086ce46e43d7f4e9e2bcea342a3911",
+  "manifest_sha256": "e197bc6bcb93e1c60752c5c401496ebf69822696d99a59436bfea4c26bc6e2ca",
   "missing_surfaces": [],
   "schema_version": "aisle.benchmark.version-manifest.v1",
   "status": "draft",
@@ -111,11 +111,11 @@
     },
     "typed_surface_graphs": {
       "path": "graphs",
-      "sha256": "sha256:35586f5cec8496fe613e685489707fb949a2e6bd87cc3917947ef609ef28b03a"
+      "sha256": "sha256:521b65694f4b33f51c8c970dde3322cd7420fa23c9d87a58b19756b260fed98d"
     },
     "typed_surface_registry": {
       "path": "registry/manifests",
-      "sha256": "sha256:2c3bb1574fddde14007e63c5e7a579c8de0b34cbbf74e874e7170b84ec9cce45"
+      "sha256": "sha256:602efcd4a6d056191ea2cca6b3fe95570f773c355359112c70b9d009135df669"
     }
   }
 }

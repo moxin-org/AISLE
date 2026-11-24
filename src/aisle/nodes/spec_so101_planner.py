@@ -150,7 +150,7 @@ class Planner:
         self.send("cmd_request", pa.array([json.dumps(envelope)]))
 
     def on_response(self, response: dict, sim_s: float) -> str | None:
-        if response.get("request_id") != self.pending:
+        if self.pending is None or response.get("request_id") != self.pending:
             return None
         self.pending = None
         step = self.queue.pop(0)

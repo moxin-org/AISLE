@@ -70,3 +70,13 @@ def test_planner_sends_one_request_at_a_time_and_aborts_on_tracking_error():
         2.0,
     )
     assert line.startswith("plan aborted at b") and not planner.busy
+
+
+def test_uncorrelated_response_while_idle_is_ignored():
+    """TC-6: a reply with no request_id must not be taken for the answer to a
+    request that was never sent (after a reset the planner holds none)."""
+    planner = Planner(lambda topic, value: None, stride_deg=8.0, max_speed_deg_s=60)
+    planner.queue = plan_steps([stage("a", [[0, 0, 0, 0, 0]])], 8.0, 60)
+    planner.on_reset()
+    assert planner.on_response({"ok": False, "code": "INVALID_PARAMS"}, 1.0) is None
+    assert planner.log == [] and not planner.busy

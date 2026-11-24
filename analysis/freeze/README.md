@@ -264,6 +264,12 @@ for the `grasp_topdown.py` and `ik_trajectory.py` changes. Seed commitments are
 inherited, every pending gate is preserved, and no registration authorizes
 collection.
 
+BND v18 supersedes v17 after three SO-101 SPEC vendor-node manifests entered
+the registry (`spec-so101`, and the sandbox entries `spec-so101-planner` and
+`spec-verb-script`). Only the registry hash and the seed-lineage pointer moved;
+the seed commitment is inherited, every pending gate is preserved, and the
+registration does not authorize collection.
+
 CSE v31 and pilot v17 supersede v30 and pilot v16 after P3's opt-in executor
 capture hook changed the shared rollout source and the indexed recovery-input
 repair changed generated current-source treatment/expert records. The optional

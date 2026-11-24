@@ -74,7 +74,7 @@ class VerbScript:
             self.results.append({"verb": verb, "sent_sim_s": round(sim_s, 3)})
 
     def on_response(self, response: dict, sim_s: float) -> None:
-        if response.get("request_id") != self.pending:
+        if self.pending is None or response.get("request_id") != self.pending:
             return
         self.pending = None
         if response.get("code") == "NOT_READY" and self.not_ready < MAX_NOT_READY:
