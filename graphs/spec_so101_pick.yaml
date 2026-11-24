@@ -1,0 +1,308 @@
+# SO-101 pick-and-place through SPEC verbs (development graph, not a skill gate):
+# expert_t0 with ik-trajectory replaced by spec-so101-planner (the expert's
+# StagedPlan as move_to_joint_state requests) and the shipping SO-101 vendor
+# node spec-so101 executing them through budget-guard.
+# AISLE_TURN_WATCHDOG_S 60 (verdict 75, which must stay >= ordinary): an SO-101 StagedPlan solve takes ~11 s inside one turn, over
+# the default 10 s watchdog (AISLE's own SO-101 expert hits the same at its second
+# episode). Wall-clock only; lockstep scheduling is unchanged.
+nodes:
+- id: dora-genesis
+  path: ../src/aisle/nodes/dora_genesis.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_EMBODIMENT: so101
+    AISLE_TURN_OUTPUTS: bridge_info,joint_state,gripper_state,oracle_state,poses,rgb_overhead,rgb_wrist,depth_overhead,reset_done,sim_turn
+  inputs:
+    tick: dora/timer/millis/10
+    joint_cmd:
+      source: budget-guard/joint_cmd_safe
+      queue_size: 100
+    gripper_cmd:
+      source: budget-guard/gripper_cmd_safe
+      queue_size: 100
+    reset:
+      source: reset/bridge_reset
+      queue_size: 100
+    turn_commit:
+      source: turn-barrier/turn_commit
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - bridge_info
+  - joint_state
+  - gripper_state
+  - oracle_state
+  - poses
+  - rgb_overhead
+  - rgb_wrist
+  - depth_overhead
+  - reset_done
+  - sim_turn
+- id: reset
+  path: ../src/aisle/reset/service.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: reset
+    AISLE_TURN_OUTPUTS: bridge_reset,reset_done,reset_refused,turn_done
+  inputs:
+    reset:
+      source: rollout-client/reset
+      queue_size: 100
+    reset_done:
+      source: dora-genesis/reset_done
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - bridge_reset
+  - reset_done
+  - reset_refused
+  - turn_done
+- id: budget-guard
+  path: ../src/aisle/nodes/budget_guard.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: budget-guard
+    AISLE_TURN_OUTPUTS: joint_cmd_safe,gripper_cmd_safe,violation,guard_stats,turn_done
+    AISLE_TURN_WALL_OUTPUTS: guard_stats
+  inputs:
+    tick: dora/timer/millis/5000
+    joint_cmd:
+      source: spec-so101/joint_cmd
+      queue_size: 100
+    gripper_cmd:
+      source: spec-so101/gripper_cmd
+      queue_size: 100
+    reset_done:
+      source: reset/reset_done
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - joint_cmd_safe
+  - gripper_cmd_safe
+  - violation
+  - guard_stats
+  - turn_done
+- id: oracle-pose
+  path: ../src/aisle/nodes/oracle_pose.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: oracle-pose
+    AISLE_TURN_OUTPUTS: target_pose,turn_done
+  inputs:
+    poses:
+      source: dora-genesis/poses
+      queue_size: 100
+    target_request:
+      source: task-state-machine/target_request
+      queue_size: 100
+    reset_done:
+      source: reset/reset_done
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - target_pose
+  - turn_done
+- id: grasp-planner-topdown
+  path: ../src/aisle/nodes/grasp_topdown.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: grasp-planner-topdown
+    AISLE_TURN_OUTPUTS: grasp_pose,turn_done
+  inputs:
+    target_pose:
+      source: oracle-pose/target_pose
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - grasp_pose
+  - turn_done
+- id: spec-so101-planner
+  path: ../src/aisle/nodes/spec_so101_planner.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: spec-so101-planner
+    AISLE_TURN_OUTPUTS: cmd_request,turn_done
+    AISLE_EMBODIMENT: so101
+  inputs:
+    grasp_pose:
+      source: grasp-planner-topdown/grasp_pose
+      queue_size: 100
+    cmd_response:
+      source: spec-so101/cmd_response
+      queue_size: 100
+    reset_done:
+      source: reset/reset_done
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - cmd_request
+  - turn_done
+- id: spec-so101
+  path: ../src/aisle/nodes/spec_so101.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: spec-so101
+    AISLE_TURN_OUTPUTS: cmd_response,capabilities,state,safety_event,joint_cmd,gripper_cmd,turn_done
+    ROBOT_ID: so101-aisle
+    MAX_SPEED_DEG_S: '60'
+  inputs:
+    cmd_request:
+      source: spec-so101-planner/cmd_request
+      queue_size: 100
+    joint_state:
+      source: dora-genesis/joint_state
+      queue_size: 100
+    reset_done:
+      source: reset/reset_done
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - cmd_response
+  - capabilities
+  - state
+  - safety_event
+  - joint_cmd
+  - gripper_cmd
+  - turn_done
+- id: verifier-oracle
+  path: ../src/aisle/verifier/oracle.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: verifier-oracle
+    AISLE_TURN_OUTPUTS: episode_result,turn_done
+  inputs:
+    oracle_state:
+      source: dora-genesis/oracle_state
+      queue_size: 100
+    joint_state:
+      source: dora-genesis/joint_state
+      queue_size: 100
+    episode_goal:
+      source: rollout-client/episode_goal
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - episode_result
+  - turn_done
+- id: task-state-machine
+  path: ../src/aisle/nodes/task_state_machine.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: task-state-machine
+    AISLE_TURN_OUTPUTS: target_request,episode_feedback,turn_done
+  inputs:
+    tick: dora/timer/millis/1000
+    episode_goal:
+      source: rollout-client/episode_goal
+      queue_size: 100
+    episode_result:
+      source: verifier-oracle/episode_result
+      queue_size: 100
+    violation:
+      source: budget-guard/violation
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - target_request
+  - episode_feedback
+  - turn_done
+- id: rollout-client
+  path: ../src/aisle/harness/rollout_client.py
+  env:
+    AISLE_LOCKSTEP: '1'
+    AISLE_TURN_NODE: rollout-client
+    AISLE_TURN_OUTPUTS: reset,episode_goal,turn_done
+  inputs:
+    tick: dora/timer/millis/1000
+    reset_done:
+      source: reset/reset_done
+      queue_size: 100
+    reset_refused:
+      source: reset/reset_refused
+      queue_size: 100
+    episode_result:
+      source: verifier-oracle/episode_result
+      queue_size: 100
+    turn:
+      source: turn-barrier/turn
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - reset
+  - episode_goal
+  - turn_done
+- id: turn-barrier
+  path: ../src/aisle/nodes/turn_barrier.py
+  env:
+    AISLE_TURN_PLAN: turn_plans/spec_so101_pick.json
+    AISLE_TURN_WATCHDOG_S: '60'
+    AISLE_VERDICT_TURN_WATCHDOG_S: '75'
+  inputs:
+    tick: dora/timer/millis/100
+    sim_turn:
+      source: dora-genesis/sim_turn
+      queue_size: 4
+      queue_policy: backpressure
+    done_0:
+      source: budget-guard/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_1:
+      source: grasp-planner-topdown/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_2:
+      source: oracle-pose/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_3:
+      source: reset/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_4:
+      source: rollout-client/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_5:
+      source: spec-so101/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_6:
+      source: spec-so101-planner/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_7:
+      source: task-state-machine/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+    done_8:
+      source: verifier-oracle/turn_done
+      queue_size: 4
+      queue_policy: backpressure
+  outputs:
+  - turn
+  - turn_commit

@@ -45,8 +45,8 @@ stayed outside it).
 
 | Surface | Count |
 |---|---:|
-| Graphs | 27 |
-| Capability manifests | 43 |
+| Graphs | 29 |
+| Capability manifests | 46 |
 | CLI command entries | 39 |
 | ADR files | 101 |
 
@@ -81,6 +81,8 @@ stayed outside it).
 | [graphs/shield_t0_oracle_adversary.yaml](../../graphs/shield_t0_oracle_adversary.yaml) | pharmacy (default) / — | franka (default) | L0 (default) | genesis (default) | 12 |
 | [graphs/shield_t1_sensor.yaml](../../graphs/shield_t1_sensor.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 11 |
 | [graphs/shield_t1_sensor_adversary.yaml](../../graphs/shield_t1_sensor_adversary.yaml) | pharmacy (default) / — | franka (default) | L1 | genesis (default) | 12 |
+| [graphs/spec_so101_pick.yaml](../../graphs/spec_so101_pick.yaml) | pharmacy (default) / — | so101 | L0 (default) | genesis (default) | 11 |
+| [graphs/spec_so101_smoke.yaml](../../graphs/spec_so101_smoke.yaml) | pharmacy (default) / — | so101 | L0 (default) | genesis (default) | 8 |
 
 ### Graph node membership
 
@@ -111,6 +113,8 @@ stayed outside it).
 - **graphs/shield_t0_oracle_adversary.yaml:** `dora-genesis`, `reset`, `budget-guard`, `oracle-pose`, `grasp-planner-topdown`, `ik-trajectory`, `semantic-gateway`, `verifier-oracle`, `task-state-machine`, `rollout-client`, `goal-adversary`, `turn-barrier`
 - **graphs/shield_t1_sensor.yaml:** `dora-genesis`, `reset`, `budget-guard`, `segmented-pose`, `grasp-planner-topdown`, `ik-trajectory`, `semantic-gateway`, `verifier-oracle`, `task-state-machine`, `rollout-client`, `turn-barrier`
 - **graphs/shield_t1_sensor_adversary.yaml:** `dora-genesis`, `reset`, `budget-guard`, `segmented-pose`, `grasp-planner-topdown`, `ik-trajectory`, `semantic-gateway`, `verifier-oracle`, `task-state-machine`, `rollout-client`, `goal-adversary`, `turn-barrier`
+- **graphs/spec_so101_pick.yaml:** `dora-genesis`, `reset`, `budget-guard`, `oracle-pose`, `grasp-planner-topdown`, `spec-so101-planner`, `spec-so101`, `verifier-oracle`, `task-state-machine`, `rollout-client`, `turn-barrier`
+- **graphs/spec_so101_smoke.yaml:** `dora-genesis`, `reset`, `budget-guard`, `spec-so101`, `spec-verb-script`, `verifier-oracle`, `rollout-client`, `turn-barrier`
 
 ## Capability manifests
 
@@ -148,6 +152,9 @@ stayed outside it).
 | [registry/manifests/segmented-pose.yaml](../../registry/manifests/segmented-pose.yaml) | object_pose | franka, so101 | perception | hub | `src/aisle/nodes/segmented_pose.py` |
 | [registry/manifests/semantic-gateway.yaml](../../registry/manifests/semantic-gateway.yaml) | semantic_authorization | franka, so101 | motion | agent-authored | `src/aisle/nodes/semantic_gateway.py` |
 | [registry/manifests/so101-driver.yaml](../../registry/manifests/so101-driver.yaml) | hw_bridge | so101 | motion | hub | `src/aisle/nodes/so101_driver.py` |
+| [registry/manifests/spec-so101-planner.yaml](../../registry/manifests/spec-so101-planner.yaml) | spec_pick_place_planning | so101 | decision | agent-authored | `src/aisle/nodes/spec_so101_planner.py` |
+| [registry/manifests/spec-so101.yaml](../../registry/manifests/spec-so101.yaml) | spec_vendor_node | so101 | motion | agent-authored | `src/aisle/nodes/spec_so101.py` |
+| [registry/manifests/spec-verb-script.yaml](../../registry/manifests/spec-verb-script.yaml) | spec_verb_script | so101 | decision | agent-authored | `src/aisle/nodes/spec_verb_script.py` |
 | [registry/manifests/stock-detector.yaml](../../registry/manifests/stock-detector.yaml) | stock_detection | franka | perception | hub | `src/aisle/nodes/stock_detector.py` |
 | [registry/manifests/t2-scan-pose.yaml](../../registry/manifests/t2-scan-pose.yaml) | object_pose, scan_candidates | franka, so101 | perception | agent-authored | `skills/t2-scan-pose/t2_scan_pose.py` |
 | [registry/manifests/t2-scan-tsm.yaml](../../registry/manifests/t2-scan-tsm.yaml) | task_sequencing | franka | decision | agent-authored | `skills/t2-scan-tsm/t2_scan_tsm.py` |

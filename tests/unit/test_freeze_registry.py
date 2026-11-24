@@ -421,7 +421,7 @@ def test_committed_registrations_check_clean_with_withheld_seeds():
     registration names it in `superseded`; drift with no successor is the
     refusal the registry promises (analysis/freeze/README.md)."""
     manifests = _committed_manifests()
-    assert len(manifests) == 87
+    assert len(manifests) == 88
     superseded_ids: set[str] = set()
     for path in manifests:
         declaration = json.loads(path.with_name("declaration.json").read_text())
@@ -663,8 +663,42 @@ def test_palm_clearance_successors_preserve_protocol_and_gates(previous_id, curr
         latest = json.loads((root / latest_id / "freeze-manifest.json").read_text())
         assert latest["declaration"]["superseded"].startswith(f"{successor_id} (")
         _assert_validator_successor_current(latest_id)
+    elif current_id == "bnd-task-band-calibration-v17":
+        # the SO-101 SPEC manifests moved the registry hash; v18 binds the current bytes
+        test_spec_so101_registry_successor_preserves_protocol_and_gates()
     else:
         assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
+
+
+def test_spec_so101_registry_successor_preserves_protocol_and_gates():
+    """BND-12/BND-13, CAP-7: three SO-101 SPEC manifests entered the registry, so
+    BND needs a successor that changes only identity and binds the new bytes."""
+    root = REPO_ROOT / "analysis/freeze"
+    previous_id, current_id = "bnd-task-band-calibration-v17", "bnd-task-band-calibration-v18"
+    previous = json.loads((root / previous_id / "freeze-manifest.json").read_text())
+    current = json.loads((root / current_id / "freeze-manifest.json").read_text())
+    assert current["seed_commitment"] == previous["seed_commitment"]
+    assert current["pending_gates"] == previous["pending_gates"]
+    assert not current["frozen"] and current["status"] == "registered_pending_review"
+    assert current["declaration"]["superseded"].startswith(f"{previous_id} (")
+    for key in set(previous["declaration"]) - {
+        "campaign_id",
+        "superseded",
+        "seed_commitment",
+        "artifacts",
+    }:
+        assert current["declaration"][key] == previous["declaration"][key], key
+    lineage = "seed_commitment_predecessor"
+    assert {k: v for k, v in current["declaration"]["artifacts"].items() if k != lineage} == {
+        k: v for k, v in previous["declaration"]["artifacts"].items() if k != lineage
+    }
+    moved = {
+        name
+        for name, value in current["artifact_hashes"].items()
+        if previous["artifact_hashes"].get(name) != value
+    }
+    assert moved == {"registry", lineage}
+    assert check_manifest(REPO_ROOT, current, require_seed_sources=False)["ok"] is True
 
 
 @pytest.mark.parametrize(
